@@ -6,55 +6,95 @@
 //
 
 import SwiftUI
+import FirebaseAuth
+
 
 struct ContentView: View {
-    
-    @State private var username: String = ""
-    @State private var password: String = ""
-    @State private var confirmPassword: String = ""
-    
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var message = ""
+    @State private var isLoading = false
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                
-                Text("Create Account")
+            VStack(spacing: 16) {
+
+                Text("Login")
                     .font(.largeTitle)
                     .bold()
-                    .padding(.bottom, 30)
-                
-                // Username
-                TextField("Username", text: $username)
+
+                TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
+                    .keyboardType(.emailAddress)
                     .autocapitalization(.none)
-                
-                // Password
+
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)
-                
-                // Confirm Password
-                SecureField("Confirm Password", text: $confirmPassword)
-                    .textFieldStyle(.roundedBorder)
-                
-                // Login Button
-                Button(action: {
-                    print("Login tapped")
-                }) {
-                    Text("Sign Up")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+
+                if !message.isEmpty {
+                    Text(message)
+                        .foregroundStyle(.red)
                 }
-                .padding(.top, 20)
-                
+
+                Button {
+                    login()
+                } label: {
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Sign In")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding()
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .cornerRadius(10)
+                .disabled(isLoading)
+
+                Button {
+                    createAccountQuick()
+                } label: {
+                    Text("Create Account (for testing)")
+                        .font(.footnote)
+                }
+
                 Spacer()
             }
             .padding()
-            .navigationTitle("Login")
+        }
+    }
+
+    private func login() {
+        message = ""
+        isLoading = true
+        Task {
+            do {
+                let user = try await AuthService.shared.signIn(email: email, password: password)
+                message = "Signed in: \(user.uid)"
+            } catch {
+                message = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+
+    private func createAccountQuick() {
+        message = ""
+        isLoading = true
+        Task {
+            do {
+                let user = try await AuthService.shared.signUp(email: email, password: password)
+                message = "Created: \(user.uid)"
+            } catch {
+                message = error.localizedDescription
+            }
+            isLoading = false
         }
     }
 }
+
 
 #Preview {
     ContentView()
