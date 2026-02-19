@@ -8,16 +8,16 @@
 import SwiftUI
 import FirebaseAuth
 
-
 struct ContentView: View {
 
     @State private var email = ""
     @State private var password = ""
     @State private var message = ""
     @State private var isLoading = false
+    @State private var navigationPath = NavigationPath() 
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             VStack(spacing: 16) {
 
                 Text("Login")
@@ -34,9 +34,10 @@ struct ContentView: View {
 
                 if !message.isEmpty {
                     Text(message)
-                        .foregroundStyle(.red)
+                        .foregroundColor(.red)
                 }
 
+                // MARK: - Sign In Button
                 Button {
                     login()
                 } label: {
@@ -49,10 +50,11 @@ struct ContentView: View {
                 }
                 .padding()
                 .background(Color.blue)
-                .foregroundStyle(.white)
+                .foregroundColor(.white)
                 .cornerRadius(10)
                 .disabled(isLoading)
 
+                // MARK: - Create Account Button
                 Button {
                     createAccountQuick()
                 } label: {
@@ -60,12 +62,30 @@ struct ContentView: View {
                         .font(.footnote)
                 }
 
+                // MARK: - Workaround Test Button
+                Button {
+                    navigationPath.append("WorkoutSelectionView")
+                } label: {
+                    Text("Continue as Test User")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+
                 Spacer()
             }
             .padding()
+            .navigationDestination(for: String.self) { destination in
+                if destination == "WorkoutSelectionView" {
+                    WorkoutSelectionView()
+                }
+            }
         }
     }
 
+    // MARK: - Login Functions
     private func login() {
         message = ""
         isLoading = true
@@ -73,6 +93,7 @@ struct ContentView: View {
             do {
                 let user = try await AuthService.shared.signIn(email: email, password: password)
                 message = "Signed in: \(user.uid)"
+                navigationPath.append("WorkoutSelectionView")
             } catch {
                 message = error.localizedDescription
             }
@@ -94,7 +115,6 @@ struct ContentView: View {
         }
     }
 }
-
 
 #Preview {
     ContentView()

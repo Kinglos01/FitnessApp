@@ -11,6 +11,9 @@ import FirebaseCore
 
 @main
 struct FitnessAppApp: App {
+    
+    let exerciseService = ExerciseService()
+
 
     init() {
         FirebaseApp.configure()
@@ -36,4 +39,5 @@ struct FitnessAppApp: App {
         }
         .modelContainer(sharedModelContainer)
     }
-}
+    }
+
