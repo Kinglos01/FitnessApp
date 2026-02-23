@@ -101,7 +101,7 @@ Team collaboration, regular practice, and resource sharing to improve developmen
 - Nelson Mojica
 - Shanzay Noor
 - Yohangel Adames
-
+- Carlos Berio
 ---
 
 ## Project Status
