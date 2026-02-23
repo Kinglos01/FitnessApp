@@ -3,7 +3,7 @@
 ## Overview
 The AI Fitness Test App is a mobile fitness application designed to help users improve their health by providing personalized workout recommendations, tracking progress, and evaluating fitness performance. The application integrates a workout API to deliver real exercise data and uses intelligent logic to recommend workouts based on the user's fitness level and goals.
 
-This project is being developed as part of a Computer Science group project at Farmingdale State College and demonstrates modern mobile development, API integration, and collaborative software engineering practices.
+
 
 ---
 
