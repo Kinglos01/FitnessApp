@@ -115,9 +115,7 @@ This project is continuously being improved with new features, optimizations, an
 ## Author
 
 Samuel Jean  
-Computer Science Student  
-Farmingdale State College  
-Expected Graduation: May 2026  
+  
 
 ---
 
