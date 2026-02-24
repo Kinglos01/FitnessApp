@@ -106,18 +106,18 @@ class WorkoutSelectionViewModel: ObservableObject {
                     self?.allExercises = fetched
                     
                     //  Debug: print all fetched exercises
-                    print("✅ Fetched \(fetched.count) exercises for target: \(self?.selectedTarget ?? "")")
-                    for ex in fetched {
-                        print("• \(ex.name) | \(ex.equipment) | \(ex.difficulty) | \(ex.bodyPart)")
-                    }
+//                    print("✅ Fetched \(fetched.count) exercises for target: \(self?.selectedTarget ?? "")")
+//                    for ex in fetched {
+//                        print("• \(ex.name) | \(ex.equipment) | \(ex.difficulty) | \(ex.bodyPart)")
+//                    }
                     
                     self?.filterExercises()
                     
                     //  Debug: print filtered exercises
-                    print("🎯 Filtered exercises count: \(self?.exercises.count ?? 0)")
-                    for ex in self?.exercises ?? [] {
-                        print("→ \(ex.name) | \(ex.equipment) | \(ex.difficulty)")
-                    }
+//                    print("🎯 Filtered exercises count: \(self?.exercises.count ?? 0)")
+//                    for ex in self?.exercises ?? [] {
+//                        print("→ \(ex.name) | \(ex.equipment) | \(ex.difficulty)")
+//                    }
                     
                 case .failure(let error):
                     print("❌ Error fetching exercises:", error)

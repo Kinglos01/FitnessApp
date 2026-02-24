@@ -2,24 +2,25 @@
 //  DashboardView.swift
 //  FitnessApp
 //
+//  Created by Nelson Mojica on 2/23/26.
+//
 
 import SwiftUI
 
 struct DashboardView: View {
     
+    // Shared nutrition data — live from NutritionView
+    @Environment(NutritionManager.self) var nutritionManager
+    
     // Placeholder data - will be replaced with real user data later
     let userName = "Nelson"
     let calorieGoal: Double = 2200
-    let caloriesConsumed: Double = 1340
-    let protein: Double = 98
-    let carbs: Double = 145
-    let fat: Double = 42
     let waterGoal: Int = 8
     @State private var waterConsumed: Int = 3
     let workoutStreak: Int = 4
     
     var calorieProgress: Double {
-        caloriesConsumed / calorieGoal
+        min(nutritionManager.totalCalories / calorieGoal, 1.0)
     }
     
     var greeting: String {
@@ -51,13 +52,13 @@ struct DashboardView: View {
                     }
                     .padding(.horizontal)
                     
-                    // MARK: - Calorie Card
+                    // MARK: - Calorie Card (NOW LIVE)
                     VStack(spacing: 12) {
                         HStack {
                             Text("Calories")
                                 .font(.headline)
                             Spacer()
-                            Text("\(Int(caloriesConsumed)) / \(Int(calorieGoal)) kcal")
+                            Text("\(Int(nutritionManager.totalCalories)) / \(Int(calorieGoal)) kcal")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
@@ -66,13 +67,13 @@ struct DashboardView: View {
                             .progressViewStyle(LinearProgressViewStyle(tint: .orange))
                             .scaleEffect(x: 1, y: 2)
                         
-                        // Macros Row
+                        // Macros Row (NOW LIVE)
                         HStack(spacing: 0) {
-                            MacroCard(value: Int(protein), label: "Protein", color: .blue)
+                            MacroCard(value: Int(nutritionManager.totalProtein), label: "Protein", color: .blue)
                             Divider().frame(height: 40)
-                            MacroCard(value: Int(carbs), label: "Carbs", color: .green)
+                            MacroCard(value: Int(nutritionManager.totalCarbs), label: "Carbs", color: .green)
                             Divider().frame(height: 40)
-                            MacroCard(value: Int(fat), label: "Fat", color: .red)
+                            MacroCard(value: Int(nutritionManager.totalFat), label: "Fat", color: .red)
                         }
                         .padding(.top, 4)
                     }
@@ -155,6 +156,36 @@ struct DashboardView: View {
                     .cornerRadius(16)
                     .padding(.horizontal)
                     
+                    // MARK: - Logged Foods Preview
+                    if !nutritionManager.loggedFoods.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Today's Food Log", systemImage: "fork.knife")
+                                .font(.headline)
+                            
+                            ForEach(nutritionManager.loggedFoods.suffix(3)) { food in
+                                HStack {
+                                    Text(food.description)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(Int(food.calories)) kcal")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            
+                            if nutritionManager.loggedFoods.count > 3 {
+                                Text("+ \(nutritionManager.loggedFoods.count - 3) more items")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                    }
+                    
                 }
                 .padding(.vertical)
             }
@@ -185,4 +216,5 @@ struct MacroCard: View {
 
 #Preview {
     DashboardView()
+        .environment(NutritionManager())
 }
