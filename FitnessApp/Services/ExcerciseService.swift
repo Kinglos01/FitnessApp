@@ -1,3 +1,10 @@
+//
+//  NutritionService.swift
+//  FitnessApp
+//
+//  Created by Nelson Mojica on 2/19/26.
+//
+
 import Foundation
 
 class ExerciseService {

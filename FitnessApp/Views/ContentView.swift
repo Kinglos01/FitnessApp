@@ -14,10 +14,12 @@ struct ContentView: View {
     @State private var password = ""
     @State private var message = ""
     @State private var isLoading = false
-    @State private var navigationPath = NavigationPath() 
+    @State private var isLoggedIn = false
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        if isLoggedIn {
+            MainTabView()
+        } else {
             VStack(spacing: 16) {
 
                 Text("Login")
@@ -64,7 +66,7 @@ struct ContentView: View {
 
                 // MARK: - Workaround Test Button
                 Button {
-                    navigationPath.append("WorkoutSelectionView")
+                    isLoggedIn = true
                 } label: {
                     Text("Continue as Test User")
                         .frame(maxWidth: .infinity)
@@ -77,11 +79,6 @@ struct ContentView: View {
                 Spacer()
             }
             .padding()
-            .navigationDestination(for: String.self) { destination in
-                if destination == "WorkoutSelectionView" {
-                    WorkoutSelectionView()
-                }
-            }
         }
     }
 
@@ -93,7 +90,7 @@ struct ContentView: View {
             do {
                 let user = try await AuthService.shared.signIn(email: email, password: password)
                 message = "Signed in: \(user.uid)"
-                navigationPath.append("WorkoutSelectionView")
+                isLoggedIn = true
             } catch {
                 message = error.localizedDescription
             }
@@ -118,4 +115,4 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-}
+}   

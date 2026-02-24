@@ -2,6 +2,8 @@
 //  NutritionManager.swift
 //  FitnessApp
 //
+//  Created by Nelson Mojica on 2/23/26.
+//
 //  Shared in-memory store for logged foods.
 //  Both NutritionView and DashboardView read from this.
 //  Nothing persists on restart — swap in Firestore later.
