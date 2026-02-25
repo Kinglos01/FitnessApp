@@ -39,7 +39,7 @@ struct NutritionView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.gray)
-                    TextField("Search food...", text: $searchText)
+                    TextField("Search Food...", text: $searchText)
                         .onSubmit { Task { await search() } }
                     if isLoading {
                         ProgressView()
