@@ -3,7 +3,11 @@ internal import Combine
 
 struct WorkoutSelectionView: View {
     
-    @StateObject private var vm = WorkoutSelectionViewModel()
+    @StateObject private var vm: WorkoutSelectionViewModel
+    
+    init(viewModel: WorkoutSelectionViewModel = WorkoutSelectionViewModel()) {
+        _vm = StateObject(wrappedValue: viewModel)
+    }
     
     private let targets = ["abs","biceps","lats","chest","back","legs","shoulders","triceps","forearms","calves","glutes","hamstrings","quadriceps","waist"]
     private let equipmentOptions = ["body weight","barbell","dumbbell","cable","leverage machine","assisted","machine"]
@@ -96,7 +100,11 @@ class WorkoutSelectionViewModel: ObservableObject {
     @Published var exercises: [Exercise] = []
     
     private var allExercises: [Exercise] = []
-    private let service = ExerciseService()
+    private let service: ExerciseServiceProtocol
+    
+    init(service: ExerciseServiceProtocol = ExerciseService()) {
+        self.service = service
+    }
     
     func fetchExercises() {
         service.fetchExercises(for: selectedTarget) { [weak self] result in
@@ -136,6 +144,14 @@ class WorkoutSelectionViewModel: ObservableObject {
     }
 }
 
-#Preview {
-    WorkoutSelectionView()
+#Preview("With Exercises") {
+    WorkoutSelectionView(
+        viewModel: WorkoutSelectionViewModel(service: MockExerciseService())
+    )
+}
+
+#Preview("Empty State") {
+    WorkoutSelectionView(
+        viewModel: WorkoutSelectionViewModel(service: MockExerciseService(exercises: []))
+    )
 }

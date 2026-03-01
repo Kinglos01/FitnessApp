@@ -35,6 +35,10 @@ struct MainTabView: View {
     }
 }
 
-#Preview {
+#Preview("Populated") {
+    MainTabView()
+}
+
+#Preview("Empty State") {
     MainTabView()
 }

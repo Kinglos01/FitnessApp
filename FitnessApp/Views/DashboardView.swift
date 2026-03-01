@@ -214,7 +214,12 @@ struct MacroCard: View {
     }
 }
 
-#Preview {
+#Preview("Populated") {
+    DashboardView()
+        .environment(MockData.populatedNutritionManager)
+}
+
+#Preview("Empty State") {
     DashboardView()
         .environment(NutritionManager())
 }

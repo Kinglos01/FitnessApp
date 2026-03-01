@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import FirebaseAuth
 
 struct ContentView: View {
 
@@ -88,8 +87,8 @@ struct ContentView: View {
         isLoading = true
         Task {
             do {
-                let user = try await AuthService.shared.signIn(email: email, password: password)
-                message = "Signed in: \(user.uid)"
+                let userId = try await AuthService.shared.signIn(email: email, password: password)
+                message = "Signed in: \(userId)"
                 isLoggedIn = true
             } catch {
                 message = error.localizedDescription
@@ -103,8 +102,8 @@ struct ContentView: View {
         isLoading = true
         Task {
             do {
-                let user = try await AuthService.shared.signUp(email: email, password: password)
-                message = "Created: \(user.uid)"
+                let userId = try await AuthService.shared.signUp(email: email, password: password)
+                message = "Created: \(userId)"
             } catch {
                 message = error.localizedDescription
             }
@@ -113,6 +112,10 @@ struct ContentView: View {
     }
 }
 
-#Preview {
+#Preview("Login Screen") {
     ContentView()
+}
+
+#Preview("Logged In") {
+    MainTabView()
 }   
