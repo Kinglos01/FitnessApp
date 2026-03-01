@@ -6,29 +6,27 @@
 //
 
 import Foundation
-import FirebaseAuth
+import Supabase
 
 final class AuthService {
     static let shared = AuthService()
     private init() {}
 
-    func signUp(email: String, password: String) async throws -> FirebaseAuth.User {
-        let result = try await Auth.auth().createUser(withEmail: email, password: password)
-        return result.user
+    func signUp(email: String, password: String) async throws -> String {
+        let response = try await supabase.auth.signUp(email: email, password: password)
+        return response.user.id.uuidString
     }
 
-    func signIn(email: String, password: String) async throws -> FirebaseAuth.User {
-        let result = try await Auth.auth().signIn(withEmail: email, password: password)
-        return result.user
+    func signIn(email: String, password: String) async throws -> String {
+        let session = try await supabase.auth.signIn(email: email, password: password)
+        return session.user.id.uuidString
     }
 
-    func signOut() throws {
-        try Auth.auth().signOut()
+    func signOut() async throws {
+        try await supabase.auth.signOut()
     }
 
-    var currentUser: FirebaseAuth.User? {
-        Auth.auth().currentUser
+    var currentUserId: String? {
+        supabase.auth.currentUser?.id.uuidString
     }
 }
-
-
