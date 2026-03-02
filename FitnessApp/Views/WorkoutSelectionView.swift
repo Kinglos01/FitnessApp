@@ -4,6 +4,7 @@ internal import Combine
 struct WorkoutSelectionView: View {
     
     @StateObject private var vm = WorkoutSelectionViewModel()
+    @State private var showExercisesPressed = false
     
     private let targets = ["abs","biceps","lats","chest","back","legs","shoulders","triceps","forearms","calves","glutes","hamstrings","quadriceps","waist"]
     private let equipmentOptions = ["body weight","barbell","dumbbell","cable","leverage machine","assisted","machine"]
@@ -45,14 +46,23 @@ struct WorkoutSelectionView: View {
                 
                 // Fetch Button
                 Section {
-                    Button("Show Exercises") {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) { showExercisesPressed = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                            withAnimation(.easeInOut(duration: 0.2)) { showExercisesPressed = false }
+                        }
                         vm.fetchExercises()
+                    } label: {
+                        Text("Show Exercises")
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(showExercisesPressed ? Color.blue.opacity(0.65) : Color.blue)
+                    .animation(.easeInOut(duration: 0.15), value: showExercisesPressed)
                     .foregroundColor(.white)
                     .cornerRadius(8)
+                    .scaleEffect(showExercisesPressed ? 0.96 : 1.0)
+                    .animation(.easeInOut(duration: 0.15), value: showExercisesPressed)
                 }
                 
                 // Exercises List
@@ -104,21 +114,7 @@ class WorkoutSelectionViewModel: ObservableObject {
                 switch result {
                 case .success(let fetched):
                     self?.allExercises = fetched
-                    
-                    //  Debug: print all fetched exercises
-//                    print("✅ Fetched \(fetched.count) exercises for target: \(self?.selectedTarget ?? "")")
-//                    for ex in fetched {
-//                        print("• \(ex.name) | \(ex.equipment) | \(ex.difficulty) | \(ex.bodyPart)")
-//                    }
-                    
                     self?.filterExercises()
-                    
-                    //  Debug: print filtered exercises
-//                    print("🎯 Filtered exercises count: \(self?.exercises.count ?? 0)")
-//                    for ex in self?.exercises ?? [] {
-//                        print("→ \(ex.name) | \(ex.equipment) | \(ex.difficulty)")
-//                    }
-                    
                 case .failure(let error):
                     print("❌ Error fetching exercises:", error)
                     self?.allExercises = []
