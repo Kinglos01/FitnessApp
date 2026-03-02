@@ -6,7 +6,8 @@ struct Exercise: Codable, Identifiable, Equatable {
     let target: String
     let secondaryMuscles: [String]
     let instructions: [String]
-    let description: String
-    let difficulty: String
-    let category: String
+    let description: String?
+    let difficulty: String?
+    let category: String?
 }
+
