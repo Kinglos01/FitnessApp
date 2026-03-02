@@ -14,12 +14,16 @@ struct ContentView: View {
     @State private var message = ""
     @State private var isLoading = false
     @State private var isLoggedIn = false
+    @State private var signInPressed = false
+    @State private var continuePressed = false
 
     var body: some View {
         if isLoggedIn {
             MainTabView()
         } else {
             VStack(spacing: 16) {
+
+                Spacer()
 
                 Text("Login")
                     .font(.largeTitle)
@@ -40,6 +44,10 @@ struct ContentView: View {
 
                 // MARK: - Sign In Button
                 Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { signInPressed = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        withAnimation(.easeInOut(duration: 0.2)) { signInPressed = false }
+                    }
                     login()
                 } label: {
                     if isLoading {
@@ -50,9 +58,12 @@ struct ContentView: View {
                     }
                 }
                 .padding()
-                .background(Color.blue)
+                .background(signInPressed ? Color.blue.opacity(0.65) : Color.blue)
+                .animation(.easeInOut(duration: 0.15), value: signInPressed)
                 .foregroundColor(.white)
                 .cornerRadius(10)
+                .scaleEffect(signInPressed ? 0.96 : 1.0)
+                .animation(.easeInOut(duration: 0.15), value: signInPressed)
                 .disabled(isLoading)
 
                 // MARK: - Create Account Button
@@ -63,18 +74,28 @@ struct ContentView: View {
                         .font(.footnote)
                 }
 
-                // MARK: - Workaround Test Button
+                // MARK: - Continue as Test User Button
                 Button {
-                    isLoggedIn = true
+                    withAnimation(.easeInOut(duration: 0.12)) { continuePressed = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        withAnimation(.easeInOut(duration: 0.2)) { continuePressed = false }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        isLoggedIn = true
+                    }
                 } label: {
                     Text("Continue as Test User")
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.green)
+                        .background(continuePressed ? Color.green.opacity(0.65) : Color.green)
+                        .animation(.easeInOut(duration: 0.15), value: continuePressed)
                         .foregroundColor(.white)
                         .cornerRadius(10)
                 }
+                .scaleEffect(continuePressed ? 0.96 : 1.0)
+                .animation(.easeInOut(duration: 0.15), value: continuePressed)
 
+                Spacer()
                 Spacer()
             }
             .padding()

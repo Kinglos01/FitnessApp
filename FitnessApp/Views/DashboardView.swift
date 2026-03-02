@@ -25,9 +25,9 @@ struct DashboardView: View {
     
     var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 12 { return "Good morning" }
-        else if hour < 17 { return "Good afternoon" }
-        else { return "Good evening" }
+        if hour < 12 { return "Good Morning" }
+        else if hour < 17 { return "Good Afternoon" }
+        else { return "Good Evening" }
     }
     
     var body: some View {
@@ -147,7 +147,7 @@ struct DashboardView: View {
                         ProgressView(value: 0.6)
                             .progressViewStyle(LinearProgressViewStyle(tint: .blue))
                             .scaleEffect(x: 1, y: 2)
-                        Text("3 of 5 exercises completed")
+                        Text("3 / 5 exercises completed")
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
