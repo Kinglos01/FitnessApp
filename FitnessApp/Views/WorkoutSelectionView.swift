@@ -3,8 +3,12 @@ internal import Combine
 
 struct WorkoutSelectionView: View {
     
-    @StateObject private var vm = WorkoutSelectionViewModel()
+    @StateObject private var vm: WorkoutSelectionViewModel
     @State private var showExercisesPressed = false
+    
+    init(viewModel: WorkoutSelectionViewModel = WorkoutSelectionViewModel()) {
+        _vm = StateObject(wrappedValue: viewModel)
+    }
     
     private let targets = ["abs","biceps","lats","chest","back","legs","shoulders","triceps","forearms","calves","glutes","hamstrings","quadriceps","waist"]
     private let equipmentOptions = ["body weight","barbell","dumbbell","cable","leverage machine","assisted","machine"]
