@@ -7,9 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E619702C2F3EF9AD0042A21B /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = E619702B2F3EF9AD0042A21B /* FirebaseCore */; };
-		E619702E2F3EF9B50042A21B /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E619702D2F3EF9B50042A21B /* FirebaseAuth */; };
-		E61970302F3EF9BF0042A21B /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E619702F2F3EF9BF0042A21B /* FirebaseFirestore */; };
+		E61ECEA32F53913500FE64D0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E61ECEA22F53913500FE64D0 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,9 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E619702C2F3EF9AD0042A21B /* FirebaseCore in Frameworks */,
-				E619702E2F3EF9B50042A21B /* FirebaseAuth in Frameworks */,
-				E61970302F3EF9BF0042A21B /* FirebaseFirestore in Frameworks */,
+				E61ECEA32F53913500FE64D0 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -129,9 +125,7 @@
 			);
 			name = FitnessApp;
 			packageProductDependencies = (
-				E619702B2F3EF9AD0042A21B /* FirebaseCore */,
-				E619702D2F3EF9B50042A21B /* FirebaseAuth */,
-				E619702F2F3EF9BF0042A21B /* FirebaseFirestore */,
+				E61ECEA22F53913500FE64D0 /* Supabase */,
 			);
 			productName = FitnessApp;
 			productReference = 82A4B9CC2F3D7136009D218C /* FitnessApp.app */;
@@ -216,7 +210,7 @@
 			mainGroup = 82A4B9C32F3D7136009D218C;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				E61970292F3EF68A0042A21B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				E61ECEA12F538BF300FE64D0 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 82A4B9CD2F3D7136009D218C /* Products */;
@@ -597,31 +591,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E61970292F3EF68A0042A21B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+		E61ECEA12F538BF300FE64D0 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			repositoryURL = "https://github.com/supabase/supabase-swift";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 12.9.0;
+				minimumVersion = 2.5.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E619702B2F3EF9AD0042A21B /* FirebaseCore */ = {
+		E61ECEA22F53913500FE64D0 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E61970292F3EF68A0042A21B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		E619702D2F3EF9B50042A21B /* FirebaseAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E61970292F3EF68A0042A21B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAuth;
-		};
-		E619702F2F3EF9BF0042A21B /* FirebaseFirestore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E61970292F3EF68A0042A21B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseFirestore;
+			package = E61ECEA12F538BF300FE64D0 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

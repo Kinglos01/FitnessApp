@@ -106,7 +106,11 @@ class WorkoutSelectionViewModel: ObservableObject {
     @Published var exercises: [Exercise] = []
     
     private var allExercises: [Exercise] = []
-    private let service = ExerciseService()
+    private let service: ExerciseServiceProtocol
+    
+    init(service: ExerciseServiceProtocol = ExerciseService()) {
+        self.service = service
+    }
     
     func fetchExercises() {
         service.fetchExercises(for: selectedTarget) { [weak self] result in
@@ -132,6 +136,14 @@ class WorkoutSelectionViewModel: ObservableObject {
     }
 }
 
-#Preview {
-    WorkoutSelectionView()
+#Preview("With Exercises") {
+    WorkoutSelectionView(
+        viewModel: WorkoutSelectionViewModel(service: MockExerciseService())
+    )
+}
+
+#Preview("Empty State") {
+    WorkoutSelectionView(
+        viewModel: WorkoutSelectionViewModel(service: MockExerciseService(exercises: []))
+    )
 }

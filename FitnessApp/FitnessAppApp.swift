@@ -7,18 +7,11 @@
 
 import SwiftUI
 import SwiftData
-import FirebaseCore
 
 @main
 struct FitnessAppApp: App {
     
     let exerciseService = ExerciseService()
-
-
-    init() {
-        FirebaseApp.configure()
-        print("Firebase configured:", FirebaseApp.app() != nil)
-    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

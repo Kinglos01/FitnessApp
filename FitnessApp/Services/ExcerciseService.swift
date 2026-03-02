@@ -1,5 +1,5 @@
 //
-//  NutritionService.swift
+//  ExcerciseService.swift
 //  FitnessApp
 //
 //  Created by Nelson Mojica on 2/19/26.
@@ -7,7 +7,16 @@
 
 import Foundation
 
-class ExerciseService {
+// MARK: - Protocol
+
+protocol ExerciseServiceProtocol {
+    func fetchExercises(for target: String,
+                        completion: @escaping (Result<[Exercise], Error>) -> Void)
+}
+
+// MARK: - Live Service
+
+class ExerciseService: ExerciseServiceProtocol {
     
     private let apiKey =  "8ee4cad14amsh899152fc19fbb41p19899fjsn66028495d516"
     
@@ -72,6 +81,21 @@ class ExerciseService {
             
         }.resume()
     }
-    
+}
 
+// MARK: - Mock Service (previews only)
+
+class MockExerciseService: ExerciseServiceProtocol {
+    private let mockExercises: [Exercise]
+
+    init(exercises: [Exercise] = MockData.exercises) {
+        self.mockExercises = exercises
+    }
+
+    func fetchExercises(for target: String,
+                        completion: @escaping (Result<[Exercise], Error>) -> Void) {
+        // Return matching exercises synchronously — no network call.
+        let filtered = mockExercises.filter { $0.target.lowercased() == target.lowercased() }
+        completion(.success(filtered.isEmpty ? mockExercises : filtered))
+    }
 }
