@@ -213,7 +213,7 @@ struct SignUpView: View {
                     name: "",
                     weight: 0,
                     height: 0,
-                    age: 0,
+                    birthDate: Date(),
                     gender: ""
                 )
                 appState.hasCompletedOnboarding = false
@@ -379,7 +379,7 @@ struct LoginView: View {
                         name: "",
                         weight: 0,
                         height: 0,
-                        age: 0,
+                        birthDate: Date(),
                         gender: ""
                     )
                     appState.hasCompletedOnboarding = false
