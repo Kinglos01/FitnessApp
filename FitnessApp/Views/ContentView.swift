@@ -21,6 +21,36 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Auth Error Helper
+private func friendlyAuthError(_ error: Error) -> String {
+    let msg = error.localizedDescription.lowercased()
+
+    // Firebase / common auth error string matching
+    if msg.contains("email address is badly formatted") || msg.contains("invalid email") {
+        return "That email address doesn't look right. Please check the format."
+    }
+    if msg.contains("there is no user record") || msg.contains("user not found") || msg.contains("no user record") {
+        return "No account found with that email. Please sign up first."
+    }
+    if msg.contains("password is invalid") || msg.contains("wrong password") || msg.contains("incorrect password") {
+        return "Incorrect password. Please try again."
+    }
+    if msg.contains("email address is already in use") || msg.contains("already in use") {
+        return "An account with this email already exists. Try logging in instead."
+    }
+    if msg.contains("too many requests") || msg.contains("too many unsuccessful") {
+        return "Too many failed attempts. Please wait a moment and try again."
+    }
+    if msg.contains("network") || msg.contains("connection") {
+        return "Network error. Please check your internet connection."
+    }
+    if msg.contains("user disabled") {
+        return "This account has been disabled. Please contact support."
+    }
+    // Fallback to the raw message
+    return error.localizedDescription
+}
+
 // MARK: - Sign Up View
 struct SignUpView: View {
 
@@ -123,24 +153,63 @@ struct SignUpView: View {
 
     private func createAccount() {
         message = ""
-        guard password == confirmPassword else {
-            message = "Passwords do not match."
+
+        // MARK: - Pre-flight validation
+
+        // Both fields empty
+        guard !email.trimmingCharacters(in: .whitespaces).isEmpty ||
+              !password.isEmpty else {
+            message = "Please enter your email and password."
             return
         }
+
+        // Email provided but password is empty
+        if !email.trimmingCharacters(in: .whitespaces).isEmpty && password.isEmpty {
+            message = "Please enter a password to go with your email."
+            return
+        }
+
+        // Password provided but email is empty
+        if email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty {
+            message = "Please enter your email address."
+            return
+        }
+
+        // Basic email format check
+        let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
+        guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
+            message = "That doesn't look like a valid email address."
+            return
+        }
+
+        // Password length
         guard password.count >= 6 else {
             message = "Password must be at least 6 characters."
             return
         }
+
+        // Confirm password is empty
+        guard !confirmPassword.isEmpty else {
+            message = "Please confirm your password."
+            return
+        }
+
+        // Passwords don't match
+        guard password == confirmPassword else {
+            message = "Passwords do not match. Please try again."
+            return
+        }
+
+        // MARK: - Auth call
         isLoading = true
         Task {
             do {
-                let userId = try await AuthService.shared.signUp(email: email, password: password)
+                let userId = try await AuthService.shared.signUp(email: emailTrimmed, password: password)
                 appState.isLoggedIn = true
                 appState.hasCompletedOnboarding = false
-                // Pre-fill ID and email for UserInfoView
                 appState.currentUser = User(
                     id: userId,
-                    email: email,
+                    email: emailTrimmed,
                     name: "",
                     weight: 0,
                     height: 0,
@@ -149,7 +218,7 @@ struct SignUpView: View {
                 )
                 appState.hasCompletedOnboarding = false
             } catch {
-                message = error.localizedDescription
+                message = friendlyAuthError(error)
             }
             isLoading = false
         }
@@ -254,16 +323,45 @@ struct LoginView: View {
 
     private func login() {
         message = ""
+
+        // MARK: - Pre-flight validation
+
+        // Both fields empty
+        guard !email.trimmingCharacters(in: .whitespaces).isEmpty ||
+              !password.isEmpty else {
+            message = "Please enter your email and password."
+            return
+        }
+
+        // Email provided but password is empty
+        if !email.trimmingCharacters(in: .whitespaces).isEmpty && password.isEmpty {
+            message = "Please enter your password."
+            return
+        }
+
+        // Password provided but email is empty
+        if email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty {
+            message = "Please enter your email address."
+            return
+        }
+
+        // Basic email format check
+        let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
+        guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
+            message = "That doesn't look like a valid email address."
+            return
+        }
+
+        // MARK: - Auth call
         isLoading = true
         Task {
             do {
-                let userId = try await AuthService.shared.signIn(email: email, password: password)
+                let userId = try await AuthService.shared.signIn(email: emailTrimmed, password: password)
                 appState.isLoggedIn = true
-                // If no saved profile, go to onboarding
                 if appState.currentUser == nil {
                     appState.currentUser = User(
                         id: userId,
-                        email: email,
+                        email: emailTrimmed,
                         name: "",
                         weight: 0,
                         height: 0,
@@ -273,7 +371,7 @@ struct LoginView: View {
                     appState.hasCompletedOnboarding = false
                 }
             } catch {
-                message = error.localizedDescription
+                message = friendlyAuthError(error)
             }
             isLoading = false
         }

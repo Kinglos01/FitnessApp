@@ -13,11 +13,15 @@ struct UserInfoView: View {
     @State private var name = ""
     @State private var weight = ""
     @State private var height = ""
-    @State private var age = ""
     @State private var gender = "Male"
     @State private var savePressed = false
+    @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
 
-    let genders = ["Male", "Female", "Other"]
+    let genders = ["Male", "Female", "Other", "Prefer Not To Say"]
+
+    var maxBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
+    }
 
     var body: some View {
         NavigationStack {
@@ -37,11 +41,21 @@ struct UserInfoView: View {
                 Form {
                     Section(header: Text("Personal")) {
                         TextField("Full Name", text: $name)
+                        
                         Picker("Gender", selection: $gender) {
                             ForEach(genders, id: \.self) { Text($0) }
                         }
-                        TextField("Age", text: $age)
-                            .keyboardType(.numberPad)
+                        
+                        // DatePicker restricted to 16 years ago or earlier
+                        DatePicker(
+                            "Birth Month & Year",
+                            selection: $birthDate,
+                            in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!,
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.compact)
+                        // This environment call helps force the pop-up to focus on Month/Year in many locales
+                        .environment(\.locale, Locale(identifier: "en_US")) 
                     }
 
                     Section(header: Text("Body Metrics")) {
@@ -65,13 +79,11 @@ struct UserInfoView: View {
                 }
                 .padding()
                 .background(savePressed ? Color.blue.opacity(0.65) : Color.blue)
-                .animation(.easeInOut(duration: 0.15), value: savePressed)
                 .foregroundColor(.white)
                 .cornerRadius(10)
                 .scaleEffect(savePressed ? 0.96 : 1.0)
-                .animation(.easeInOut(duration: 0.15), value: savePressed)
                 .padding(.horizontal)
-                .disabled(name.isEmpty || weight.isEmpty || height.isEmpty || age.isEmpty)
+                .disabled(name.isEmpty || weight.isEmpty || height.isEmpty)
 
                 Spacer()
             }
@@ -82,6 +94,11 @@ struct UserInfoView: View {
     private func saveUserInfo() {
         let uid = appState.currentUser?.id ?? UUID().uuidString
         let email = appState.currentUser?.email ?? ""
+        
+        // Calculate age as an Integer from the selected birthDate
+        let calendar = Calendar.current
+        let ageComponents = calendar.dateComponents([.year], from: birthDate, to: Date())
+        let calculatedAge = ageComponents.year ?? 0
 
         appState.currentUser = User(
             id: uid,
@@ -89,13 +106,8 @@ struct UserInfoView: View {
             name: name,
             weight: Double(weight) ?? 0,
             height: Double(height) ?? 0,
-            age: Int(age) ?? 0,
+            age: calculatedAge,
             gender: gender
         )
     }
-}
-
-#Preview {
-    UserInfoView()
-        .environment(AppState())
 }
