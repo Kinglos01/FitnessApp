@@ -10,13 +10,13 @@ import SwiftUI
 struct ContentView: View {
 
     @Environment(AppState.self) var appState
-    @State private var showingLogin = false
+    @State private var showingSignUp = false
 
     var body: some View {
-        if showingLogin {
-            LoginView(showingLogin: $showingLogin)
+        if showingSignUp {
+            SignUpView(showingSignUp: $showingSignUp)
         } else {
-            SignUpView(showingLogin: $showingLogin)
+            LoginView(showingSignUp: $showingSignUp)
         }
     }
 }
@@ -25,7 +25,7 @@ struct ContentView: View {
 struct SignUpView: View {
 
     @Environment(AppState.self) var appState
-    @Binding var showingLogin: Bool
+    @Binding var showingSignUp: Bool
 
     @State private var email = ""
     @State private var password = ""
@@ -108,7 +108,7 @@ struct SignUpView: View {
                     .foregroundColor(.gray)
                     .font(.subheadline)
                 Button("Login") {
-                    withAnimation(.easeInOut) { showingLogin = true }
+                    withAnimation(.easeInOut) { showingSignUp = false }
                 }
                 .font(.subheadline)
                 .bold()
@@ -160,7 +160,7 @@ struct SignUpView: View {
 struct LoginView: View {
 
     @Environment(AppState.self) var appState
-    @Binding var showingLogin: Bool
+    @Binding var showingSignUp: Bool
 
     @State private var email = ""
     @State private var password = ""
@@ -239,12 +239,26 @@ struct LoginView: View {
                     .foregroundColor(.gray)
                     .font(.subheadline)
                 Button("Sign Up") {
-                    withAnimation(.easeInOut) { showingLogin = false }
+                    withAnimation(.easeInOut) { showingSignUp = true }
                 }
                 .font(.subheadline)
                 .bold()
                 .foregroundColor(.green)
             }
+
+            // MARK: - Guest Bypass (temp)
+            Button {
+                appState.isLoggedIn = true
+                appState.hasCompletedOnboarding = true
+            } label: {
+                Text("Continue as Guest")
+                    .frame(maxWidth: .infinity)
+                    .bold()
+            }
+            .padding()
+            .background(Color.gray.opacity(0.2))
+            .foregroundColor(.primary)
+            .cornerRadius(10)
 
             Spacer()
             Spacer()

@@ -161,31 +161,22 @@ struct ActivityLogView: View {
 
     var body: some View {
         NavigationView {
-            ZStack {
-                // Background
-                Color(red: 0.07, green: 0.08, blue: 0.10)
-                    .ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    // Today's Stats
+                    statsStrip
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        // Header
-                        headerSection
+                    // Category Filter
+                    categoryFilter
 
-                        // Today's Stats
-                        statsStrip
+                    // Exercise List
+                    exerciseList
 
-                        // Category Filter
-                        categoryFilter
-
-                        // Exercise List
-                        exerciseList
-
-                        Spacer(minLength: 100)
-                    }
-                    .padding(.top, 8)
+                    Spacer(minLength: 100)
                 }
+                .padding(.vertical)
             }
-            .navigationBarHidden(true)
+            .navigationTitle("Activity Log")
             .overlay(alignment: .bottom) { floatingAddButton }
             .sheet(isPresented: $vm.showingAddSheet) {
                 AddExerciseSheet(vm: vm, editingExercise: nil)
@@ -195,39 +186,6 @@ struct ActivityLogView: View {
             }
         }
         .onAppear { withAnimation(.easeOut(duration: 0.6)) { animateStats = true } }
-    }
-
-    // MARK: Header
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Activity Log")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-                Text(Date(), style: .date)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.45))
-            }
-            Spacer()
-            Button {
-                vm.showingAddSheet = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(red: 0.96, green: 0.35, blue: 0.35),
-                                     Color(red: 1.00, green: 0.55, blue: 0.20)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                    )
-                    .clipShape(Circle())
-                    .shadow(color: Color(red: 0.96, green: 0.35, blue: 0.35).opacity(0.5), radius: 10, x: 0, y: 4)
-            }
-        }
-        .padding(.horizontal, 20)
     }
 
     // MARK: Stats Strip
@@ -240,7 +198,7 @@ struct ActivityLogView: View {
             StatCard(value: "\(vm.totalMinutesToday)m", label: "Minutes", icon: "clock.fill",
                      color: Color(red: 0.40, green: 0.60, blue: 0.95), animate: animateStats)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal)
     }
 
     // MARK: Category Filter
@@ -248,7 +206,7 @@ struct ActivityLogView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 FilterChip(label: "All", icon: "square.grid.2x2.fill",
-                           color: .white, isSelected: vm.selectedFilter == nil) {
+                           color: .blue, isSelected: vm.selectedFilter == nil) {
                     withAnimation { vm.selectedFilter = nil }
                 }
                 ForEach(ExerciseCategory.allCases, id: \.self) { cat in
@@ -258,7 +216,7 @@ struct ActivityLogView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal)
             .padding(.vertical, 4)
         }
     }
@@ -286,20 +244,20 @@ struct ActivityLogView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal)
     }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "figure.strengthtraining.traditional")
                 .font(.system(size: 52))
-                .foregroundColor(Color.white.opacity(0.15))
+                .foregroundColor(.gray.opacity(0.3))
             Text("No exercises yet")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(Color.white.opacity(0.3))
+                .foregroundColor(.gray)
             Text("Tap + to log your first workout")
                 .font(.system(size: 14))
-                .foregroundColor(Color.white.opacity(0.2))
+                .foregroundColor(.gray.opacity(0.7))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -319,15 +277,9 @@ struct ActivityLogView: View {
             .foregroundColor(.white)
             .padding(.horizontal, 28)
             .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Color(red: 0.96, green: 0.35, blue: 0.35),
-                             Color(red: 1.00, green: 0.55, blue: 0.20)],
-                    startPoint: .leading, endPoint: .trailing
-                )
-            )
+            .background(Color.blue)
             .clipShape(Capsule())
-            .shadow(color: Color(red: 0.96, green: 0.35, blue: 0.35).opacity(0.45), radius: 16, x: 0, y: 6)
+            .shadow(color: Color.blue.opacity(0.35), radius: 10, x: 0, y: 4)
         }
         .padding(.bottom, 32)
     }
@@ -349,25 +301,21 @@ struct StatCard: View {
                 .foregroundColor(color)
             Text(value)
                 .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .scaleEffect(animate ? 1.0 : 0.5)
                 .opacity(animate ? 1.0 : 0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.1), value: animate)
             Text(label)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.45))
+                .foregroundColor(.gray)
                 .textCase(.uppercase)
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(color.opacity(0.25), lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
         )
     }
 }
@@ -389,16 +337,12 @@ struct FilterChip: View {
                 Text(label)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
-            .foregroundColor(isSelected ? .white : Color.white.opacity(0.55))
+            .foregroundColor(isSelected ? .white : .primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(isSelected ? color.opacity(0.85) : Color.white.opacity(0.08))
-                    .overlay(
-                        Capsule()
-                            .stroke(isSelected ? color : Color.white.opacity(0.12), lineWidth: 1)
-                    )
+                    .fill(isSelected ? color : Color(.systemGray5))
             )
         }
         .buttonStyle(.plain)
@@ -424,7 +368,7 @@ struct ExerciseRow: View {
             // Category Icon
             ZStack {
                 Circle()
-                    .fill(exercise.category.color.opacity(0.18))
+                    .fill(exercise.category.color.opacity(0.15))
                     .frame(width: 48, height: 48)
                 Image(systemName: exercise.category.icon)
                     .font(.system(size: 20, weight: .semibold))
@@ -433,15 +377,15 @@ struct ExerciseRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
                 Text(subtitleText)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.45))
+                    .font(.caption)
+                    .foregroundColor(.gray)
                 if !exercise.notes.isEmpty {
                     Text(exercise.notes)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.white.opacity(0.3))
+                        .font(.caption2)
+                        .foregroundColor(.gray.opacity(0.7))
                         .lineLimit(1)
                 }
             }
@@ -457,19 +401,13 @@ struct ExerciseRow: View {
                     .background(exercise.category.color.opacity(0.15))
                     .clipShape(Capsule())
                 Text(exercise.date, style: .time)
-                    .font(.system(size: 11))
-                    .foregroundColor(Color.white.opacity(0.25))
+                    .font(.caption2)
+                    .foregroundColor(.gray)
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
     }
 }
 
@@ -494,126 +432,108 @@ struct AddExerciseSheet: View {
 
     var body: some View {
         NavigationView {
-            ZStack {
-                Color(red: 0.07, green: 0.08, blue: 0.10).ignoresSafeArea()
-
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        // Exercise Name
-                        formSection(title: "Exercise Name") {
-                            StyledTextField(placeholder: "e.g. Bench Press, Running", text: $name)
-                        }
-
-                        // Category
-                        formSection(title: "Category") {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                                ForEach(ExerciseCategory.allCases, id: \.self) { cat in
-                                    Button {
-                                        withAnimation { category = cat }
-                                        isCardioMode = (cat == .cardio || cat == .flexibility || cat == .recovery)
-                                    } label: {
-                                        VStack(spacing: 6) {
-                                            Image(systemName: cat.icon)
-                                                .font(.system(size: 20))
-                                                .foregroundColor(category == cat ? .white : cat.color)
-                                            Text(cat.rawValue)
-                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                .foregroundColor(category == cat ? .white : Color.white.opacity(0.6))
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 14)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 14)
-                                                .fill(category == cat ? cat.color : cat.color.opacity(0.12))
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-
-                        // Mode Toggle
-                        formSection(title: "Type") {
-                            HStack(spacing: 0) {
-                                modeButton(title: "Sets & Reps", selected: !isCardioMode) {
-                                    withAnimation { isCardioMode = false }
-                                }
-                                modeButton(title: "Duration", selected: isCardioMode) {
-                                    withAnimation { isCardioMode = true }
-                                }
-                            }
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Capsule())
-                        }
-
-                        // Sets/Reps or Duration
-                        if isCardioMode {
-                            formSection(title: "Duration (minutes)") {
-                                StyledTextField(placeholder: "30", text: $duration, keyboardType: .numberPad)
-                            }
-                        } else {
-                            HStack(spacing: 12) {
-                                formSection(title: "Sets") {
-                                    StepperField(value: $sets, range: 1...20)
-                                }
-                                formSection(title: "Reps") {
-                                    StepperField(value: $reps, range: 1...100)
-                                }
-                            }
-                            formSection(title: "Weight (kg) — optional") {
-                                StyledTextField(placeholder: "e.g. 60", text: $weight, keyboardType: .decimalPad)
-                            }
-                        }
-
-                        // Calories
-                        formSection(title: "Calories Burned") {
-                            StyledTextField(placeholder: "e.g. 250", text: $calories, keyboardType: .numberPad)
-                        }
-
-                        // Notes
-                        formSection(title: "Notes (optional)") {
-                            StyledTextField(placeholder: "How did it feel?", text: $notes)
-                        }
-
-                        // Save Button
-                        Button(action: saveExercise) {
-                            Text(isEditing ? "Update Exercise" : "Log Exercise")
-                                .font(.system(size: 17, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 18)
-                                .background(
-                                    LinearGradient(
-                                        colors: name.isEmpty
-                                            ? [Color.gray.opacity(0.3), Color.gray.opacity(0.3)]
-                                            : [Color(red: 0.96, green: 0.35, blue: 0.35),
-                                               Color(red: 1.00, green: 0.55, blue: 0.20)],
-                                        startPoint: .leading, endPoint: .trailing
-                                    )
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 18))
-                                .shadow(
-                                    color: name.isEmpty ? .clear : Color(red: 0.96, green: 0.35, blue: 0.35).opacity(0.4),
-                                    radius: 12, x: 0, y: 4
-                                )
-                        }
-                        .disabled(name.isEmpty)
-                        .padding(.top, 4)
-
-                        Spacer(minLength: 40)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    // Exercise Name
+                    formSection(title: "Exercise Name") {
+                        StyledTextField(placeholder: "e.g. Bench Press, Running", text: $name)
                     }
-                    .padding(20)
+
+                    // Category
+                    formSection(title: "Category") {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                            ForEach(ExerciseCategory.allCases, id: \.self) { cat in
+                                Button {
+                                    withAnimation { category = cat }
+                                    isCardioMode = (cat == .cardio || cat == .flexibility || cat == .recovery)
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Image(systemName: cat.icon)
+                                            .font(.system(size: 20))
+                                            .foregroundColor(category == cat ? .white : cat.color)
+                                        Text(cat.rawValue)
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .foregroundColor(category == cat ? .white : .primary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .fill(category == cat ? cat.color : Color(.systemGray5))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // Mode Toggle
+                    formSection(title: "Type") {
+                        HStack(spacing: 0) {
+                            modeButton(title: "Sets & Reps", selected: !isCardioMode) {
+                                withAnimation { isCardioMode = false }
+                            }
+                            modeButton(title: "Duration", selected: isCardioMode) {
+                                withAnimation { isCardioMode = true }
+                            }
+                        }
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                    }
+
+                    // Sets/Reps or Duration
+                    if isCardioMode {
+                        formSection(title: "Duration (minutes)") {
+                            StyledTextField(placeholder: "30", text: $duration, keyboardType: .numberPad)
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            formSection(title: "Sets") {
+                                StepperField(value: $sets, range: 1...20)
+                            }
+                            formSection(title: "Reps") {
+                                StepperField(value: $reps, range: 1...100)
+                            }
+                        }
+                        formSection(title: "Weight (kg) — optional") {
+                            StyledTextField(placeholder: "e.g. 60", text: $weight, keyboardType: .decimalPad)
+                        }
+                    }
+
+                    // Calories
+                    formSection(title: "Calories Burned") {
+                        StyledTextField(placeholder: "e.g. 250", text: $calories, keyboardType: .numberPad)
+                    }
+
+                    // Notes
+                    formSection(title: "Notes (optional)") {
+                        StyledTextField(placeholder: "How did it feel?", text: $notes)
+                    }
+
+                    // Save Button
+                    Button(action: saveExercise) {
+                        Text(isEditing ? "Update Exercise" : "Log Exercise")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
+                            .background(name.isEmpty ? Color.gray.opacity(0.3) : Color.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    .disabled(name.isEmpty)
+                    .padding(.top, 4)
+
+                    Spacer(minLength: 40)
                 }
+                .padding(20)
             }
             .navigationTitle(isEditing ? "Edit Exercise" : "Log Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(Color.white.opacity(0.6))
                 }
             }
-            .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .onAppear(perform: populateIfEditing)
     }
@@ -622,10 +542,9 @@ struct AddExerciseSheet: View {
     private func formSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(Color.white.opacity(0.4))
+                .font(.caption)
+                .foregroundColor(.gray)
                 .textCase(.uppercase)
-                .tracking(0.8)
             content()
         }
     }
@@ -634,12 +553,12 @@ struct AddExerciseSheet: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(selected ? .white : Color.white.opacity(0.45))
+                .foregroundColor(selected ? .primary : .gray)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(selected ? Color.white.opacity(0.18) : Color.clear)
+                        .fill(selected ? Color(.systemGray6) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -698,19 +617,12 @@ struct StyledTextField: View {
     var keyboardType: UIKeyboardType = .default
 
     var body: some View {
-        TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Color.white.opacity(0.25)))
+        TextField(placeholder, text: $text)
             .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(.white)
             .keyboardType(keyboardType)
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(0.07))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-            )
+            .background(Color(.systemGray5))
+            .cornerRadius(10)
     }
 }
 
@@ -725,34 +637,28 @@ struct StepperField: View {
             Button { if value > range.lowerBound { value -= 1 } } label: {
                 Image(systemName: "minus")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Color.white.opacity(0.7))
+                    .foregroundColor(.gray)
                     .frame(width: 32, height: 32)
-                    .background(Color.white.opacity(0.1))
+                    .background(Color(.systemGray4))
                     .clipShape(Circle())
             }
             Spacer()
             Text("\(value)")
                 .font(.system(size: 20, weight: .black, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             Spacer()
             Button { if value < range.upperBound { value += 1 } } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Color.white.opacity(0.7))
+                    .foregroundColor(.gray)
                     .frame(width: 32, height: 32)
-                    .background(Color.white.opacity(0.1))
+                    .background(Color(.systemGray4))
                     .clipShape(Circle())
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.07))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-        )
+        .background(Color(.systemGray5))
+        .cornerRadius(10)
     }
 }
 
@@ -760,5 +666,4 @@ struct StepperField: View {
 
 #Preview {
     ActivityLogView()
-        .preferredColorScheme(.dark)
 }

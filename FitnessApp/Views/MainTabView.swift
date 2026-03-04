@@ -32,6 +32,12 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Nutrition", systemImage: "fork.knife")
                 }
+            
+            ActivityLogView()
+                .tag(3)
+                .tabItem {
+                    Label("Activity", systemImage: "figure.run")
+                }
         }
         .gesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .local)
@@ -45,7 +51,7 @@ struct MainTabView: View {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         if horizontalAmount < 0 {
                             // Swipe left → next tab
-                            selectedTab = min(selectedTab + 1, 2)
+                            selectedTab = min(selectedTab + 1, 3)
                         } else {
                             // Swipe right → previous tab
                             selectedTab = max(selectedTab - 1, 0)
