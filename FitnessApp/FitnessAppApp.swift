@@ -10,15 +10,13 @@ import SwiftData
 
 @main
 struct FitnessAppApp: App {
-    
+
+    @State private var appState = AppState()
     let exerciseService = ExerciseService()
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
+        let schema = Schema([Item.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
@@ -28,9 +26,9 @@ struct FitnessAppApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(appState)
         }
         .modelContainer(sharedModelContainer)
     }
-    }
-
+}

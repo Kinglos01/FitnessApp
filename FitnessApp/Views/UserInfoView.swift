@@ -1,0 +1,101 @@
+//  Untitled.swift
+//  FitnessApp
+//
+//  Created by Yohangel Adames on 3/4/26.
+//
+
+import SwiftUI
+
+struct UserInfoView: View {
+
+    @Environment(AppState.self) var appState
+
+    @State private var name = ""
+    @State private var weight = ""
+    @State private var height = ""
+    @State private var age = ""
+    @State private var gender = "Male"
+    @State private var savePressed = false
+
+    let genders = ["Male", "Female", "Other"]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+
+                Text("Tell Us About You")
+                    .font(.largeTitle)
+                    .bold()
+                    .padding(.top, 40)
+
+                Text("We'll use this to personalize your experience")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Form {
+                    Section(header: Text("Personal")) {
+                        TextField("Full Name", text: $name)
+                        Picker("Gender", selection: $gender) {
+                            ForEach(genders, id: \.self) { Text($0) }
+                        }
+                        TextField("Age", text: $age)
+                            .keyboardType(.numberPad)
+                    }
+
+                    Section(header: Text("Body Metrics")) {
+                        TextField("Weight (lbs)", text: $weight)
+                            .keyboardType(.decimalPad)
+                        TextField("Height (inches)", text: $height)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { savePressed = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        withAnimation(.easeInOut(duration: 0.2)) { savePressed = false }
+                    }
+                    saveUserInfo()
+                } label: {
+                    Text("Save & Continue")
+                        .frame(maxWidth: .infinity)
+                        .bold()
+                }
+                .padding()
+                .background(savePressed ? Color.blue.opacity(0.65) : Color.blue)
+                .animation(.easeInOut(duration: 0.15), value: savePressed)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .scaleEffect(savePressed ? 0.96 : 1.0)
+                .animation(.easeInOut(duration: 0.15), value: savePressed)
+                .padding(.horizontal)
+                .disabled(name.isEmpty || weight.isEmpty || height.isEmpty || age.isEmpty)
+
+                Spacer()
+            }
+            .navigationBarHidden(true)
+        }
+    }
+
+    private func saveUserInfo() {
+        let uid = appState.currentUser?.id ?? UUID().uuidString
+        let email = appState.currentUser?.email ?? ""
+
+        appState.currentUser = User(
+            id: uid,
+            email: email,
+            name: name,
+            weight: Double(weight) ?? 0,
+            height: Double(height) ?? 0,
+            age: Int(age) ?? 0,
+            gender: gender
+        )
+    }
+}
+
+#Preview {
+    UserInfoView()
+        .environment(AppState())
+}
