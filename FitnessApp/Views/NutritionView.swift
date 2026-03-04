@@ -155,12 +155,7 @@ struct MacroLabel: View {
     }
 }
 
-#Preview("With Logged Foods") {
-    NutritionView()
-        .environment(MockData.populatedNutritionManager)
-}
-
-#Preview("Empty State") {
+#Preview {
     NutritionView()
         .environment(NutritionManager())
 }

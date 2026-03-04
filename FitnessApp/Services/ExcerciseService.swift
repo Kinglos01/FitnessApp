@@ -124,27 +124,3 @@ class ExerciseService: ExerciseServiceProtocol {
     }
 }
 
-// MARK: - Mock Service (previews only)
-//class MockExerciseService: ExerciseServiceProtocol {
-//    private let mockExercises: [Exercise]
-//
-//    init(exercises: [Exercise] = MockData.exercises) {
-//        self.mockExercises = exercises
-//    }
-//
-//    func fetchTargetList(completion: @escaping (Result<[String], Error>) -> Void) {
-//        completion(.success([]))
-//    }
-//
-//    func fetchExercises(for target: String,
-//                        completion: @escaping (Result<[Exercise], Error>) -> Void) {
-//        let filtered = mockExercises.filter { $0.target.lowercased() == target.lowercased() }
-//        completion(.success(filtered.isEmpty ? mockExercises : filtered))
-//    }
-//
-//    func fetchExercisesByBodyPart(for bodyPart: String,
-//                                   completion: @escaping (Result<[Exercise], Error>) -> Void) {
-//        let filtered = mockExercises.filter { $0.bodyPart.lowercased() == bodyPart.lowercased() }
-//        completion(.success(filtered.isEmpty ? mockExercises : filtered))
-//    }
-//}
