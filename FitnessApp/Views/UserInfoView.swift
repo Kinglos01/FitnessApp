@@ -94,11 +94,6 @@ struct UserInfoView: View {
     private func saveUserInfo() {
         let uid = appState.currentUser?.id ?? UUID().uuidString
         let email = appState.currentUser?.email ?? ""
-        
-        // Calculate age as an Integer from the selected birthDate
-        let calendar = Calendar.current
-        let ageComponents = calendar.dateComponents([.year], from: birthDate, to: Date())
-        let calculatedAge = ageComponents.year ?? 0
 
         appState.currentUser = User(
             id: uid,
@@ -106,7 +101,7 @@ struct UserInfoView: View {
             name: name,
             weight: Double(weight) ?? 0,
             height: Double(height) ?? 0,
-            age: calculatedAge,
+            birthDate: birthDate,
             gender: gender
         )
     }
