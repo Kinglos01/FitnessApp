@@ -9,26 +9,55 @@ import SwiftUI
 
 struct ContentView: View {
 
-    @State private var email = ""
-    @State private var password = ""
-    @State private var message = ""
-    @State private var isLoading = false
-    @State private var isLoggedIn = false
-    @State private var signInPressed = false
-    @State private var continuePressed = false
+    @Environment(AppState.self) var appState
+    @State private var showingLogin = false
 
     var body: some View {
-        if isLoggedIn {
-            MainTabView()
+        if showingLogin {
+            LoginView(showingLogin: $showingLogin)
         } else {
-            VStack(spacing: 16) {
+            SignUpView(showingLogin: $showingLogin)
+        }
+    }
+}
 
-                Spacer()
+// MARK: - Sign Up View
+struct SignUpView: View {
 
-                Text("Login")
+    @Environment(AppState.self) var appState
+    @Binding var showingLogin: Bool
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var message = ""
+    @State private var isLoading = false
+    @State private var createPressed = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+
+            Spacer()
+
+            // MARK: - Header
+            VStack(spacing: 8) {
+                Image(systemName: "figure.run.circle.fill")
+                    .font(.system(size: 70))
+                    .foregroundColor(.green)
+
+                Text("Create Account")
                     .font(.largeTitle)
                     .bold()
 
+                Text("Start your fitness journey today")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
+
+            Spacer().frame(height: 10)
+
+            // MARK: - Fields
+            VStack(spacing: 12) {
                 TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.emailAddress)
@@ -37,94 +66,212 @@ struct ContentView: View {
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)
 
-                if !message.isEmpty {
-                    Text(message)
-                        .foregroundColor(.red)
-                }
+                SecureField("Confirm Password", text: $confirmPassword)
+                    .textFieldStyle(.roundedBorder)
+            }
 
-                // MARK: - Sign In Button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.12)) { signInPressed = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        withAnimation(.easeInOut(duration: 0.2)) { signInPressed = false }
-                    }
-                    login()
-                } label: {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text("Sign In")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding()
-                .background(signInPressed ? Color.blue.opacity(0.65) : Color.blue)
-                .animation(.easeInOut(duration: 0.15), value: signInPressed)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-                .scaleEffect(signInPressed ? 0.96 : 1.0)
-                .animation(.easeInOut(duration: 0.15), value: signInPressed)
-                .disabled(isLoading)
+            if !message.isEmpty {
+                Text(message)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
 
-                // MARK: - Create Account Button
-                Button {
-                    createAccountQuick()
-                } label: {
-                    Text("Create Account (for testing)")
-                        .font(.footnote)
+            // MARK: - Create Account Button
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) { createPressed = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    withAnimation(.easeInOut(duration: 0.2)) { createPressed = false }
                 }
-
-                // MARK: - Continue as Test User Button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.12)) { continuePressed = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        withAnimation(.easeInOut(duration: 0.2)) { continuePressed = false }
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        isLoggedIn = true
-                    }
-                } label: {
-                    Text("Continue as Test User")
+                createAccount()
+            } label: {
+                if isLoading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Create Account")
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(continuePressed ? Color.green.opacity(0.65) : Color.green)
-                        .animation(.easeInOut(duration: 0.15), value: continuePressed)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                        .bold()
                 }
-                .scaleEffect(continuePressed ? 0.96 : 1.0)
-                .animation(.easeInOut(duration: 0.15), value: continuePressed)
-
-                Spacer()
-                Spacer()
             }
             .padding()
+            .background(createPressed ? Color.green.opacity(0.65) : Color.green)
+            .animation(.easeInOut(duration: 0.15), value: createPressed)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .scaleEffect(createPressed ? 0.96 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: createPressed)
+            .disabled(isLoading)
+
+            // MARK: - Login Link
+            HStack(spacing: 4) {
+                Text("Already have an account?")
+                    .foregroundColor(.gray)
+                    .font(.subheadline)
+                Button("Login") {
+                    withAnimation(.easeInOut) { showingLogin = true }
+                }
+                .font(.subheadline)
+                .bold()
+                .foregroundColor(.blue)
+            }
+
+            Spacer()
+            Spacer()
         }
+        .padding(.horizontal, 28)
     }
 
-    // MARK: - Login Functions
+    private func createAccount() {
+        message = ""
+        guard password == confirmPassword else {
+            message = "Passwords do not match."
+            return
+        }
+        guard password.count >= 6 else {
+            message = "Password must be at least 6 characters."
+            return
+        }
+        isLoading = true
+        Task {
+            do {
+                let userId = try await AuthService.shared.signUp(email: email, password: password)
+                appState.isLoggedIn = true
+                appState.hasCompletedOnboarding = false
+                // Pre-fill ID and email for UserInfoView
+                appState.currentUser = User(
+                    id: userId,
+                    email: email,
+                    name: "",
+                    weight: 0,
+                    height: 0,
+                    age: 0,
+                    gender: ""
+                )
+                appState.hasCompletedOnboarding = false
+            } catch {
+                message = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Login View
+struct LoginView: View {
+
+    @Environment(AppState.self) var appState
+    @Binding var showingLogin: Bool
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var message = ""
+    @State private var isLoading = false
+    @State private var signInPressed = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+
+            Spacer()
+
+            // MARK: - Header
+            VStack(spacing: 8) {
+                Image(systemName: "figure.run.circle.fill")
+                    .font(.system(size: 70))
+                    .foregroundColor(.blue)
+
+                Text("Welcome Back")
+                    .font(.largeTitle)
+                    .bold()
+
+                Text("Sign in to continue")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
+
+            Spacer().frame(height: 10)
+
+            // MARK: - Fields
+            VStack(spacing: 12) {
+                TextField("Email", text: $email)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+
+                SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            if !message.isEmpty {
+                Text(message)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
+
+            // MARK: - Sign In Button
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) { signInPressed = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    withAnimation(.easeInOut(duration: 0.2)) { signInPressed = false }
+                }
+                login()
+            } label: {
+                if isLoading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Sign In")
+                        .frame(maxWidth: .infinity)
+                        .bold()
+                }
+            }
+            .padding()
+            .background(signInPressed ? Color.blue.opacity(0.65) : Color.blue)
+            .animation(.easeInOut(duration: 0.15), value: signInPressed)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .scaleEffect(signInPressed ? 0.96 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: signInPressed)
+            .disabled(isLoading)
+
+            // MARK: - Back to Sign Up
+            HStack(spacing: 4) {
+                Text("Don't have an account?")
+                    .foregroundColor(.gray)
+                    .font(.subheadline)
+                Button("Sign Up") {
+                    withAnimation(.easeInOut) { showingLogin = false }
+                }
+                .font(.subheadline)
+                .bold()
+                .foregroundColor(.green)
+            }
+
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, 28)
+    }
+
     private func login() {
         message = ""
         isLoading = true
         Task {
             do {
                 let userId = try await AuthService.shared.signIn(email: email, password: password)
-                message = "Signed in: \(userId)"
-                isLoggedIn = true
-            } catch {
-                message = error.localizedDescription
-            }
-            isLoading = false
-        }
-    }
-
-    private func createAccountQuick() {
-        message = ""
-        isLoading = true
-        Task {
-            do {
-                let userId = try await AuthService.shared.signUp(email: email, password: password)
-                message = "Created: \(userId)"
+                appState.isLoggedIn = true
+                // If no saved profile, go to onboarding
+                if appState.currentUser == nil {
+                    appState.currentUser = User(
+                        id: userId,
+                        email: email,
+                        name: "",
+                        weight: 0,
+                        height: 0,
+                        age: 0,
+                        gender: ""
+                    )
+                    appState.hasCompletedOnboarding = false
+                }
             } catch {
                 message = error.localizedDescription
             }
@@ -133,10 +280,7 @@ struct ContentView: View {
     }
 }
 
-#Preview("Login Screen") {
+#Preview {
     ContentView()
+        .environment(AppState())
 }
-
-#Preview("Logged In") {
-    MainTabView()
-}   
