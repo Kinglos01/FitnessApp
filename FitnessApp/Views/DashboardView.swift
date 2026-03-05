@@ -9,15 +9,18 @@ import SwiftUI
 
 struct DashboardView: View {
     
-    // Shared nutrition data — live from NutritionView
     @Environment(NutritionManager.self) var nutritionManager
+    @Environment(AppState.self) var appState
     
-    // Placeholder data - will be replaced with real user data later
-    let userName = "Nelson"
     let calorieGoal: Double = 2200
     let waterGoal: Int = 8
-    @State private var waterConsumed: Int = 3
-    let workoutStreak: Int = 4
+    @State private var waterConsumed: Int = 0
+    
+    private var firstName: String {
+        let full = appState.currentUser?.name ?? ""
+        let first = full.split(separator: " ").first.map(String.init) ?? ""
+        return first.isEmpty ? "there" : first
+    }
     
     var calorieProgress: Double {
         min(nutritionManager.totalCalories / calorieGoal, 1.0)
@@ -38,7 +41,7 @@ struct DashboardView: View {
                     // MARK: - Greeting Header
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("\(greeting), \(userName) 👋")
+                            Text("\(greeting), \(firstName) 👋")
                                 .font(.title2)
                                 .fontWeight(.bold)
                             Text("Let's crush today's goals")
@@ -102,6 +105,15 @@ struct DashboardView: View {
                             }
                             Spacer()
                             Button {
+                                if waterConsumed > 0 {
+                                    waterConsumed -= 1
+                                }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.gray)
+                            }
+                            Button {
                                 if waterConsumed < waterGoal {
                                     waterConsumed += 1
                                 }
@@ -123,33 +135,14 @@ struct DashboardView: View {
                             Label("Workout Streak", systemImage: "flame.fill")
                                 .font(.headline)
                                 .foregroundColor(.orange)
-                            Text("\(workoutStreak) days in a row 🔥")
+                            Text("0 days — get started!")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
                         Spacer()
-                        Text("\(workoutStreak)")
+                        Text("0")
                             .font(.system(size: 44, weight: .bold))
                             .foregroundColor(.orange)
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
-                    .padding(.horizontal)
-                    
-                    // MARK: - Today's Workout Card
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Today's Workout", systemImage: "dumbbell.fill")
-                            .font(.headline)
-                        Text("Chest & Triceps — Intermediate")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        ProgressView(value: 0.6)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                            .scaleEffect(x: 1, y: 2)
-                        Text("3 / 5 exercises completed")
-                            .font(.caption)
-                            .foregroundColor(.gray)
                     }
                     .padding()
                     .background(Color(.systemGray6))
@@ -186,6 +179,24 @@ struct DashboardView: View {
                         .padding(.horizontal)
                     }
                     
+                    // MARK: - Log Out
+                    Button {
+                        Task {
+                            try? await AuthService.shared.signOut()
+                            appState.signOut()
+                        }
+                    } label: {
+                        Text("Log Out")
+                            .frame(maxWidth: .infinity)
+                            .bold()
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .foregroundColor(.red)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    
                 }
                 .padding(.vertical)
             }
@@ -217,4 +228,5 @@ struct MacroCard: View {
 #Preview {
     DashboardView()
         .environment(NutritionManager())
+        .environment(AppState())
 }

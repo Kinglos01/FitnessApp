@@ -11,26 +11,30 @@ import Observation
 @Observable
 class AppState {
 
-    var currentUser: User? {
-        didSet { saveUser() }
-    }
+    var currentUser: User?
     var isLoggedIn: Bool = false
     var hasCompletedOnboarding: Bool = false
+
+    // Temporary storage between sign-up and onboarding completion
+    var pendingUserId: String?
+    var pendingEmail: String?
 
     init() {
         loadUser()
     }
 
-    private func saveUser() {
-        guard let user = currentUser else { return }
+    /// Call this only after the user finishes onboarding (UserInfoView).
+    func completeOnboarding(user: User) {
+        currentUser = user
+        hasCompletedOnboarding = true
         if let encoded = try? JSONEncoder().encode(user) {
             UserDefaults.standard.set(encoded, forKey: "savedUser")
-            hasCompletedOnboarding = true
         }
+        pendingUserId = nil
+        pendingEmail = nil
     }
 
     private func loadUser() {
-        // Only restore profile data, never auto-login
         if let data = UserDefaults.standard.data(forKey: "savedUser"),
            let decoded = try? JSONDecoder().decode(User.self, from: data) {
             currentUser = decoded
@@ -42,6 +46,8 @@ class AppState {
         currentUser = nil
         isLoggedIn = false
         hasCompletedOnboarding = false
+        pendingUserId = nil
+        pendingEmail = nil
         UserDefaults.standard.removeObject(forKey: "savedUser")
     }
 }
