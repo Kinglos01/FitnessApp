@@ -205,17 +205,9 @@ struct SignUpView: View {
         Task {
             do {
                 let userId = try await AuthService.shared.signUp(email: emailTrimmed, password: password)
+                appState.pendingUserId = userId
+                appState.pendingEmail = emailTrimmed
                 appState.isLoggedIn = true
-                appState.hasCompletedOnboarding = false
-                appState.currentUser = User(
-                    id: userId,
-                    email: emailTrimmed,
-                    name: "",
-                    weight: 0,
-                    height: 0,
-                    birthDate: Date(),
-                    gender: ""
-                )
                 appState.hasCompletedOnboarding = false
             } catch {
                 message = friendlyAuthError(error)
@@ -373,15 +365,9 @@ struct LoginView: View {
                 let userId = try await AuthService.shared.signIn(email: emailTrimmed, password: password)
                 appState.isLoggedIn = true
                 if appState.currentUser == nil {
-                    appState.currentUser = User(
-                        id: userId,
-                        email: emailTrimmed,
-                        name: "",
-                        weight: 0,
-                        height: 0,
-                        birthDate: Date(),
-                        gender: ""
-                    )
+                    // User exists in auth but hasn't completed onboarding
+                    appState.pendingUserId = userId
+                    appState.pendingEmail = emailTrimmed
                     appState.hasCompletedOnboarding = false
                 }
             } catch {
