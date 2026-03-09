@@ -6,7 +6,7 @@
 //
 
 import Foundation
-
+import Observation
 // MARK: - Models
 struct FoodSearchResponse: Codable {
     let foods: [FoodItem]
