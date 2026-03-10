@@ -8,7 +8,7 @@
 //  Both NutritionView and DashboardView read from this.
 //  Nothing persists on restart — swap in Firestore later.
 //
-
+import Observation
 import Foundation
 import SwiftUI
 
