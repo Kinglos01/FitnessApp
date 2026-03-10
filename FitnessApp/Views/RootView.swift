@@ -12,12 +12,17 @@ struct RootView: View {
     @Environment(AppState.self) var appState
 
     var body: some View {
-        if appState.isLoggedIn && appState.hasCompletedOnboarding {
-            MainTabView()
-        } else if appState.isLoggedIn && !appState.hasCompletedOnboarding {
-            UserInfoView()
-        } else {
-            ContentView()
+        Group {
+            if appState.isLoggedIn && appState.hasCompletedOnboarding {
+                MainTabView()
+            } else if appState.isLoggedIn && !appState.hasCompletedOnboarding {
+                UserInfoView()
+            } else {
+                ContentView()
+            }
+        }
+        .onAppear {
+            appState.restoreSessionIfNeeded()
         }
     }
 }

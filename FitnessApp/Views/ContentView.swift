@@ -1,3 +1,10 @@
+////
+//  ContentView.swift
+//  FitnessApp
+//
+//  Created by Carlos Berio on 2/11/26.
+//
+
 //
 //  ContentView.swift
 //  FitnessApp
@@ -24,8 +31,6 @@ struct ContentView: View {
 // MARK: - Auth Error Helper
 private func friendlyAuthError(_ error: Error) -> String {
     let msg = error.localizedDescription.lowercased()
-
-    // Firebase / common auth error string matching
     if msg.contains("email address is badly formatted") || msg.contains("invalid email") {
         return "That email address doesn't look right. Please check the format."
     }
@@ -47,7 +52,6 @@ private func friendlyAuthError(_ error: Error) -> String {
     if msg.contains("user disabled") {
         return "This account has been disabled. Please contact support."
     }
-    // Fallback to the raw message
     return error.localizedDescription
 }
 
@@ -66,48 +70,23 @@ struct SignUpView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-
             Spacer()
-
-            // MARK: - Header
             VStack(spacing: 8) {
                 Image(systemName: "figure.run.circle.fill")
-                    .font(.system(size: 70))
-                    .foregroundColor(.green)
-
-                Text("Create Account")
-                    .font(.largeTitle)
-                    .bold()
-
-                Text("Start your fitness journey today")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .font(.system(size: 70)).foregroundColor(.green)
+                Text("Create Account").font(.largeTitle).bold()
+                Text("Start your fitness journey today").font(.subheadline).foregroundColor(.gray)
             }
-
             Spacer().frame(height: 10)
-
-            // MARK: - Fields
             VStack(spacing: 12) {
                 TextField("Email", text: $email)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-
-                SecureField("Password", text: $password)
-                    .textFieldStyle(.roundedBorder)
-
-                SecureField("Confirm Password", text: $confirmPassword)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.roundedBorder).keyboardType(.emailAddress).autocapitalization(.none)
+                SecureField("Password", text: $password).textFieldStyle(.roundedBorder)
+                SecureField("Confirm Password", text: $confirmPassword).textFieldStyle(.roundedBorder)
             }
-
             if !message.isEmpty {
-                Text(message)
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
+                Text(message).foregroundColor(.red).font(.caption).multilineTextAlignment(.center)
             }
-
-            // MARK: - Create Account Button
             Button {
                 withAnimation(.easeInOut(duration: 0.12)) { createPressed = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
@@ -115,36 +94,21 @@ struct SignUpView: View {
                 }
                 createAccount()
             } label: {
-                if isLoading {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Create Account")
-                        .frame(maxWidth: .infinity)
-                        .bold()
-                }
+                if isLoading { ProgressView().tint(.white) }
+                else { Text("Create Account").frame(maxWidth: .infinity).bold() }
             }
             .padding()
             .background(createPressed ? Color.green.opacity(0.65) : Color.green)
             .animation(.easeInOut(duration: 0.15), value: createPressed)
-            .foregroundColor(.white)
-            .cornerRadius(10)
+            .foregroundColor(.white).cornerRadius(10)
             .scaleEffect(createPressed ? 0.96 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: createPressed)
             .disabled(isLoading)
-
-            // MARK: - Login Link
             HStack(spacing: 4) {
-                Text("Already have an account?")
-                    .foregroundColor(.gray)
-                    .font(.subheadline)
-                Button("Login") {
-                    withAnimation(.easeInOut) { showingSignUp = false }
-                }
-                .font(.subheadline)
-                .bold()
-                .foregroundColor(.blue)
+                Text("Already have an account?").foregroundColor(.gray).font(.subheadline)
+                Button("Login") { withAnimation(.easeInOut) { showingSignUp = false } }
+                    .font(.subheadline).bold().foregroundColor(.blue)
             }
-
             Spacer()
             Spacer()
         }
@@ -153,54 +117,23 @@ struct SignUpView: View {
 
     private func createAccount() {
         message = ""
-
-        // MARK: - Pre-flight validation
-
-        // Both fields empty
-        guard !email.trimmingCharacters(in: .whitespaces).isEmpty ||
-              !password.isEmpty else {
-            message = "Please enter your email and password."
-            return
+        guard !email.trimmingCharacters(in: .whitespaces).isEmpty || !password.isEmpty else {
+            message = "Please enter your email and password."; return
         }
-
-        // Email provided but password is empty
         if !email.trimmingCharacters(in: .whitespaces).isEmpty && password.isEmpty {
-            message = "Please enter a password to go with your email."
-            return
+            message = "Please enter a password to go with your email."; return
         }
-
-        // Password provided but email is empty
         if email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty {
-            message = "Please enter your email address."
-            return
+            message = "Please enter your email address."; return
         }
-
-        // Basic email format check
         let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
         guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
-            message = "That doesn't look like a valid email address."
-            return
+            message = "That doesn't look like a valid email address."; return
         }
+        guard password.count >= 6 else { message = "Password must be at least 6 characters."; return }
+        guard !confirmPassword.isEmpty else { message = "Please confirm your password."; return }
+        guard password == confirmPassword else { message = "Passwords do not match. Please try again."; return }
 
-        // Password length
-        guard password.count >= 6 else {
-            message = "Password must be at least 6 characters."
-            return
-        }
-
-        // Confirm password is empty
-        guard !confirmPassword.isEmpty else {
-            message = "Please confirm your password."
-            return
-        }
-
-        // Passwords don't match
-        guard password == confirmPassword else {
-            message = "Passwords do not match. Please try again."
-            return
-        }
-
-        // MARK: - Auth call
         isLoading = true
         Task {
             do {
@@ -231,45 +164,22 @@ struct LoginView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-
             Spacer()
-
-            // MARK: - Header
             VStack(spacing: 8) {
                 Image(systemName: "figure.run.circle.fill")
-                    .font(.system(size: 70))
-                    .foregroundColor(.blue)
-
-                Text("Welcome Back")
-                    .font(.largeTitle)
-                    .bold()
-
-                Text("Sign in to continue")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .font(.system(size: 70)).foregroundColor(.blue)
+                Text("Welcome Back").font(.largeTitle).bold()
+                Text("Sign in to continue").font(.subheadline).foregroundColor(.gray)
             }
-
             Spacer().frame(height: 10)
-
-            // MARK: - Fields
             VStack(spacing: 12) {
                 TextField("Email", text: $email)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-
-                SecureField("Password", text: $password)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.roundedBorder).keyboardType(.emailAddress).autocapitalization(.none)
+                SecureField("Password", text: $password).textFieldStyle(.roundedBorder)
             }
-
             if !message.isEmpty {
-                Text(message)
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
+                Text(message).foregroundColor(.red).font(.caption).multilineTextAlignment(.center)
             }
-
-            // MARK: - Sign In Button
             Button {
                 withAnimation(.easeInOut(duration: 0.12)) { signInPressed = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
@@ -277,50 +187,32 @@ struct LoginView: View {
                 }
                 login()
             } label: {
-                if isLoading {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Sign In")
-                        .frame(maxWidth: .infinity)
-                        .bold()
-                }
+                if isLoading { ProgressView().tint(.white) }
+                else { Text("Sign In").frame(maxWidth: .infinity).bold() }
             }
             .padding()
             .background(signInPressed ? Color.blue.opacity(0.65) : Color.blue)
             .animation(.easeInOut(duration: 0.15), value: signInPressed)
-            .foregroundColor(.white)
-            .cornerRadius(10)
+            .foregroundColor(.white).cornerRadius(10)
             .scaleEffect(signInPressed ? 0.96 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: signInPressed)
             .disabled(isLoading)
-
-            // MARK: - Back to Sign Up
             HStack(spacing: 4) {
-                Text("Don't have an account?")
-                    .foregroundColor(.gray)
-                    .font(.subheadline)
-                Button("Sign Up") {
-                    withAnimation(.easeInOut) { showingSignUp = true }
-                }
-                .font(.subheadline)
-                .bold()
-                .foregroundColor(.green)
+                Text("Don't have an account?").foregroundColor(.gray).font(.subheadline)
+                Button("Sign Up") { withAnimation(.easeInOut) { showingSignUp = true } }
+                    .font(.subheadline).bold().foregroundColor(.green)
             }
-
             // MARK: - Guest Bypass (temp)
             Button {
                 appState.isLoggedIn = true
                 appState.hasCompletedOnboarding = true
             } label: {
-                Text("Continue as Guest")
-                    .frame(maxWidth: .infinity)
-                    .bold()
+                Text("Continue as Guest").frame(maxWidth: .infinity).bold()
             }
             .padding()
             .background(Color.gray.opacity(0.2))
             .foregroundColor(.primary)
             .cornerRadius(10)
-
             Spacer()
             Spacer()
         }
@@ -329,45 +221,36 @@ struct LoginView: View {
 
     private func login() {
         message = ""
-
-        // MARK: - Pre-flight validation
-
-        // Both fields empty
-        guard !email.trimmingCharacters(in: .whitespaces).isEmpty ||
-              !password.isEmpty else {
-            message = "Please enter your email and password."
-            return
+        guard !email.trimmingCharacters(in: .whitespaces).isEmpty || !password.isEmpty else {
+            message = "Please enter your email and password."; return
         }
-
-        // Email provided but password is empty
         if !email.trimmingCharacters(in: .whitespaces).isEmpty && password.isEmpty {
-            message = "Please enter your password."
-            return
+            message = "Please enter your password."; return
         }
-
-        // Password provided but email is empty
         if email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty {
-            message = "Please enter your email address."
-            return
+            message = "Please enter your email address."; return
         }
-
-        // Basic email format check
         let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
         guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
-            message = "That doesn't look like a valid email address."
-            return
+            message = "That doesn't look like a valid email address."; return
         }
 
-        // MARK: - Auth call
         isLoading = true
         Task {
             do {
                 let userId = try await AuthService.shared.signIn(email: emailTrimmed, password: password)
-                appState.isLoggedIn = true
-                if appState.currentUser == nil {
-                    // User exists in auth but hasn't completed onboarding
+
+                // Try to fetch their existing profile from Supabase
+                do {
+                    let user = try await ProfileService.shared.fetchProfile(userId: userId)
+                    // Profile exists — log them straight in
+                    appState.completeOnboarding(user: user)
+                    appState.isLoggedIn = true
+                } catch {
+                    // No profile yet — this is their first time, send to onboarding
                     appState.pendingUserId = userId
                     appState.pendingEmail = emailTrimmed
+                    appState.isLoggedIn = true
                     appState.hasCompletedOnboarding = false
                 }
             } catch {

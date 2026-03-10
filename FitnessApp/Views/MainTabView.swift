@@ -8,26 +8,29 @@
 import SwiftUI
 
 struct MainTabView: View {
-    
+
     @State private var nutritionManager = NutritionManager()
     @State private var selectedTab = 0
+    @Environment(AppState.self) var appState
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            
+
             DashboardView()
+                .id(appState.currentUser?.id ?? "")
                 .tag(0)
                 .tabItem {
                     Label("Dashboard", systemImage: "house.fill")
                 }
-            
+
             NutritionView()
                 .tag(1)
                 .tabItem {
                     Label("Nutrition", systemImage: "fork.knife")
                 }
-            
-            ActivityLogView()
+
+            ActivityLogView(userId: appState.currentUser?.id ?? "")
+                .id(appState.currentUser?.id ?? "")
                 .tag(2)
                 .tabItem {
                     Label("Activity", systemImage: "figure.run")
@@ -56,8 +59,10 @@ struct MainTabView: View {
 
 #Preview("Populated") {
     MainTabView()
+        .environment(AppState())
 }
 
 #Preview("Empty State") {
     MainTabView()
+        .environment(AppState())
 }
