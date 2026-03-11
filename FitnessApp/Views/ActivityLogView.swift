@@ -686,9 +686,13 @@ class ActivityLogViewModel: ObservableObject {
     @Published var editingExercise: ActivityEntry? = nil
     @Published var preselectedCategory: ExerciseCategory = .strength
 
-    private let storageKey = "savedExercises"
+    private let userId: String
+    private var storageKey: String { "savedExercises_\(userId)" }
 
-    init() { load() }
+    init(userId: String) {
+        self.userId = userId
+        load()
+    }
 
     var filteredExercises: [ActivityEntry] {
         let sorted = exercises.sorted { $0.date > $1.date }
@@ -765,8 +769,13 @@ class ActivityLogViewModel: ObservableObject {
 // MARK: - Main View
 
 struct ActivityLogView: View {
-    @StateObject private var vm = ActivityLogViewModel()
+    @Environment(AppState.self) var appState
+    @StateObject private var vm: ActivityLogViewModel
     @State private var animateStats = false
+
+    init(userId: String) {
+        _vm = StateObject(wrappedValue: ActivityLogViewModel(userId: userId))
+    }
 
     var body: some View {
         NavigationView {
@@ -1639,5 +1648,6 @@ struct StepperField: View {
 // MARK: - Preview
 
 #Preview {
-    ActivityLogView()
+    ActivityLogView(userId: "preview")
+        .environment(AppState())
 }

@@ -1,19 +1,12 @@
-//
-//  ContentView.swift
-//  FitnessApp
-//
-//  Created by Carlos Berio on 2/11/26.
-//
-
 import SwiftUI
 
 // MARK: - Brand Colors
 extension Color {
-    static let brandNavy      = Color(hex: "000411")  // background
-    static let brandLime      = Color(hex: "DBFE87")  // primary CTA
-    static let brandOrange    = Color(hex: "D74E09")  // error / accent
-    static let brandBlue      = Color(hex: "48ACF0")  // links / secondary
-    static let brandCream     = Color(hex: "E9EDDE")  // text / surfaces
+    static let brandNavy      = Color(hex: "000411")
+    static let brandLime      = Color(hex: "DBFE87")
+    static let brandOrange    = Color(hex: "D74E09")
+    static let brandBlue      = Color(hex: "48ACF0")
+    static let brandCream     = Color(hex: "E9EDDE")
 }
 
 extension Color {
@@ -127,7 +120,6 @@ private struct SlashHeader: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Diagonal lime slash background
             GeometryReader { geo in
                 Path { path in
                     let w = geo.size.width + 60
@@ -199,7 +191,6 @@ struct SignUpView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
 
-                        // Fields
                         VStack(spacing: 12) {
                             BrandTextField(placeholder: "Email address", text: $email, keyboardType: .emailAddress)
                             BrandTextField(placeholder: "Password", text: $password, isSecure: true)
@@ -209,21 +200,16 @@ struct SignUpView: View {
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
 
-                        // Error
                         if !message.isEmpty {
                             HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.caption)
-                                Text(message)
-                                    .font(.caption)
-                                    .multilineTextAlignment(.leading)
+                                Image(systemName: "exclamationmark.circle.fill").font(.caption)
+                                Text(message).font(.caption).multilineTextAlignment(.leading)
                             }
                             .foregroundColor(.brandOrange)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
 
-                        // CTA Button
                         Button {
                             withAnimation(.easeInOut(duration: 0.1)) { createPressed = true }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -251,7 +237,6 @@ struct SignUpView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.3), value: appeared)
 
-                        // Switch to Login
                         HStack(spacing: 4) {
                             Text("Already have an account?")
                                 .foregroundColor(Color.brandCream.opacity(0.5))
@@ -282,32 +267,25 @@ struct SignUpView: View {
         let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
 
         guard !emailTrimmed.isEmpty || !password.isEmpty else {
-            message = "Please enter your email and password."
-            return
+            message = "Please enter your email and password."; return
         }
         if !emailTrimmed.isEmpty && password.isEmpty {
-            message = "Please enter a password."
-            return
+            message = "Please enter a password."; return
         }
         if emailTrimmed.isEmpty && !password.isEmpty {
-            message = "Please enter your email address."
-            return
+            message = "Please enter your email address."; return
         }
         guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
-            message = "That doesn't look like a valid email."
-            return
+            message = "That doesn't look like a valid email."; return
         }
         guard password.count >= 6 else {
-            message = "Password must be at least 6 characters."
-            return
+            message = "Password must be at least 6 characters."; return
         }
         guard !confirmPassword.isEmpty else {
-            message = "Please confirm your password."
-            return
+            message = "Please confirm your password."; return
         }
         guard password == confirmPassword else {
-            message = "Passwords do not match."
-            return
+            message = "Passwords do not match."; return
         }
 
         isLoading = true
@@ -353,7 +331,6 @@ struct LoginView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
 
-                        // Fields
                         VStack(spacing: 12) {
                             BrandTextField(placeholder: "Email address", text: $email, keyboardType: .emailAddress)
                             BrandTextField(placeholder: "Password", text: $password, isSecure: true)
@@ -362,21 +339,16 @@ struct LoginView: View {
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
 
-                        // Error
                         if !message.isEmpty {
                             HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.caption)
-                                Text(message)
-                                    .font(.caption)
-                                    .multilineTextAlignment(.leading)
+                                Image(systemName: "exclamationmark.circle.fill").font(.caption)
+                                Text(message).font(.caption).multilineTextAlignment(.leading)
                             }
                             .foregroundColor(.brandOrange)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
 
-                        // Sign In CTA
                         Button {
                             withAnimation(.easeInOut(duration: 0.1)) { signInPressed = true }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -404,7 +376,6 @@ struct LoginView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.3), value: appeared)
 
-                        // Divider
                         HStack {
                             Rectangle().frame(height: 1).foregroundColor(Color.brandCream.opacity(0.1))
                             Text("or").font(.caption).foregroundColor(Color.brandCream.opacity(0.3))
@@ -413,7 +384,6 @@ struct LoginView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.34), value: appeared)
 
-                        // Guest button
                         Button {
                             appState.isLoggedIn = true
                             appState.hasCompletedOnboarding = true
@@ -433,7 +403,6 @@ struct LoginView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.38), value: appeared)
 
-                        // Switch to Sign Up
                         HStack(spacing: 4) {
                             Text("Don't have an account?")
                                 .foregroundColor(Color.brandCream.opacity(0.5))
@@ -464,30 +433,33 @@ struct LoginView: View {
         let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
 
         guard !emailTrimmed.isEmpty || !password.isEmpty else {
-            message = "Please enter your email and password."
-            return
+            message = "Please enter your email and password."; return
         }
         if !emailTrimmed.isEmpty && password.isEmpty {
-            message = "Please enter your password."
-            return
+            message = "Please enter your password."; return
         }
         if emailTrimmed.isEmpty && !password.isEmpty {
-            message = "Please enter your email address."
-            return
+            message = "Please enter your email address."; return
         }
         guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
-            message = "That doesn't look like a valid email."
-            return
+            message = "That doesn't look like a valid email."; return
         }
 
         isLoading = true
         Task {
             do {
                 let userId = try await AuthService.shared.signIn(email: emailTrimmed, password: password)
-                appState.isLoggedIn = true
-                if appState.currentUser == nil {
+                // Fetch profile from Supabase to determine if onboarding is needed
+                do {
+                    let user = try await ProfileService.shared.fetchProfile(userId: userId)
+                    // Profile exists — go straight to dashboard
+                    appState.completeOnboarding(user: user)
+                    appState.isLoggedIn = true
+                } catch {
+                    // No profile yet — route to onboarding
                     appState.pendingUserId = userId
                     appState.pendingEmail = emailTrimmed
+                    appState.isLoggedIn = true
                     appState.hasCompletedOnboarding = false
                 }
             } catch {

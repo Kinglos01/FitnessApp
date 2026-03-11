@@ -5,11 +5,11 @@ import SwiftUI
 // so no shared state object is needed — just a lightweight reload on appear.
 
 private struct DashboardWorkoutReader {
-    static let storageKey = "savedExercises"
+    static func storageKey(for userId: String) -> String { "savedExercises_\(userId)" }
 
-    static func completedToday() -> [ActivityEntry] {
+    static func completedToday(userId: String) -> [ActivityEntry] {
         guard
-            let data = UserDefaults.standard.data(forKey: storageKey),
+            let data = UserDefaults.standard.data(forKey: storageKey(for: userId)),
             let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data)
         else { return [] }
 
@@ -85,7 +85,8 @@ struct DashboardView: View {
     }
 
     private func reloadWorkouts() {
-        completedWorkouts = DashboardWorkoutReader.completedToday()
+        let userId = appState.currentUser?.id ?? ""
+        completedWorkouts = DashboardWorkoutReader.completedToday(userId: userId)
     }
 
     // MARK: - Greeting Header
