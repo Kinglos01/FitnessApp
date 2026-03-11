@@ -1,51 +1,20 @@
 import SwiftUI
 
-//  Goal Model
-enum NutritionGoal: String, CaseIterable {
-    case loseWeight = "Lose Weight"
-    case maintain = "Maintain"
-    case gainMuscle = "Gain Muscle"
-
-    var calorieTarget: Int {
-        switch self {
-        case .loseWeight: return 1800
-        case .maintain: return 2300
-        case .gainMuscle: return 2800
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .loseWeight: return "arrow.down.circle.fill"
-        case .maintain: return "heart.circle.fill"
-        case .gainMuscle: return "bolt.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .loseWeight: return .red
-        case .maintain: return .blue
-        case .gainMuscle: return .green
-        }
-    }
-}
-
-//- Meal Type
-enum NutritionMealType: String, CaseIterable {
+// MARK: - Meal Type
+enum NutritionMealType: String, CaseIterable, Codable {
     case breakfast = "Breakfast"
-    case lunch = "Lunch"
-    case dinner = "Dinner"
-    case snack = "Snack"
-    case drink = "Drink"
+    case lunch     = "Lunch"
+    case dinner    = "Dinner"
+    case snack     = "Snack"
+    case drink     = "Drink"
 
     var icon: String {
         switch self {
         case .breakfast: return "sunrise.fill"
-        case .lunch: return "sun.max.fill"
-        case .dinner: return "moon.stars.fill"
-        case .snack: return "leaf.fill"
-        case .drink: return "drop.fill"
+        case .lunch:     return "sun.max.fill"
+        case .dinner:    return "moon.stars.fill"
+        case .snack:     return "leaf.fill"
+        case .drink:     return "drop.fill"
         }
     }
 }
@@ -61,76 +30,46 @@ struct QuickFoodTemplate: Identifiable {
     let mealType: NutritionMealType
 }
 
-// - Main View
+// MARK: - Main View
 struct NutritionView: View {
+    @Environment(NutritionManager.self) var nutritionManager
+    @Environment(AppState.self) var appState
+
     @State private var service = NutritionService()
     @State private var searchText = ""
     @State private var foods: [FoodItem] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingQuickAddSheet = false
-
-    @AppStorage("nutrition_goal") private var selectedGoalRaw = NutritionGoal.maintain.rawValue
-
-    @Environment(NutritionManager.self) var nutritionManager
+    @State private var selectedMealType: NutritionMealType = .snack
+    @State private var showingActivityPicker = false
 
     private let quickFoods: [QuickFoodTemplate] = [
-        QuickFoodTemplate(name: "Protein Shake", calories: 160, protein: 25, carbs: 8, fat: 3, mealType: .drink),
-        QuickFoodTemplate(name: "Grilled Chicken", calories: 165, protein: 31, carbs: 0, fat: 4, mealType: .lunch),
-        QuickFoodTemplate(name: "Rice Bowl", calories: 220, protein: 4, carbs: 45, fat: 2, mealType: .lunch),
-        QuickFoodTemplate(name: "Banana", calories: 105, protein: 1, carbs: 27, fat: 0, mealType: .snack),
-        QuickFoodTemplate(name: "Greek Yogurt", calories: 100, protein: 10, carbs: 7, fat: 0, mealType: .breakfast),
-        QuickFoodTemplate(name: "Eggs", calories: 140, protein: 10, carbs: 1, fat: 10, mealType: .breakfast)
+        QuickFoodTemplate(name: "Protein Shake",    calories: 160, protein: 25, carbs: 8,  fat: 3,  mealType: .drink),
+        QuickFoodTemplate(name: "Grilled Chicken",  calories: 165, protein: 31, carbs: 0,  fat: 4,  mealType: .lunch),
+        QuickFoodTemplate(name: "Rice Bowl",        calories: 220, protein: 4,  carbs: 45, fat: 2,  mealType: .lunch),
+        QuickFoodTemplate(name: "Banana",           calories: 105, protein: 1,  carbs: 27, fat: 0,  mealType: .snack),
+        QuickFoodTemplate(name: "Greek Yogurt",     calories: 100, protein: 10, carbs: 7,  fat: 0,  mealType: .breakfast),
+        QuickFoodTemplate(name: "Eggs",             calories: 140, protein: 10, carbs: 1,  fat: 10, mealType: .breakfast)
     ]
-
-    private var selectedGoal: NutritionGoal {
-        NutritionGoal(rawValue: selectedGoalRaw) ?? .maintain
-    }
-
-    private var calorieTarget: Int {
-        selectedGoal.calorieTarget
-    }
-
-    private var remainingCalories: Int {
-        calorieTarget - Int(nutritionManager.totalCalories)
-    }
-
-    private var calorieProgress: Double {
-        guard calorieTarget > 0 else { return 0 }
-        return min(nutritionManager.totalCalories / Double(calorieTarget), 1.0)
-    }
 
     var body: some View {
         NavigationView {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
-
-                    // Goal / summary card
                     summaryCard
-
-                    // Goal picker
-                    goalPicker
-
-                    // Search bar
+                    activityAndGoalSection
                     searchBar
-
-                    // Quick add
                     quickAddSection
-
-                    // Search results
-                    if !foods.isEmpty {
-                        resultsSection
-                    }
-
-                    // Logged foods
+                    if !foods.isEmpty { resultsSection }
                     loggedFoodsSection
                 }
                 .padding()
             }
             .navigationTitle("Nutrition")
             .sheet(isPresented: $showingQuickAddSheet) {
-                QuickAddFoodSheet { food in
-                    nutritionManager.logFood(food)
+                QuickAddFoodSheet(selectedMealType: selectedMealType) { food, mealType in
+                    nutritionManager.logFood(food, mealType: mealType)
                 }
             }
             .alert("Error", isPresented: Binding(
@@ -142,171 +81,236 @@ struct NutritionView: View {
                 Text(errorMessage ?? "")
             }
         }
+        .onAppear {
+            nutritionManager.configure(
+                userId: appState.currentUser?.id ?? "guest",
+                user: appState.currentUser
+            )
+        }
     }
 
-    // - Summary Card
+    // MARK: - Summary Card
     private var summaryCard: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
+            // Header row
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Today's Nutrition")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text(selectedGoal.rawValue)
-                        .font(.subheadline)
-                        .foregroundColor(selectedGoal.color)
+                        .font(.title2).fontWeight(.bold)
+                    if let tdee = nutritionManager.userTDEE {
+                        Text("TDEE: \(tdee) kcal · \(nutritionManager.goal.rawValue)")
+                            .font(.caption).foregroundColor(.secondary)
+                    } else {
+                        Text(nutritionManager.goal.rawValue)
+                            .font(.subheadline).foregroundColor(nutritionManager.goal.color)
+                    }
                 }
                 Spacer()
-                Image(systemName: selectedGoal.icon)
+                Image(systemName: nutritionManager.goal.icon)
                     .font(.system(size: 28))
-                    .foregroundColor(selectedGoal.color)
+                    .foregroundColor(nutritionManager.goal.color)
             }
 
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 12)
-                    .frame(width: 120, height: 120)
-
-                Circle()
-                    .trim(from: 0, to: calorieProgress)
-                    .stroke(selectedGoal.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 120, height: 120)
-
-                VStack(spacing: 4) {
-                    Text("\(Int(nutritionManager.totalCalories))")
-                        .font(.title)
-                        .fontWeight(.bold)
-                    Text("kcal")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+            // Calorie ring
+            HStack(spacing: 24) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.gray.opacity(0.15), lineWidth: 14)
+                        .frame(width: 110, height: 110)
+                    Circle()
+                        .trim(from: 0, to: min(nutritionManager.totalCalories / Double(nutritionManager.calorieTarget), 1.0))
+                        .stroke(nutritionManager.goal.color, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 110, height: 110)
+                        .animation(.easeOut(duration: 0.5), value: nutritionManager.totalCalories)
+                    VStack(spacing: 2) {
+                        Text("\(Int(nutritionManager.totalCalories))")
+                            .font(.title2).fontWeight(.bold)
+                        Text("kcal").font(.caption2).foregroundColor(.gray)
+                    }
                 }
-            }
-            .padding(.vertical, 4)
 
-            HStack(spacing: 12) {
-                nutritionStat(title: "Goal", value: "\(calorieTarget)")
-                nutritionStat(title: "Left", value: "\(max(remainingCalories, 0))")
-                nutritionStat(title: "Foods", value: "\(nutritionManager.loggedFoods.count)")
+                VStack(alignment: .leading, spacing: 10) {
+                    calorieStatRow(label: "Target", value: "\(nutritionManager.calorieTarget) kcal", color: .primary)
+                    calorieStatRow(
+                        label: "Remaining",
+                        value: "\(max(nutritionManager.calorieTarget - Int(nutritionManager.totalCalories), 0)) kcal",
+                        color: nutritionManager.totalCalories > Double(nutritionManager.calorieTarget) ? .red : .green
+                    )
+                    calorieStatRow(label: "Foods logged", value: "\(nutritionManager.loggedEntries.count)", color: .secondary)
+                }
+                Spacer()
             }
 
-            HStack(spacing: 10) {
-                macroChip(title: "Protein", value: nutritionManager.totalProtein, color: .blue)
-                macroChip(title: "Carbs", value: nutritionManager.totalCarbs, color: .green)
-                macroChip(title: "Fat", value: nutritionManager.totalFat, color: .orange)
+            Divider()
+
+            // Macro progress bars
+            VStack(spacing: 10) {
+                macroBar(label: "Protein", current: nutritionManager.totalProtein,
+                         target: Double(nutritionManager.proteinTarget), color: .blue)
+                macroBar(label: "Carbs",   current: nutritionManager.totalCarbs,
+                         target: Double(nutritionManager.carbTarget),    color: .green)
+                macroBar(label: "Fat",     current: nutritionManager.totalFat,
+                         target: Double(nutritionManager.fatTarget),     color: .orange)
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemGray6))
-        )
+        .background(RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6)))
     }
 
-    // - Goal Picker
-    private var goalPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Goal")
-                .font(.headline)
-
-            HStack(spacing: 10) {
-                ForEach(NutritionGoal.allCases, id: \.self) { goal in
-                    Button {
-                        selectedGoalRaw = goal.rawValue
-                    } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: goal.icon)
-                            Text(goal.rawValue)
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
+    // MARK: - Activity + Goal Pickers
+    private var activityAndGoalSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Goal picker
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Goal").font(.headline)
+                HStack(spacing: 10) {
+                    ForEach(NutritionGoal.allCases, id: \.self) { g in
+                        Button { nutritionManager.setGoal(g) } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: g.icon).font(.system(size: 18))
+                                Text(g.rawValue).font(.caption).multilineTextAlignment(.center)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color(.systemGray6))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(nutritionManager.goal == g ? g.color : Color.clear, lineWidth: 1.5)
+                            )
+                            .foregroundColor(nutritionManager.goal == g ? g.color : .primary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(selectedGoal == goal ? goal.color.opacity(0.18) : Color(.systemGray6))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(selectedGoal == goal ? goal.color : Color.clear, lineWidth: 1.5)
-                        )
+                        .buttonStyle(.plain)
                     }
-                    .foregroundColor(selectedGoal == goal ? goal.color : .primary)
+                }
+            }
+
+            // Activity level picker
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Activity Level").font(.headline)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(ActivityLevel.allCases, id: \.self) { level in
+                            Button { nutritionManager.setActivityLevel(level)
+                                // Recompute TDEE
+                                if let user = appState.currentUser {
+                                    nutritionManager.userTDEE = Int(user.bmr * level.multiplier)
+                                }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: level.icon).font(.system(size: 16))
+                                    Text(level.rawValue)
+                                        .font(.caption).fontWeight(.semibold)
+                                    Text(level.description)
+                                        .font(.caption2).foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(width: 120)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(nutritionManager.activityLevel == level
+                                              ? Color.orange.opacity(0.15) : Color(.systemGray6))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(nutritionManager.activityLevel == level
+                                                ? Color.orange : Color.clear, lineWidth: 1.5)
+                                )
+                                .foregroundColor(nutritionManager.activityLevel == level ? .orange : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // Live calorie target breakdown
+                if let tdee = nutritionManager.userTDEE {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle").font(.caption).foregroundColor(.secondary)
+                        Text("TDEE \(tdee) kcal \(nutritionManager.goal.calorieDelta >= 0 ? "+" : "")\(nutritionManager.goal.calorieDelta) = **\(nutritionManager.calorieTarget) kcal target**")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6)))
     }
 
-    // - Search Bar
+    // MARK: - Search
     private var searchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Search USDA Foods")
-                .font(.headline)
-
+            Text("Search USDA Foods").font(.headline)
             HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-
+                Image(systemName: "magnifyingglass").foregroundColor(.gray)
                 TextField("Search food...", text: $searchText)
                     .textInputAutocapitalization(.never)
-                    .onSubmit {
-                        Task { await search() }
-                    }
-
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.9)
-                }
-
+                    .onSubmit { Task { await search() } }
+                if isLoading { ProgressView().scaleEffect(0.9) }
                 if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                        foods = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
+                    Button { searchText = ""; foods = [] } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
                     }
                 }
             }
             .padding(12)
             .background(Color(.systemGray6))
             .cornerRadius(12)
+
+            // Meal type selector for search results
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(NutritionMealType.allCases, id: \.self) { type in
+                        Button { selectedMealType = type } label: {
+                            Label(type.rawValue, systemImage: type.icon)
+                                .font(.caption).fontWeight(.semibold)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(
+                                    Capsule().fill(selectedMealType == type
+                                                   ? Color.orange.opacity(0.2) : Color(.systemGray5))
+                                )
+                                .foregroundColor(selectedMealType == type ? .orange : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
     }
 
-    //  Quick Add Section
+    // MARK: - Quick Add
     private var quickAddSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Quick Add")
-                    .font(.headline)
+                Text("Quick Add").font(.headline)
                 Spacer()
-                Button("Custom") {
-                    showingQuickAddSheet = true
-                }
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                Button("Custom") { showingQuickAddSheet = true }
+                    .font(.subheadline).fontWeight(.semibold)
             }
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(quickFoods) { item in
                         Button {
-                            nutritionManager.logFood(makeFoodItem(from: item))
+                            nutritionManager.logFood(makeFoodItem(from: item), mealType: item.mealType)
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(item.name)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .lineLimit(2)
-                                Text("\(Int(item.calories)) kcal")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(item.mealType.rawValue)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                Label(item.mealType.rawValue, systemImage: item.mealType.icon)
+                                    .font(.caption2).foregroundColor(.secondary)
+                                Text(item.name).font(.subheadline).fontWeight(.semibold).lineLimit(1)
+                                Text("\(Int(item.calories)) kcal").font(.caption).foregroundColor(.secondary)
+                                HStack(spacing: 6) {
+                                    Text("P:\(Int(item.protein))g").font(.caption2).foregroundColor(.blue)
+                                    Text("C:\(Int(item.carbs))g").font(.caption2).foregroundColor(.green)
+                                    Text("F:\(Int(item.fat))g").font(.caption2).foregroundColor(.orange)
+                                }
                             }
-                            .frame(width: 135, alignment: .leading)
+                            .frame(width: 140, alignment: .leading)
                             .padding()
                             .background(Color(.systemGray6))
                             .cornerRadius(14)
@@ -318,16 +322,14 @@ struct NutritionView: View {
         }
     }
 
-    // Results Section
+    // MARK: - Search Results
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Search Results")
-                .font(.headline)
-
+            Text("Search Results").font(.headline)
             LazyVStack(spacing: 10) {
                 ForEach(foods) { food in
                     FoodRowView(food: food) {
-                        nutritionManager.logFood(food)
+                        nutritionManager.logFood(food, mealType: selectedMealType)
                         foods = []
                         searchText = ""
                     }
@@ -336,80 +338,117 @@ struct NutritionView: View {
         }
     }
 
-    // Logged Foods Section
+    // MARK: - Logged Foods (grouped by meal type)
     private var loggedFoodsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Logged Today")
-                    .font(.headline)
+                Text("Logged Today").font(.headline)
                 Spacer()
-                if !nutritionManager.loggedFoods.isEmpty {
-                    Button("Clear All") {
-                        nutritionManager.clearAll()
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.red)
+                if !nutritionManager.loggedEntries.isEmpty {
+                    Button("Clear All") { nutritionManager.clearAll() }
+                        .font(.subheadline).foregroundColor(.red)
                 }
             }
 
-            if nutritionManager.loggedFoods.isEmpty {
+            if nutritionManager.loggedEntries.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "fork.knife.circle")
-                        .font(.system(size: 42))
-                        .foregroundColor(.gray.opacity(0.4))
-                    Text("No foods logged yet")
-                        .foregroundColor(.gray)
+                        .font(.system(size: 42)).foregroundColor(.gray.opacity(0.4))
+                    Text("No foods logged yet").foregroundColor(.gray)
                     Text("Search above or use quick add")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 30)
-                .background(Color(.systemGray6))
-                .cornerRadius(16)
+                .frame(maxWidth: .infinity).padding(.vertical, 30)
+                .background(Color(.systemGray6)).cornerRadius(16)
             } else {
-                ForEach(Array(nutritionManager.loggedFoods.enumerated()), id: \.element.id) { index, food in
-                    LoggedFoodCard(food: food) {
-                        nutritionManager.removeFood(at: IndexSet(integer: index))
+                // Group by meal type
+                ForEach(NutritionMealType.allCases, id: \.self) { mealType in
+                    let entries = nutritionManager.loggedEntries.filter { $0.mealType == mealType }
+                    if !entries.isEmpty {
+                        mealSection(mealType: mealType, entries: entries)
                     }
                 }
             }
         }
     }
 
-    // - Search
+    private func mealSection(mealType: NutritionMealType, entries: [LoggedFoodEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: mealType.icon).foregroundColor(.orange).font(.subheadline)
+                Text(mealType.rawValue).font(.subheadline).fontWeight(.bold)
+                Spacer()
+                let total = entries.reduce(0.0) { $0 + $1.foodItem.calories }
+                Text("\(Int(total)) kcal").font(.caption).foregroundColor(.secondary)
+            }
+            ForEach(entries) { entry in
+                LoggedFoodCard(food: entry.foodItem) {
+                    if let idx = nutritionManager.loggedEntries.firstIndex(where: { $0.id == entry.id }) {
+                        nutritionManager.removeEntry(at: IndexSet(integer: idx))
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+    }
+
+    // MARK: - Helpers
     private func search() async {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            foods = try await service.searchFoods(query: trimmed)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
+        isLoading = true; errorMessage = nil
+        do { foods = try await service.searchFoods(query: trimmed) }
+        catch { errorMessage = error.localizedDescription }
         isLoading = false
     }
 
-    // Manual Food Builder
     private func makeFoodItem(from template: QuickFoodTemplate) -> FoodItem {
         FoodItem(
             fdcId: Int(Date().timeIntervalSince1970 * 1000) + Int.random(in: 1...999),
             description: template.name,
             foodNutrients: [
-                FoodNutrient(nutrientId: 1008, value: template.calories), // calories
-                FoodNutrient(nutrientId: 1003, value: template.protein),  // protein
-                FoodNutrient(nutrientId: 1005, value: template.carbs),    // carbs
-                FoodNutrient(nutrientId: 1004, value: template.fat)       // fat
+                FoodNutrient(nutrientId: 1008, value: template.calories),
+                FoodNutrient(nutrientId: 1003, value: template.protein),
+                FoodNutrient(nutrientId: 1005, value: template.carbs),
+                FoodNutrient(nutrientId: 1004, value: template.fat)
             ]
         )
     }
+
+    // MARK: - Sub-views
+    private func calorieStatRow(label: String, value: String, color: Color) -> some View {
+        HStack {
+            Text(label).font(.caption).foregroundColor(.secondary)
+            Spacer()
+            Text(value).font(.caption).fontWeight(.semibold).foregroundColor(color)
+        }
+    }
+
+    private func macroBar(label: String, current: Double, target: Double, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).font(.caption).foregroundColor(.secondary)
+                Spacer()
+                Text("\(Int(current))g / \(Int(target))g").font(.caption).fontWeight(.semibold)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4).fill(Color.gray.opacity(0.15))
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(current > target ? Color.red : color)
+                        .frame(width: geo.size.width * min(target > 0 ? current / target : 0, 1.0), height: 6)
+                        .animation(.easeOut(duration: 0.4), value: current)
+                }
+            }
+            .frame(height: 6)
+        }
+    }
 }
 
-// Helper Views
+// MARK: - Helper Views
 struct FoodRowView: View {
     let food: FoodItem
     let onAdd: () -> Void
@@ -417,25 +456,17 @@ struct FoodRowView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(food.description)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-
+                Text(food.description).font(.subheadline).fontWeight(.semibold).lineLimit(2)
                 HStack(spacing: 10) {
                     MacroLabel(value: food.calories, label: "kcal", color: .orange)
-                    MacroLabel(value: food.protein, label: "P", color: .blue)
-                    MacroLabel(value: food.carbs, label: "C", color: .green)
-                    MacroLabel(value: food.fat, label: "F", color: .red)
+                    MacroLabel(value: food.protein,  label: "P",    color: .blue)
+                    MacroLabel(value: food.carbs,    label: "C",    color: .green)
+                    MacroLabel(value: food.fat,      label: "F",    color: .red)
                 }
             }
-
             Spacer()
-
             Button(action: onAdd) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.orange)
+                Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.orange)
             }
         }
         .padding()
@@ -451,30 +482,22 @@ struct LoggedFoodCard: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(food.description)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-
+                Text(food.description).font(.subheadline).fontWeight(.semibold).lineLimit(2)
                 HStack(spacing: 10) {
                     MacroLabel(value: food.calories, label: "kcal", color: .orange)
-                    MacroLabel(value: food.protein, label: "P", color: .blue)
-                    MacroLabel(value: food.carbs, label: "C", color: .green)
-                    MacroLabel(value: food.fat, label: "F", color: .red)
+                    MacroLabel(value: food.protein,  label: "P",    color: .blue)
+                    MacroLabel(value: food.carbs,    label: "C",    color: .green)
+                    MacroLabel(value: food.fat,      label: "F",    color: .red)
                 }
             }
-
             Spacer()
-
             Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash.circle.fill")
-                    .font(.title3)
-                    .foregroundColor(.red)
+                Image(systemName: "trash.circle.fill").font(.title3).foregroundColor(.red)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(14)
+        .background(Color.white)
+        .cornerRadius(12)
     }
 }
 
@@ -485,15 +508,14 @@ struct MacroLabel: View {
 
     var body: some View {
         Text("\(Int(value))\(label)")
-            .font(.caption)
-            .fontWeight(.semibold)
-            .foregroundColor(color)
+            .font(.caption).fontWeight(.semibold).foregroundColor(color)
     }
 }
 
 struct QuickAddFoodSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let onSave: (FoodItem) -> Void
+    var selectedMealType: NutritionMealType
+    let onSave: (FoodItem, NutritionMealType) -> Void
 
     @State private var name = ""
     @State private var calories = ""
@@ -502,47 +524,40 @@ struct QuickAddFoodSheet: View {
     @State private var fat = ""
     @State private var mealType: NutritionMealType = .snack
 
+    init(selectedMealType: NutritionMealType = .snack, onSave: @escaping (FoodItem, NutritionMealType) -> Void) {
+        self.selectedMealType = selectedMealType
+        self.onSave = onSave
+        _mealType = State(initialValue: selectedMealType)
+    }
+
     var body: some View {
         NavigationView {
             Form {
                 Section("Food") {
                     TextField("Food name", text: $name)
-
                     Picker("Meal Type", selection: $mealType) {
                         ForEach(NutritionMealType.allCases, id: \.self) { type in
-                            Label(type.rawValue, systemImage: type.icon)
-                                .tag(type)
+                            Label(type.rawValue, systemImage: type.icon).tag(type)
                         }
                     }
                 }
-
                 Section("Nutrition") {
-                    TextField("Calories", text: $calories)
-                        .keyboardType(.numberPad)
-                    TextField("Protein (g)", text: $protein)
-                        .keyboardType(.decimalPad)
-                    TextField("Carbs (g)", text: $carbs)
-                        .keyboardType(.decimalPad)
-                    TextField("Fat (g)", text: $fat)
-                        .keyboardType(.decimalPad)
+                    TextField("Calories",    text: $calories).keyboardType(.numberPad)
+                    TextField("Protein (g)", text: $protein).keyboardType(.decimalPad)
+                    TextField("Carbs (g)",   text: $carbs).keyboardType(.decimalPad)
+                    TextField("Fat (g)",     text: $fat).keyboardType(.decimalPad)
                 }
             }
             .navigationTitle("Custom Food")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !finalName.isEmpty else { return }
-
-                        let mealPrefix = mealType.rawValue + ": "
-
                         let food = FoodItem(
                             fdcId: Int(Date().timeIntervalSince1970 * 1000) + Int.random(in: 1000...9999),
-                            description: mealPrefix + finalName,
+                            description: finalName,
                             foodNutrients: [
                                 FoodNutrient(nutrientId: 1008, value: Double(calories) ?? 0),
                                 FoodNutrient(nutrientId: 1003, value: Double(protein) ?? 0),
@@ -550,8 +565,7 @@ struct QuickAddFoodSheet: View {
                                 FoodNutrient(nutrientId: 1004, value: Double(fat) ?? 0)
                             ]
                         )
-
-                        onSave(food)
+                        onSave(food, mealType)
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -561,39 +575,8 @@ struct QuickAddFoodSheet: View {
     }
 }
 
-//  Small UI Helpers
-private func nutritionStat(title: String, value: String) -> some View {
-    VStack(spacing: 4) {
-        Text(value)
-            .font(.headline)
-            .fontWeight(.bold)
-        Text(title)
-            .font(.caption)
-            .foregroundColor(.secondary)
-    }
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, 10)
-    .background(Color.white)
-    .cornerRadius(12)
-}
-
-private func macroChip(title: String, value: Double, color: Color) -> some View {
-    VStack(spacing: 4) {
-        Text("\(Int(value))g")
-            .font(.headline)
-            .fontWeight(.bold)
-            .foregroundColor(color)
-        Text(title)
-            .font(.caption)
-            .foregroundColor(.secondary)
-    }
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, 10)
-    .background(Color.white)
-    .cornerRadius(12)
-}
-
 #Preview {
     NutritionView()
         .environment(NutritionManager())
+        .environment(AppState())
 }
