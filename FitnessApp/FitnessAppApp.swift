@@ -26,7 +26,7 @@ struct FitnessAppApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            SplashView()
                 .environment(appState)
         }
         .modelContainer(sharedModelContainer)
