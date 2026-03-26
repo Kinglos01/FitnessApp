@@ -28,10 +28,23 @@ struct DashboardView: View {
     @Environment(NutritionManager.self) var nutritionManager
     @Environment(AppState.self) var appState
 
-    let calorieGoal: Double = 2200
     let waterGoal: Int = 8
+
+    /// Uses the user's saved calorie goal when custom calories are enabled,
+    /// otherwise computes a recommendation from UserMetricsCalculator.
+    private var calorieGoal: Double {
+        guard let user = appState.currentUser else { return 2000 }
+        if user.customCaloriesEnabled {
+            return Double(user.calorieGoal)
+        }
+        return Double(UserMetricsCalculator.recommendedCalorieGoal(
+            bmr: user.bmr,
+            activityLevel: user.activityLevel,
+            primaryGoal: user.primaryGoal
+        ))
+    }
     @State private var waterConsumed: Int = 0
-    @State private var showSettings: Bool = false
+    @State private var showSettingsSheet: Bool = false
     @State private var completedWorkouts: [ActivityEntry] = []
 
     private var firstName: String {
@@ -66,7 +79,6 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     greetingHeader
-                    if showSettings { settingsDropdown }
                     calorieCard
                     waterCard
                     quickStatsBar
@@ -81,6 +93,10 @@ struct DashboardView: View {
         // Re-read whenever the app comes back to foreground
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             reloadWorkouts()
+        }
+        .sheet(isPresented: $showSettingsSheet) {
+            SettingsView()
+                .environment(appState)
         }
     }
 
@@ -112,7 +128,7 @@ struct DashboardView: View {
                 }
                 .frame(width: 56, height: 56)
                 Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { showSettings.toggle() }
+                    showSettingsSheet = true
                 } label: {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 16)).foregroundColor(.gray)
@@ -120,43 +136,6 @@ struct DashboardView: View {
             }
         }
         .padding(.horizontal)
-    }
-
-    // MARK: - Settings Dropdown
-
-    private var settingsDropdown: some View {
-        VStack(spacing: 0) {
-            settingsRow(icon: "person.fill", label: "Edit Profile", color: .primary) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { showSettings = false }
-            }
-            Divider()
-            settingsRow(icon: "gearshape", label: "Settings", color: .primary) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { showSettings = false }
-            }
-            Divider()
-            settingsRow(icon: "rectangle.portrait.and.arrow.right", label: "Log Out", color: .red) {
-                Task {
-                    try? await AuthService.shared.signOut()
-                    appState.signOut()
-                }
-            }
-        }
-        .background(Color(.systemGray6))
-        .cornerRadius(14)
-        .padding(.horizontal)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    private func settingsRow(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                Text(label)
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-        }
-        .foregroundColor(color)
     }
 
     // MARK: - Calorie Card
