@@ -19,6 +19,7 @@ private struct ProfileDraft {
     var calorieGoal: Int
     var targetWeightLbs: Int
     var customCaloriesEnabled: Bool
+    var units: String
 }
 
 // MARK: - SettingsView
@@ -29,19 +30,24 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
 
     // MARK: Local-only preferences (Display & Notifications only)
-    @AppStorage("settings_units") private var units: String = "Imperial"
     @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
     @AppStorage("settings_meal_reminders") private var mealReminders: Bool = true
     @AppStorage("settings_workout_reminder") private var workoutReminder: Bool = false
     @AppStorage("settings_streak_reminder") private var streakReminder: Bool = true
 
+    // MARK: Custom macro overrides (local-only)
+    @AppStorage("useCustomMacros") private var useCustomMacros: Bool = false
+    @AppStorage("customProtein") private var customProtein: Int = 150
+    @AppStorage("customCarbs") private var customCarbs: Int = 250
+    @AppStorage("customFat") private var customFat: Int = 65
+
     // MARK: Draft state
     @State private var draft: ProfileDraft = ProfileDraft(
         name: "", weightLbs: 150, heightFeet: 5, heightInches: 10,
         gender: "Male", birthDate: Date(), activityLevel: "Moderately Active",
         primaryGoal: "Lose Weight", calorieGoal: 2200, targetWeightLbs: 175,
-        customCaloriesEnabled: false
+        customCaloriesEnabled: false, units: "Imperial"
     )
     @State private var isSaving: Bool = false
     @State private var saveError: String = ""
@@ -60,6 +66,7 @@ struct SettingsView: View {
     @State private var showWeekStartDialog: Bool = false
     @State private var showCalorieSheet: Bool = false
     @State private var showTargetWeightSheet: Bool = false
+    @State private var showMacroSheet: Bool = false
 
     // MARK: Section icon colors
     private let profileIconColor = Color.brandLime
@@ -81,15 +88,43 @@ struct SettingsView: View {
         return "\(feet)' \(inches)\""
     }
 
+    /// Computes BMR from draft values using Mifflin-St Jeor (matches User.bmr)
+    private var draftBMR: Double {
+        let totalInches = Double(draft.heightFeet * 12 + draft.heightInches)
+        let kg = Double(draft.weightLbs) * 0.453592
+        let cm = totalInches * 2.54
+        let age = Double(Calendar.current.dateComponents([.year], from: draft.birthDate, to: Date()).year ?? 0)
+        switch draft.gender.lowercased() {
+        case "male":
+            return (10 * kg) + (6.25 * cm) - (5 * age) + 5
+        case "female":
+            return (10 * kg) + (6.25 * cm) - (5 * age) - 161
+        default:
+            let male   = (10 * kg) + (6.25 * cm) - (5 * age) + 5
+            let female = (10 * kg) + (6.25 * cm) - (5 * age) - 161
+            return (male + female) / 2
+        }
+    }
+
+    private var draftTDEE: Double {
+        UserMetricsCalculator.tdee(bmr: draftBMR, activityLevel: draft.activityLevel)
+    }
+
+    private var recommendedCalories: Int {
+        UserMetricsCalculator.recommendedCalorieGoal(
+            bmr: draftBMR,
+            activityLevel: draft.activityLevel,
+            primaryGoal: draft.primaryGoal
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            Color.brandNavy.ignoresSafeArea()
+        VStack(spacing: 0) {
+            header
 
-            VStack(spacing: 0) {
-                header
-
+            ZStack(alignment: .bottom) {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
                         profileCard
@@ -99,13 +134,17 @@ struct SettingsView: View {
                         notificationsSection
                         accountSection
                         footerText
+                        Spacer(minLength: 100)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .padding(.bottom, 40)
                 }
+
+                stickyFooter
             }
         }
+        .background(Color.brandNavy.ignoresSafeArea())
         .onAppear {
             if let user = appState.currentUser {
                 draft.name = user.name
@@ -119,6 +158,7 @@ struct SettingsView: View {
                 draft.calorieGoal = user.calorieGoal
                 draft.targetWeightLbs = Int(user.targetWeightLbs ?? 175)
                 draft.customCaloriesEnabled = user.customCaloriesEnabled
+                draft.units = user.units
             }
         }
         .sheet(isPresented: $showEditWeight) {
@@ -139,6 +179,15 @@ struct SettingsView: View {
         .sheet(isPresented: $showTargetWeightSheet) {
             TargetWeightSheet(draft: $draft, hasChanges: $hasChanges)
         }
+        .sheet(isPresented: $showMacroSheet) {
+            MacroTargetsSheet(
+                useCustomMacros: $useCustomMacros,
+                customProtein: $customProtein,
+                customCarbs: $customCarbs,
+                customFat: $customFat,
+                draft: draft
+            )
+        }
         .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
             Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
             Button("Maintain Weight") { draft.primaryGoal = "Maintain Weight"; hasChanges = true }
@@ -155,8 +204,8 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Units", isPresented: $showUnitsDialog) {
-            Button("Imperial") { units = "Imperial" }
-            Button("Metric") { units = "Metric" }
+            Button("Imperial") { draft.units = "Imperial"; hasChanges = true }
+            Button("Metric") { draft.units = "Metric"; hasChanges = true }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Appearance", isPresented: $showAppearanceDialog) {
@@ -274,52 +323,69 @@ struct SettingsView: View {
                     value: draft.gender,
                     action: { showEditGender = true }
                 )
-                sectionDivider
-                saveChangesRow
+
             }
         }
     }
 
-    // MARK: - Save Changes Row
+    // MARK: - Sticky Footer
 
-    private var saveChangesRow: some View {
+    private var stickyFooter: some View {
         VStack(spacing: 6) {
-            Button {
-                saveChanges()
-            } label: {
-                HStack {
-                    if isSaving {
-                        ProgressView()
-                            .tint(.brandLime)
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(hasChanges ? .brandLime : Color.brandCream.opacity(0.25))
-                    }
-                    Text("Save Changes")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(hasChanges ? .brandLime : Color.brandCream.opacity(0.25))
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(hasChanges ? Color.brandLime.opacity(0.12) : Color.brandCream.opacity(0.04))
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasChanges || isSaving)
-
             if !saveError.isEmpty {
                 Text(saveError)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundColor(.brandOrange)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
+
+            if hasChanges {
+                Text("You have unsaved changes")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.brandLime.opacity(0.5))
+            }
+
+            Button {
+                Task { saveChanges() }
+            } label: {
+                ZStack {
+                    if isSaving {
+                        ProgressView().tint(Color.brandNavy)
+                    } else {
+                        HStack(spacing: 8) {
+                            if hasChanges {
+                                Circle()
+                                    .fill(Color.brandNavy)
+                                    .frame(width: 7, height: 7)
+                            }
+                            Text("Save Changes")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundColor(hasChanges ? .brandNavy : Color.brandCream.opacity(0.25))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    hasChanges
+                        ? Color.brandLime
+                        : Color.brandCream.opacity(0.06)
+                )
+                .cornerRadius(14)
+            }
+            .disabled(!hasChanges || isSaving)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            Color.brandNavy
+                .overlay(
+                    Rectangle()
+                        .fill(Color.brandCream.opacity(0.06))
+                        .frame(height: 0.5),
+                    alignment: .top
+                )
+        )
     }
 
     // MARK: - Targets Section
@@ -344,6 +410,33 @@ struct SettingsView: View {
                 )
                 sectionDivider
                 settingsRow(
+                    icon: "bolt.fill",
+                    iconColor: targetsIconColor,
+                    label: "Your BMR",
+                    subtitle: "Basal Metabolic Rate",
+                    value: "\(Int(draftBMR.rounded())) kcal",
+                    showChevron: false
+                )
+                sectionDivider
+                settingsRow(
+                    icon: "chart.bar.fill",
+                    iconColor: targetsIconColor,
+                    label: "Your TDEE",
+                    subtitle: "Total Daily Energy Expenditure",
+                    value: "\(Int(draftTDEE.rounded())) kcal",
+                    showChevron: false
+                )
+                sectionDivider
+                settingsRow(
+                    icon: "sparkles",
+                    iconColor: targetsIconColor,
+                    label: "Recommended",
+                    subtitle: "Based on goal & activity",
+                    value: "\(recommendedCalories) kcal",
+                    showChevron: false
+                )
+                sectionDivider
+                settingsRow(
                     icon: "flame.fill",
                     iconColor: targetsIconColor,
                     label: "Daily Calorie Goal",
@@ -355,8 +448,19 @@ struct SettingsView: View {
                     icon: "chart.pie.fill",
                     iconColor: targetsIconColor,
                     label: "Macro Targets",
-                    subtitle: "Protein / Carbs / Fat",
-                    value: "150g · 220g · 65g"
+                    subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat",
+                    value: {
+                        if useCustomMacros {
+                            return "\(customProtein)g · \(customCarbs)g · \(customFat)g"
+                        }
+                        let macros = UserMetricsCalculator.macroTargets(
+                            weightLbs: Double(draft.weightLbs),
+                            calorieGoal: draft.calorieGoal,
+                            primaryGoal: draft.primaryGoal
+                        )
+                        return "\(macros.protein)g · \(macros.carbs)g · \(macros.fat)g"
+                    }(),
+                    action: { showMacroSheet = true }
                 )
                 sectionDivider
                 settingsRow(
@@ -379,7 +483,7 @@ struct SettingsView: View {
                     icon: "ruler",
                     iconColor: displayIconColor,
                     label: "Units",
-                    value: units,
+                    value: draft.units,
                     action: { showUnitsDialog = true }
                 )
                 sectionDivider
@@ -588,7 +692,8 @@ struct SettingsView: View {
             primary_goal: draft.primaryGoal,
             calorie_goal: draft.calorieGoal,
             target_weight_lbs: Double(draft.targetWeightLbs),
-            custom_calories_enabled: draft.customCaloriesEnabled
+            custom_calories_enabled: draft.customCaloriesEnabled,
+            units: draft.units
         )
 
         Task {
@@ -605,6 +710,7 @@ struct SettingsView: View {
                     user.calorieGoal = draft.calorieGoal
                     user.targetWeightLbs = Double(draft.targetWeightLbs)
                     user.customCaloriesEnabled = draft.customCaloriesEnabled
+                    user.units = draft.units
                     appState.currentUser = user
                 }
                 hasChanges = false
@@ -625,6 +731,27 @@ private struct CalorieGoalSheet: View {
     @Binding var hasChanges: Bool
 
     @State private var tempGoal: Int = 2200
+
+    private var recommended: Int {
+        let totalInches = Double(draft.heightFeet * 12 + draft.heightInches)
+        let kg = Double(draft.weightLbs) * 0.453592
+        let cm = totalInches * 2.54
+        let age = Double(Calendar.current.dateComponents([.year], from: draft.birthDate, to: Date()).year ?? 0)
+        let bmr: Double
+        switch draft.gender.lowercased() {
+        case "male":   bmr = (10 * kg) + (6.25 * cm) - (5 * age) + 5
+        case "female": bmr = (10 * kg) + (6.25 * cm) - (5 * age) - 161
+        default:
+            let m = (10 * kg) + (6.25 * cm) - (5 * age) + 5
+            let f = (10 * kg) + (6.25 * cm) - (5 * age) - 161
+            bmr = (m + f) / 2
+        }
+        return UserMetricsCalculator.recommendedCalorieGoal(
+            bmr: bmr,
+            activityLevel: draft.activityLevel,
+            primaryGoal: draft.primaryGoal
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -676,6 +803,22 @@ private struct CalorieGoalSheet: View {
                             .font(.system(size: 44))
                             .foregroundColor(.brandLime)
                     }
+                }
+
+                Button {
+                    tempGoal = recommended
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Use Recommended: \(recommended) kcal")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.brandNavy)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.brandLime.opacity(0.85))
+                    .cornerRadius(10)
                 }
 
                 Spacer()
@@ -752,6 +895,170 @@ private struct TargetWeightSheet: View {
         }
         .onAppear { tempWeight = draft.targetWeightLbs }
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Macro Targets Sheet
+
+private struct MacroTargetsSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var useCustomMacros: Bool
+    @Binding var customProtein: Int
+    @Binding var customCarbs: Int
+    @Binding var customFat: Int
+    let draft: ProfileDraft
+
+    private var autoMacros: (protein: Int, carbs: Int, fat: Int) {
+        UserMetricsCalculator.macroTargets(
+            weightLbs: Double(draft.weightLbs),
+            calorieGoal: draft.calorieGoal,
+            primaryGoal: draft.primaryGoal
+        )
+    }
+
+    private var customTotalCalories: Int {
+        (customProtein * 4) + (customCarbs * 4) + (customFat * 9)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.brandNavy.ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                HStack {
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.brandLime)
+                    Spacer()
+                    Text("Macro Targets")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.brandCream)
+                    Spacer()
+                    // Balance spacer
+                    Text("Done")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.clear)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+
+                // Toggle
+                HStack {
+                    Text("Use custom macros")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.brandCream)
+                    Spacer()
+                    Toggle("", isOn: $useCustomMacros)
+                        .labelsHidden()
+                        .tint(.brandLime)
+                }
+                .padding(.horizontal, 24)
+
+                if useCustomMacros {
+                    // Custom steppers
+                    VStack(spacing: 16) {
+                        macroStepper(label: "Protein", value: $customProtein, range: 50...400, step: 5, color: Color(hex: "48ACF0"))
+                        macroStepper(label: "Carbs", value: $customCarbs, range: 0...600, step: 10, color: .green)
+                        macroStepper(label: "Fat", value: $customFat, range: 20...250, step: 5, color: .orange)
+
+                        // Total calories from macros
+                        HStack {
+                            Text("Total")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color.brandCream.opacity(0.5))
+                            Spacer()
+                            Text("\(customTotalCalories) kcal")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundColor(.brandLime)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 4)
+
+                        if abs(customTotalCalories - draft.calorieGoal) > 100 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "info.circle.fill")
+                                    .font(.system(size: 11))
+                                Text("Macro total differs from your \(draft.calorieGoal) kcal goal by \(abs(customTotalCalories - draft.calorieGoal)) kcal")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundColor(.brandOrange)
+                            .padding(.horizontal, 24)
+                        }
+                    }
+                } else {
+                    // Auto-calculated display
+                    VStack(spacing: 12) {
+                        macroDisplay(label: "Protein", grams: autoMacros.protein, color: Color(hex: "48ACF0"))
+                        macroDisplay(label: "Carbs", grams: autoMacros.carbs, color: .green)
+                        macroDisplay(label: "Fat", grams: autoMacros.fat, color: .orange)
+
+                        Text("Auto-calculated from your weight and calorie goal")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.brandCream.opacity(0.35))
+                            .padding(.top, 4)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    @ViewBuilder
+    private func macroStepper(label: String, value: Binding<Int>, range: ClosedRange<Int>, step: Int, color: Color) -> some View {
+        HStack {
+            Circle()
+                .fill(color.opacity(0.2))
+                .frame(width: 10, height: 10)
+                .overlay(Circle().fill(color).frame(width: 6, height: 6))
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.brandCream)
+                .frame(width: 60, alignment: .leading)
+
+            Spacer()
+
+            Button {
+                if value.wrappedValue - step >= range.lowerBound { value.wrappedValue -= step }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(Color.brandCream.opacity(0.3))
+            }
+
+            Text("\(value.wrappedValue)g")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(.brandCream)
+                .frame(width: 60, alignment: .center)
+
+            Button {
+                if value.wrappedValue + step <= range.upperBound { value.wrappedValue += step }
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.brandLime)
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
+    @ViewBuilder
+    private func macroDisplay(label: String, grams: Int, color: Color) -> some View {
+        HStack {
+            Circle()
+                .fill(color.opacity(0.2))
+                .frame(width: 10, height: 10)
+                .overlay(Circle().fill(color).frame(width: 6, height: 6))
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.brandCream)
+            Spacer()
+            Text("\(grams)g")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 24)
     }
 }
 
