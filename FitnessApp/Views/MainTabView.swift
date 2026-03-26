@@ -5,6 +5,13 @@
 //  Created by Nelson Mojica on 2/19/26.
 //
 
+//
+//  MainTabView.swift
+//  FitnessApp
+//
+//  Created by Nelson Mojica on 2/19/26.
+//
+
 import SwiftUI
 
 struct MainTabView: View {
@@ -35,6 +42,13 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Activity", systemImage: "figure.run")
                 }
+
+            CalendarView()
+                .id(appState.currentUser?.id ?? "")
+                .tag(3)
+                .tabItem {
+                    Label("Calendar", systemImage: "calendar")
+                }
         }
         .gesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .local)
@@ -46,7 +60,7 @@ struct MainTabView: View {
 
                     withAnimation(.easeInOut(duration: 0.25)) {
                         if horizontalAmount < 0 {
-                            selectedTab = min(selectedTab + 1, 2)
+                            selectedTab = min(selectedTab + 1, 3)
                         } else {
                             selectedTab = max(selectedTab - 1, 0)
                         }
