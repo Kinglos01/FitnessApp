@@ -8,6 +8,12 @@ struct User: Codable, Identifiable {
     var height: Double    // stored in total inches
     var birthDate: Date
     var gender: String
+    var activityLevel: String = "Moderately Active"
+    var primaryGoal: String = "Lose Weight"
+    var calorieGoal: Int = 2200
+    var targetWeightLbs: Double? = nil
+    var customCaloriesEnabled: Bool = false
+    var units: String = "Imperial"
 
     // MARK: - Computed Getters
 

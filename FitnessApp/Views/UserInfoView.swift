@@ -288,7 +288,13 @@ struct UserInfoView: View {
             weight_lbs: Double(weightLbs),
             height_in: Double(totalHeightInInches),
             birth_date: formatter.string(from: birthDate),
-            gender: gender
+            gender: gender,
+            activity_level: "Moderately Active",
+            primary_goal: "Lose Weight",
+            calorie_goal: 2200,
+            target_weight_lbs: nil,
+            custom_calories_enabled: false,
+            units: "Imperial"
         )
 
         isSaving = true
@@ -304,7 +310,12 @@ struct UserInfoView: View {
                     weight: Double(weightLbs),
                     height: Double(totalHeightInInches),
                     birthDate: birthDate,
-                    gender: gender
+                    gender: gender,
+                    activityLevel: "Moderately Active",
+                    primaryGoal: "Lose Weight",
+                    calorieGoal: 2200,
+                    targetWeightLbs: nil,
+                    customCaloriesEnabled: false
                 )
                 appState.completeOnboarding(user: user)
             } catch {
