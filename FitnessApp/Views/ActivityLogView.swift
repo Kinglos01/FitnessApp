@@ -747,7 +747,12 @@ class ActivityLogViewModel: ObservableObject {
 
     func toggleComplete(_ entry: ActivityEntry) {
         if let idx = exercises.firstIndex(where: { $0.id == entry.id }) {
-            exercises[idx].isCompleted.toggle()
+            let nowCompleted = !exercises[idx].isCompleted
+            exercises[idx].isCompleted = nowCompleted
+            // Stamp today's date when marking done so the calendar knows which day it was completed
+            if nowCompleted {
+                exercises[idx].date = Date()
+            }
             save()
         }
     }
@@ -761,7 +766,18 @@ class ActivityLogViewModel: ObservableObject {
     private func load() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
-            exercises = decoded.filter { ExerciseCategory.allCases.contains($0.category) }
+            let today = Calendar.current.startOfDay(for: Date())
+            // Reset isCompleted for any exercise not completed today
+            exercises = decoded
+                .filter { ExerciseCategory.allCases.contains($0.category) }
+                .map { entry in
+                    var e = entry
+                    if e.isCompleted && Calendar.current.startOfDay(for: e.date) != today {
+                        e.isCompleted = false
+                    }
+                    return e
+                }
+            save() // persist the reset
         }
     }
 }
@@ -1213,8 +1229,7 @@ struct AddExerciseSheet: View {
                     Button {
                         guard cat != category else { return }
                         withAnimation { category = cat }
-                        // Clear all fields when switching category
-                        name = ""
+                        // Clear workout fields but preserve the name
                         sets = 3
                         reps = 10
                         weight = ""

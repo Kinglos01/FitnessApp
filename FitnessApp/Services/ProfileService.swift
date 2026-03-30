@@ -5,24 +5,32 @@
 //  Reads and writes to the public.profiles table via Supabase.
 //
 
+//
+//  ProfileService.swift
+//  FitnessApp
+//
+
 import Foundation
 import Supabase
+
+// MARK: - ProfileUpdate
 
 struct ProfileUpdate: Codable {
     let name: String
     let weight_lbs: Double
     let height_in: Double
-    let birth_date: String   // "YYYY-MM-DD"
+    let birth_date: String          // "YYYY-MM-DD"
     let gender: String
-    var activity_level: String = "Moderately Active"
-    var primary_goal: String = "Lose Weight"
-    var calorie_goal: Int = 2200
-    var target_weight_lbs: Double? = nil
-    var custom_calories_enabled: Bool = false
-    var units: String = "Imperial"
+    let activity_level: String
+    let primary_goal: String
+    let calorie_goal: Int
+    let target_weight_lbs: Double?
+    let custom_calories_enabled: Bool
+    let units: String
 }
 
-// Matches what Supabase returns when fetching a profile row
+// MARK: - ProfileResponse
+
 struct ProfileResponse: Codable {
     let id: String
     let email: String?
@@ -38,6 +46,8 @@ struct ProfileResponse: Codable {
     let custom_calories_enabled: Bool?
     let units: String?
 }
+
+// MARK: - ProfileService
 
 final class ProfileService {
     static let shared = ProfileService()
