@@ -123,14 +123,49 @@ class NutritionManager {
         loadSettings()
         loadTodayLog()
         if let user = user {
-            userTDEE = Int(user.bmr * activityLevel.multiplier)
+            // Sync goal from user's primaryGoal in settings
+            goal = nutritionGoal(from: user.primaryGoal)
+            // TDEE uses user's actual activity level
+            userTDEE = Int(UserMetricsCalculator.tdee(bmr: user.bmr, activityLevel: user.activityLevel))
         }
+        reloadBurnedCalories()
+    }
+
+    private func nutritionGoal(from primaryGoal: String) -> NutritionGoal {
+        switch primaryGoal.lowercased() {
+        case "lose weight":       return .loseWeight
+        case "build muscle":      return .gainMuscle
+        default:                  return .maintain
+        }
+    }
+
+    func reloadBurnedCalories() {
+        caloriesBurnedToday = loadBurnedCaloriesToday()
+    }
+
+    // MARK: - Calories Burned (from Activity Log)
+    var caloriesBurnedToday: Int = 0
+
+    private func loadBurnedCaloriesToday() -> Int {
+        let key = "savedExercises_\(userId)"
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let entries = try? JSONDecoder().decode([ActivityEntry].self, from: data)
+        else { return 0 }
+        let today = Calendar.current.startOfDay(for: Date())
+        return entries
+            .filter { $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today }
+            .reduce(0) { $0 + $1.caloriesBurned }
     }
 
     // MARK: - Calorie Target
     var calorieTarget: Int {
         let base = userTDEE ?? 2000
         return max(1200, base + goal.calorieDelta)
+    }
+
+    // Net = target + burned - eaten (how many calories left to eat)
+    var remainingCalories: Int {
+        calorieTarget + caloriesBurnedToday - Int(totalCalories)
     }
 
     // MARK: - Today's foods (backwards compat for views that use loggedFoods)
@@ -173,18 +208,9 @@ class NutritionManager {
         saveSettings()
     }
 
-    func setActivityLevel(_ level: ActivityLevel) {
-        self.activityLevel = level
-        saveSettings()
-        if let tdee = userTDEE {
-            // Recompute TDEE with new activity
-            userTDEE = tdee // Will be recomputed on next configure call
-        }
-    }
-
     // MARK: - Persistence
     private func saveSettings() {
-        let data = try? JSONEncoder().encode(NutritionSettings(goal: goal, activityLevel: activityLevel))
+        let data = try? JSONEncoder().encode(NutritionSettings(goal: goal))
         UserDefaults.standard.set(data, forKey: settingsKey)
     }
 
@@ -193,7 +219,6 @@ class NutritionManager {
               let settings = try? JSONDecoder().decode(NutritionSettings.self, from: data)
         else { return }
         goal = settings.goal
-        activityLevel = settings.activityLevel
     }
 
     private func saveTodayLog() {
@@ -212,5 +237,4 @@ class NutritionManager {
 // MARK: - Settings Codable helper
 private struct NutritionSettings: Codable {
     let goal: NutritionGoal
-    let activityLevel: ActivityLevel
 }

@@ -87,6 +87,9 @@ struct NutritionView: View {
                 user: appState.currentUser
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            nutritionManager.reloadBurnedCalories()
+        }
     }
 
     // MARK: - Summary Card
@@ -98,11 +101,8 @@ struct NutritionView: View {
                     Text("Today's Nutrition")
                         .font(.title2).fontWeight(.bold)
                     if let tdee = nutritionManager.userTDEE {
-                        Text("TDEE: \(tdee) kcal · \(nutritionManager.goal.rawValue)")
+                        Text("Base target: \(tdee + nutritionManager.goal.calorieDelta) kcal · \(nutritionManager.goal.rawValue)")
                             .font(.caption).foregroundColor(.secondary)
-                    } else {
-                        Text(nutritionManager.goal.rawValue)
-                            .font(.subheadline).foregroundColor(nutritionManager.goal.color)
                     }
                 }
                 Spacer()
@@ -126,20 +126,41 @@ struct NutritionView: View {
                     VStack(spacing: 2) {
                         Text("\(Int(nutritionManager.totalCalories))")
                             .font(.title2).fontWeight(.bold)
-                        Text("kcal").font(.caption2).foregroundColor(.gray)
+                        Text("eaten").font(.caption2).foregroundColor(.gray)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    calorieStatRow(label: "Target", value: "\(nutritionManager.calorieTarget) kcal", color: .primary)
+                    calorieStatRow(label: "Base target",  value: "\(nutritionManager.calorieTarget) kcal", color: .primary)
+                    if nutritionManager.caloriesBurnedToday > 0 {
+                        calorieStatRow(label: "Burned today", value: "+ \(nutritionManager.caloriesBurnedToday) kcal", color: .green)
+                        Divider()
+                        calorieStatRow(
+                            label: "Available today",
+                            value: "\(nutritionManager.calorieTarget + nutritionManager.caloriesBurnedToday) kcal",
+                            color: .primary
+                        )
+                    }
                     calorieStatRow(
                         label: "Remaining",
-                        value: "\(max(nutritionManager.calorieTarget - Int(nutritionManager.totalCalories), 0)) kcal",
-                        color: nutritionManager.totalCalories > Double(nutritionManager.calorieTarget) ? .red : .green
+                        value: "\(max(nutritionManager.remainingCalories, 0)) kcal",
+                        color: nutritionManager.remainingCalories < 0 ? .red : .green
                     )
-                    calorieStatRow(label: "Foods logged", value: "\(nutritionManager.loggedEntries.count)", color: .secondary)
                 }
                 Spacer()
+            }
+
+            // Burned calories banner (only shown if workouts logged)
+            if nutritionManager.caloriesBurnedToday > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "flame.fill").foregroundColor(.orange).font(.caption)
+                    Text("You burned \(nutritionManager.caloriesBurnedToday) kcal from today's workouts — added to your budget")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.orange.opacity(0.08))
+                .cornerRadius(10)
             }
 
             Divider()
@@ -158,84 +179,37 @@ struct NutritionView: View {
         .background(RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6)))
     }
 
-    // MARK: - Activity + Goal Pickers
+    // MARK: - Goal Picker
     private var activityAndGoalSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Goal picker
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Goal").font(.headline)
-                HStack(spacing: 10) {
-                    ForEach(NutritionGoal.allCases, id: \.self) { g in
-                        Button { nutritionManager.setGoal(g) } label: {
-                            VStack(spacing: 6) {
-                                Image(systemName: g.icon).font(.system(size: 18))
-                                Text(g.rawValue).font(.caption).multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color(.systemGray6))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .stroke(nutritionManager.goal == g ? g.color : Color.clear, lineWidth: 1.5)
-                            )
-                            .foregroundColor(nutritionManager.goal == g ? g.color : .primary)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Goal").font(.headline)
+            Text("To permanently change your nutrition goals, go to settings.")
+                .font(.caption)
+                .foregroundColor(Color(.systemGray))
+                .padding(.top, 4)
+                .padding(.bottom, 2)
+            
+            
+            HStack(spacing: 10) {
+                ForEach(NutritionGoal.allCases, id: \.self) { g in
+                    Button { nutritionManager.setGoal(g) } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: g.icon).font(.system(size: 18))
+                            Text(g.rawValue).font(.caption).multilineTextAlignment(.center)
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color(.systemGray6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(nutritionManager.goal == g ? g.color : Color.clear, lineWidth: 1.5)
+                        )
+                        .foregroundColor(nutritionManager.goal == g ? g.color : .primary)
                     }
-                }
-            }
-
-            // Activity level picker
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Activity Level").font(.headline)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(ActivityLevel.allCases, id: \.self) { level in
-                            Button { nutritionManager.setActivityLevel(level)
-                                // Recompute TDEE
-                                if let user = appState.currentUser {
-                                    nutritionManager.userTDEE = Int(user.bmr * level.multiplier)
-                                }
-                            } label: {
-                                VStack(spacing: 4) {
-                                    Image(systemName: level.icon).font(.system(size: 16))
-                                    Text(level.rawValue)
-                                        .font(.caption).fontWeight(.semibold)
-                                    Text(level.description)
-                                        .font(.caption2).foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .frame(width: 120)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(nutritionManager.activityLevel == level
-                                              ? Color.orange.opacity(0.15) : Color(.systemGray6))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(nutritionManager.activityLevel == level
-                                                ? Color.orange : Color.clear, lineWidth: 1.5)
-                                )
-                                .foregroundColor(nutritionManager.activityLevel == level ? .orange : .primary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                // Live calorie target breakdown
-                if let tdee = nutritionManager.userTDEE {
-                    HStack(spacing: 6) {
-                        Image(systemName: "info.circle").font(.caption).foregroundColor(.secondary)
-                        Text("TDEE \(tdee) kcal \(nutritionManager.goal.calorieDelta >= 0 ? "+" : "")\(nutritionManager.goal.calorieDelta) = **\(nutritionManager.calorieTarget) kcal target**")
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                    .padding(.top, 2)
+                    .buttonStyle(.plain)
                 }
             }
         }
