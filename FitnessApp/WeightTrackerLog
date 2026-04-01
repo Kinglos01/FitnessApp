@@ -83,7 +83,7 @@ final class WeightTrackerViewModel {
  
     var nextCheckInLabel: String {
         let last = entries.last?.date ?? Date()
-        let next = Calendar.current.date(byAdding: .day, value: 14, to: last) ?? Date()
+        let next = Calendar.current.date(byAdding: .day, value: 1, to: last) ?? Date()
         let f = DateFormatter(); f.dateFormat = "MMM d"
         return f.string(from: next)
     }
