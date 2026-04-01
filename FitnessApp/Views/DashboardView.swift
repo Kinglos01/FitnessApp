@@ -36,6 +36,8 @@ struct DashboardView: View {
     @State private var completedWorkouts: [ActivityEntry] = []
     @State private var allExercises: [ActivityEntry] = []
     @State private var selectedDaySnapshot: DaySnapshot? = nil
+    @State private var showWeightSheet: Bool = false
+    @State private var latestWeight: Double? = nil
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
@@ -113,6 +115,7 @@ struct DashboardView: View {
                     weekStrip
                     calorieCard
                     waterCard
+                    weightCard
                     quickStatsBar
                     todaysWorkoutsCard
                     if !nutritionManager.loggedFoods.isEmpty { foodLogPreview }
@@ -132,6 +135,31 @@ struct DashboardView: View {
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView()
                 .environment(appState)
+        }
+        .sheet(isPresented: $showWeightSheet) {
+            WeightTrackerSheet()
+                .environment(appState)
+        }
+        .task {
+            await refreshLatestWeight()
+        }
+        .onChange(of: showWeightSheet) { _, isShowing in
+            if !isShowing {
+                Task {
+                    await refreshLatestWeight()
+                }
+            }
+        }
+    }
+
+    private func refreshLatestWeight() async {
+        do {
+            let entries = try await WeightLogService.shared.fetchEntries()
+            if let latest = entries.last {
+                latestWeight = latest.weightLbs
+            }
+        } catch {
+            print("Failed to fetch weight: \(error)")
         }
     }
 
@@ -454,6 +482,40 @@ struct DashboardView: View {
         .sheet(isPresented: $showWaterGoalPicker) {
             WaterGoalSheet(waterGoal: $waterGoal, waterConsumed: $waterConsumed)
         }
+    }
+
+    // MARK: - Weight Card
+
+    private var weightCard: some View {
+        Button {
+            showWeightSheet = true
+        } label: {
+            HStack {
+                HStack(spacing: 10) {
+                    Image(systemName: "scalemass.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.orange)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Weight")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.gray)
+                        Text("\(Int(latestWeight ?? appState.currentUser?.weightLbs ?? 0)) lbs")
+                            .font(.system(size: 22, weight: .black, design: .rounded))
+                            .foregroundColor(.primary)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.5))
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
     }
 
     // MARK: - Quick Stats Bar

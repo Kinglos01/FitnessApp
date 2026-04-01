@@ -58,7 +58,7 @@ final class WeightTrackerViewModel {
     // ── derived ──────────────────────────────────
  
     var currentWeight : Double { entries.last?.weightLbs  ?? user.weightLbs }
-    var startWeight   : Double { entries.first?.weightLbs ?? user.weightLbs }
+    var startWeight   : Double { user.weightLbs }
     var totalDelta    : Double { currentWeight - startWeight }
  
     var toGoal: Double {
@@ -157,6 +157,16 @@ final class WeightTrackerViewModel {
         }
     }
  
+    // ── delete ────────────────────────────────────
+
+    func deleteEntry(_ entry: WeightEntry) {
+        entries.removeAll { $0.id == entry.id }
+        save()
+        Task {
+            try? await WeightLogService.shared.deleteEntry(id: entry.id)
+        }
+    }
+
     // ── persistence ──────────────────────────────
  
     func save() {
@@ -633,6 +643,15 @@ private struct WeightTrackerContent: View {
         }()
  
         return HStack {
+            Button {
+                vm.deleteEntry(entry)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.red.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+
             Text(entry.chartLabel)
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
