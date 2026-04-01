@@ -4,6 +4,7 @@ import SwiftUI
 extension Color {
     static let brandNavy      = Color(hex: "000411")
     static let brandLime      = Color(hex: "DBFE87")
+    static let brandLimeDark  = Color(hex: "BFEC5F")   // slightly darker for gradient top
     static let brandOrange    = Color(hex: "D74E09")
     static let brandBlue      = Color(hex: "48ACF0")
     static let brandCream     = Color(hex: "E9EDDE")
@@ -21,7 +22,7 @@ extension Color {
     }
 }
 
-// MARK: - Styled Text Field
+// MARK: - Styled Text Field (Light Theme)
 struct BrandTextField: View {
     let placeholder: String
     @Binding var text: String
@@ -32,7 +33,7 @@ struct BrandTextField: View {
         ZStack(alignment: .leading) {
             if text.isEmpty {
                 Text(placeholder)
-                    .foregroundColor(Color.brandCream.opacity(0.35))
+                    .foregroundColor(Color(.placeholderText))
                     .padding(.horizontal, 16)
             }
             Group {
@@ -46,13 +47,13 @@ struct BrandTextField: View {
                 }
             }
             .padding(.horizontal, 16)
-            .foregroundColor(.brandCream)
+            .foregroundColor(.primary)
         }
         .frame(height: 52)
-        .background(Color.brandCream.opacity(0.07))
+        .background(Color(.systemBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.brandCream.opacity(0.18), lineWidth: 1)
+                .stroke(Color(.systemGray4), lineWidth: 1)
         )
         .cornerRadius(12)
     }
@@ -92,7 +93,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color.brandNavy.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             if showingSignUp {
                 SignUpView(showingSignUp: $showingSignUp)
                     .transition(.asymmetric(
@@ -111,7 +112,9 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Diagonal Slash Header
+// MARK: - Slash Header
+// .ignoresSafeArea(edges: .top) on the gradient fills the Dynamic Island / notch gap.
+// brandLimeDark → brandLime gradient keeps the top richer so it doesn't look washed out.
 private struct SlashHeader: View {
     let iconName: String
     let title: String
@@ -120,46 +123,40 @@ private struct SlashHeader: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            GeometryReader { geo in
-                Path { path in
-                    let w = geo.size.width + 60
-                    let h = geo.size.height
-                    path.move(to: CGPoint(x: -30, y: 0))
-                    path.addLine(to: CGPoint(x: w, y: 0))
-                    path.addLine(to: CGPoint(x: w, y: h * 0.72))
-                    path.addLine(to: CGPoint(x: -30, y: h))
-                    path.closeSubpath()
-                }
-                .fill(Color.brandLime)
-            }
+            // Background bleeds behind the Dynamic Island
+            LinearGradient(
+                colors: [Color.brandLimeDark, Color.brandLime],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .top)
 
             VStack(alignment: .leading, spacing: 6) {
                 Image(systemName: iconName)
-                    .font(.system(size: 52, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.brandNavy)
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 12)
+                    .offset(y: appeared ? 0 : 8)
                     .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.05), value: appeared)
 
                 Text(title)
-                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .font(.system(size: 26, weight: .black))
                     .foregroundColor(.brandNavy)
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 10)
+                    .offset(y: appeared ? 0 : 6)
                     .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
 
                 Text(subtitle)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.brandNavy.opacity(0.65))
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 8)
+                    .offset(y: appeared ? 0 : 6)
                     .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.18), value: appeared)
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
-        .frame(height: 220)
-        .clipped()
+        .frame(height: 160)
     }
 }
 
@@ -178,7 +175,7 @@ struct SignUpView: View {
 
     var body: some View {
         ZStack {
-            Color.brandNavy.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 SlashHeader(
@@ -191,11 +188,17 @@ struct SignUpView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
 
-                        VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Create your account")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                             BrandTextField(placeholder: "Email address", text: $email, keyboardType: .emailAddress)
                             BrandTextField(placeholder: "Password", text: $password, isSecure: true)
                             BrandTextField(placeholder: "Confirm password", text: $confirmPassword, isSecure: true)
                         }
+                        .padding(16)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
@@ -205,7 +208,7 @@ struct SignUpView: View {
                                 Image(systemName: "exclamationmark.circle.fill").font(.caption)
                                 Text(message).font(.caption).multilineTextAlignment(.leading)
                             }
-                            .foregroundColor(.brandOrange)
+                            .foregroundColor(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
@@ -222,14 +225,15 @@ struct SignUpView: View {
                                     ProgressView().tint(.brandNavy)
                                 } else {
                                     Text("Create Account")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
                             }
                         }
                         .frame(height: 54)
-                        .background(createPressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
+                        .background(Color.brandLime)
+                        .shadow(color: Color.brandLime.opacity(0.4), radius: 10, x: 0, y: 6)
                         .cornerRadius(14)
                         .scaleEffect(createPressed ? 0.97 : 1.0)
                         .animation(.easeInOut(duration: 0.12), value: createPressed)
@@ -239,7 +243,7 @@ struct SignUpView: View {
 
                         HStack(spacing: 4) {
                             Text("Already have an account?")
-                                .foregroundColor(Color.brandCream.opacity(0.5))
+                                .foregroundColor(.secondary)
                                 .font(.subheadline)
                             Button("Sign In") {
                                 withAnimation(.easeInOut(duration: 0.3)) { showingSignUp = false }
@@ -318,7 +322,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Color.brandNavy.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 SlashHeader(
@@ -331,10 +335,16 @@ struct LoginView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
 
-                        VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Sign in to your account")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                             BrandTextField(placeholder: "Email address", text: $email, keyboardType: .emailAddress)
                             BrandTextField(placeholder: "Password", text: $password, isSecure: true)
                         }
+                        .padding(16)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 16)
                         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
@@ -344,7 +354,7 @@ struct LoginView: View {
                                 Image(systemName: "exclamationmark.circle.fill").font(.caption)
                                 Text(message).font(.caption).multilineTextAlignment(.leading)
                             }
-                            .foregroundColor(.brandOrange)
+                            .foregroundColor(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
@@ -361,14 +371,15 @@ struct LoginView: View {
                                     ProgressView().tint(.brandNavy)
                                 } else {
                                     Text("Sign In")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
                             }
                         }
                         .frame(height: 54)
-                        .background(signInPressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
+                        .background(Color.brandLime)
+                        .shadow(color: Color.brandLime.opacity(0.4), radius: 10, x: 0, y: 6)
                         .cornerRadius(14)
                         .scaleEffect(signInPressed ? 0.97 : 1.0)
                         .animation(.easeInOut(duration: 0.12), value: signInPressed)
@@ -377,9 +388,9 @@ struct LoginView: View {
                         .animation(.easeInOut(duration: 0.4).delay(0.3), value: appeared)
 
                         HStack {
-                            Rectangle().frame(height: 1).foregroundColor(Color.brandCream.opacity(0.1))
-                            Text("or").font(.caption).foregroundColor(Color.brandCream.opacity(0.3))
-                            Rectangle().frame(height: 1).foregroundColor(Color.brandCream.opacity(0.1))
+                            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray4))
+                            Text("or").font(.caption).foregroundColor(.secondary)
+                            Rectangle().frame(height: 1).foregroundColor(Color(.systemGray4))
                         }
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.34), value: appeared)
@@ -390,14 +401,14 @@ struct LoginView: View {
                         } label: {
                             Text("Continue as Guest")
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(Color.brandCream.opacity(0.7))
+                                .foregroundColor(.primary)
                                 .frame(maxWidth: .infinity)
                         }
                         .frame(height: 50)
-                        .background(Color.brandCream.opacity(0.07))
+                        .background(Color(.systemGray6))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.brandCream.opacity(0.15), lineWidth: 1)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
                         )
                         .cornerRadius(14)
                         .opacity(appeared ? 1 : 0)
@@ -405,7 +416,7 @@ struct LoginView: View {
 
                         HStack(spacing: 4) {
                             Text("Don't have an account?")
-                                .foregroundColor(Color.brandCream.opacity(0.5))
+                                .foregroundColor(.secondary)
                                 .font(.subheadline)
                             Button("Sign Up") {
                                 withAnimation(.easeInOut(duration: 0.3)) { showingSignUp = true }
@@ -449,14 +460,11 @@ struct LoginView: View {
         Task {
             do {
                 let userId = try await AuthService.shared.signIn(email: emailTrimmed, password: password)
-                // Fetch profile from Supabase to determine if onboarding is needed
                 do {
                     let user = try await ProfileService.shared.fetchProfile(userId: userId)
-                    // Profile exists — go straight to dashboard
                     appState.completeOnboarding(user: user)
                     appState.isLoggedIn = true
                 } catch {
-                    // No profile yet — route to onboarding
                     appState.pendingUserId = userId
                     appState.pendingEmail = emailTrimmed
                     appState.isLoggedIn = true

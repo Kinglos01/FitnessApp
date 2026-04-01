@@ -26,7 +26,7 @@ struct WeightLogService {
         var request        = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(
-            "Bearer \(AuthService.shared.currentSession?.accessToken ?? "")",
+            "Bearer \(AuthService.shared.accessToken ?? "")",
             forHTTPHeaderField: "Authorization"
         )
         request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
@@ -78,3 +78,15 @@ private struct WeightLogRow: Codable {
     let weight_lbs : Double
     let logged_at  : Date
 }
+public struct WeightEntry: Identifiable, Codable, Equatable {
+    public let id: UUID
+    public let date: Date
+    public let weightLbs: Double
+
+    public init(id: UUID, date: Date, weightLbs: Double) {
+        self.id = id
+        self.date = date
+        self.weightLbs = weightLbs
+    }
+}
+

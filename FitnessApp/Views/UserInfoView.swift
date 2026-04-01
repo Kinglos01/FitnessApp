@@ -28,178 +28,198 @@ struct UserInfoView: View {
 
     var body: some View {
         ZStack {
-            Color.brandNavy.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
 
                 // MARK: - Header
+                // .ignoresSafeArea(edges: .top) on the gradient covers the Dynamic Island gap
                 ZStack(alignment: .bottomLeading) {
-                    GeometryReader { geo in
-                        Path { path in
-                            let w = geo.size.width + 60
-                            let h = geo.size.height
-                            path.move(to: CGPoint(x: -30, y: 0))
-                            path.addLine(to: CGPoint(x: w, y: 0))
-                            path.addLine(to: CGPoint(x: w, y: h * 0.72))
-                            path.addLine(to: CGPoint(x: -30, y: h))
-                            path.closeSubpath()
-                        }
-                        .fill(Color.brandLime)
-                    }
+                    LinearGradient(
+                        colors: [Color.brandLimeDark, Color.brandLime],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea(edges: .top)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 46, weight: .bold))
-                            .foregroundColor(.brandNavy)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 10)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.05), value: appeared)
-
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Set Up Profile")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .font(.system(size: 26, weight: .black))
                             .foregroundColor(.brandNavy)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 8)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
-
-                        Text("We'll use this to personalize your experience")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.brandNavy.opacity(0.6))
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 6)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.18), value: appeared)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.06), value: appeared)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.brandNavy)
+                            Text("We'll use this to personalize your experience")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.brandNavy.opacity(0.65))
+                        }
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 6)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
                 }
-                .frame(height: 210)
-                .clipped()
+                .frame(height: 160)
 
                 // MARK: - Form
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 16) {
 
                         // Name
                         formSection(label: "FULL NAME", delay: 0.22) {
-                            ZStack(alignment: .leading) {
-                                if name.isEmpty {
-                                    Text("Your full name")
-                                        .foregroundColor(Color.brandCream.opacity(0.35))
-                                        .padding(.horizontal, 16)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Full Name")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ZStack(alignment: .leading) {
+                                    if name.isEmpty {
+                                        Text("Your full name")
+                                            .foregroundColor(Color(.placeholderText))
+                                            .padding(.horizontal, 14)
+                                    }
+                                    TextField("", text: $name)
+                                        .foregroundColor(.primary)
+                                        .textInputAutocapitalization(.words)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 12)
                                 }
-                                TextField("", text: $name)
-                                    .foregroundColor(.brandCream)
-                                    .padding(.horizontal, 16)
+                                .background(Color(.systemBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color(.systemGray4), lineWidth: 1)
+                                )
+                                .cornerRadius(12)
                             }
-                            .frame(height: 52)
-                            .background(Color.brandCream.opacity(0.07))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
-                            .cornerRadius(12)
+                            .padding(16)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
                         }
 
                         // Gender
                         formSection(label: "GENDER", delay: 0.27) {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 10) {
-                                    ForEach(genders, id: \.self) { option in
-                                        Button {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                gender = option
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Gender")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(genders, id: \.self) { option in
+                                            Button {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                    gender = option
+                                                }
+                                            } label: {
+                                                Text(option)
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                    .foregroundColor(gender == option ? .brandNavy : .primary)
+                                                    .padding(.horizontal, 14)
+                                                    .padding(.vertical, 8)
+                                                    .background(
+                                                        Capsule()
+                                                            .fill(gender == option ? Color.brandLime : Color(.systemBackground))
+                                                    )
+                                                    .overlay(
+                                                        Capsule()
+                                                            .stroke(
+                                                                gender == option ? Color.clear : Color(.systemGray4),
+                                                                lineWidth: 1
+                                                            )
+                                                    )
                                             }
-                                        } label: {
-                                            Text(option)
-                                                .font(.system(size: 13, weight: .semibold))
-                                                .foregroundColor(gender == option ? .brandNavy : Color.brandCream.opacity(0.6))
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 10)
-                                                .background(
-                                                    gender == option
-                                                        ? Color.brandLime
-                                                        : Color.brandCream.opacity(0.07)
-                                                )
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .stroke(
-                                                            gender == option
-                                                                ? Color.clear
-                                                                : Color.brandCream.opacity(0.18),
-                                                            lineWidth: 1
-                                                        )
-                                                )
-                                                .cornerRadius(10)
+                                            .buttonStyle(.plain)
                                         }
                                     }
                                 }
                             }
+                            .padding(16)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
                         }
 
                         // Date of Birth
                         formSection(label: "DATE OF BIRTH", delay: 0.32) {
-                            DatePicker(
-                                "",
-                                selection: $birthDate,
-                                in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!,
-                                displayedComponents: .date
-                            )
-                            .datePickerStyle(.wheel)
-                            .labelsHidden()
-                            .frame(height: 100)
-                            .clipped()
-                            .colorScheme(.dark)
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Date of Birth")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                DatePicker(
+                                    "",
+                                    selection: $birthDate,
+                                    in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!,
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.wheel)
+                                .labelsHidden()
+                                .frame(height: 120)
+                                .clipped()
+                            }
+                            .padding(16)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
                         }
 
                         // Weight
                         formSection(label: "WEIGHT", delay: 0.37) {
-                            HStack {
-                                Picker("", selection: $weightLbs) {
-                                    ForEach(80...999, id: \.self) { lbs in
-                                        Text("\(lbs)").tag(lbs)
-                                            .foregroundColor(.brandCream)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Weight")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                HStack(alignment: .center) {
+                                    Picker("", selection: $weightLbs) {
+                                        ForEach(80...999, id: \.self) { lbs in
+                                            Text("\(lbs)").tag(lbs)
+                                        }
                                     }
-                                }
-                                .pickerStyle(.wheel)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 80)
-                                .colorScheme(.dark)
+                                    .pickerStyle(.wheel)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 100)
 
-                                Text("lbs")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(Color.brandCream.opacity(0.5))
-                                    .padding(.trailing, 12)
+                                    Text("lbs")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                        .padding(.trailing, 6)
+                                }
                             }
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
-                            .clipped()
+                            .padding(16)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
                         }
 
                         // Height
                         formSection(label: "HEIGHT", delay: 0.42) {
-                            HStack(spacing: 0) {
-                                Picker("", selection: $heightFeet) {
-                                    ForEach(3...7, id: \.self) { ft in
-                                        Text("\(ft) ft").tag(ft)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Height")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                HStack(spacing: 0) {
+                                    Picker("", selection: $heightFeet) {
+                                        ForEach(3...7, id: \.self) { ft in
+                                            Text("\(ft) ft").tag(ft)
+                                        }
                                     }
-                                }
-                                .pickerStyle(.wheel)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 80)
-                                .colorScheme(.dark)
+                                    .pickerStyle(.wheel)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 100)
 
-                                Picker("", selection: $heightInches) {
-                                    ForEach(0...11, id: \.self) { inch in
-                                        Text("\(inch) in").tag(inch)
+                                    Picker("", selection: $heightInches) {
+                                        ForEach(0...11, id: \.self) { inch in
+                                            Text("\(inch) in").tag(inch)
+                                        }
                                     }
+                                    .pickerStyle(.wheel)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 100)
                                 }
-                                .pickerStyle(.wheel)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 80)
-                                .colorScheme(.dark)
                             }
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
-                            .clipped()
+                            .padding(16)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
                         }
 
                         // Error
@@ -208,7 +228,7 @@ struct UserInfoView: View {
                                 Image(systemName: "exclamationmark.circle.fill").font(.caption)
                                 Text(errorMessage).font(.caption)
                             }
-                            .foregroundColor(.brandOrange)
+                            .foregroundColor(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
@@ -226,18 +246,19 @@ struct UserInfoView: View {
                                     ProgressView().tint(.brandNavy)
                                 } else {
                                     Text("Save & Continue")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .bold))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
                             }
                         }
-                        .frame(height: 54)
+                        .frame(height: 56)
                         .background(
-                            (name.isEmpty || isSaving)
-                                ? Color.brandLime.opacity(0.4)
-                                : (savePressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
+                            name.isEmpty || isSaving
+                                ? Color.brandLime.opacity(0.45)
+                                : Color.brandLime
                         )
+                        .shadow(color: Color.brandLime.opacity(name.isEmpty ? 0 : 0.4), radius: 10, x: 0, y: 6)
                         .cornerRadius(14)
                         .scaleEffect(savePressed ? 0.97 : 1.0)
                         .animation(.easeInOut(duration: 0.12), value: savePressed)
@@ -263,7 +284,7 @@ struct UserInfoView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(Color.brandLime.opacity(0.75))
+                .foregroundColor(.secondary)
                 .tracking(1.2)
             content()
         }

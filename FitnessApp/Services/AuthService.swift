@@ -29,4 +29,7 @@ final class AuthService {
     var currentUserId: String? {
         supabase.auth.currentUser?.id.uuidString
     }
+    var accessToken: String? {
+        supabase.auth.currentSession?.accessToken
+    }
 }
