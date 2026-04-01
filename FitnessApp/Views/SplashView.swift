@@ -16,6 +16,7 @@ struct SplashView: View {
         ZStack {
             // MARK: - App Content (always underneath)
             RootView()
+                .opacity(isActive ? 1.0 : max(0.0, min(1.0, 1.0 - overlayOpacity)))
 
             // MARK: - White Fade Overlay
             if !isActive {
@@ -52,14 +53,21 @@ struct SplashView: View {
             }
 
             // 2. After a short hold, fade the whole white overlay out
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
                 withAnimation(.easeInOut(duration: 0.55)) {
                     overlayOpacity = 0.0
                 }
             }
 
+            // 2b. Fade the logo/text out slightly earlier so it reaches 0 before removal
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    logoOpacity = 0.0
+                }
+            }
+
             // 3. Remove overlay view from hierarchy once invisible
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
                 isActive = true
             }
         }

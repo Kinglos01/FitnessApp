@@ -30,7 +30,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
 
     // MARK: Local-only preferences (Display & Notifications only)
-    @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
     @AppStorage("settings_meal_reminders") private var mealReminders: Bool = true
     @AppStorage("settings_workout_reminder") private var workoutReminder: Bool = false
@@ -41,6 +40,9 @@ struct SettingsView: View {
     @AppStorage("customProtein") private var customProtein: Int = 150
     @AppStorage("customCarbs") private var customCarbs: Int = 250
     @AppStorage("customFat") private var customFat: Int = 65
+
+    // MARK: Appearance local state
+    @State private var appearanceLocal: String = "System"
 
     // MARK: Draft state
     @State private var draft: ProfileDraft = ProfileDraft(
@@ -160,6 +162,7 @@ struct SettingsView: View {
                 draft.customCaloriesEnabled = user.customCaloriesEnabled
                 draft.units = user.units
             }
+            appearanceLocal = appState.appearancePreference
         }
         .sheet(isPresented: $showEditWeight) {
             EditWeightSheet(draft: $draft, hasChanges: $hasChanges)
@@ -209,9 +212,9 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Appearance", isPresented: $showAppearanceDialog) {
-            Button("Dark") { appearance = "Dark" }
-            Button("Light") { appearance = "Light" }
-            Button("System") { appearance = "System" }
+            Button("Dark") { appState.setAppearance("Dark"); appearanceLocal = "Dark" }
+            Button("Light") { appState.setAppearance("Light"); appearanceLocal = "Light" }
+            Button("System") { appState.setAppearance("System"); appearanceLocal = "System" }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Week Starts On", isPresented: $showWeekStartDialog) {
@@ -491,7 +494,7 @@ struct SettingsView: View {
                     icon: "moon.fill",
                     iconColor: displayIconColor,
                     label: "Appearance",
-                    value: appearance,
+                    value: appearanceLocal,
                     action: { showAppearanceDialog = true }
                 )
                 sectionDivider
@@ -1295,3 +1298,4 @@ private struct sheetHeader: View {
     SettingsView()
         .environment(AppState())
 }
+

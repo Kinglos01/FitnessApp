@@ -5,18 +5,10 @@
 //  Created by Nelson Mojica on 2/19/26.
 //
 
-//
-//  MainTabView.swift
-//  FitnessApp
-//
-//  Created by Nelson Mojica on 2/19/26.
-//
-
 import SwiftUI
 
 struct MainTabView: View {
 
-    @State private var nutritionManager = NutritionManager()
     @State private var selectedTab = 0
     @Environment(AppState.self) var appState
 
@@ -67,16 +59,18 @@ struct MainTabView: View {
                     }
                 }
         )
-        .environment(nutritionManager)
+        .preferredColorScheme(appState.colorScheme)
     }
 }
 
 #Preview("Populated") {
     MainTabView()
         .environment(AppState())
+        .environment(NutritionManager())
 }
 
 #Preview("Empty State") {
     MainTabView()
         .environment(AppState())
+        .environment(NutritionManager())
 }

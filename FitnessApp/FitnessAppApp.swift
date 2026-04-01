@@ -11,12 +11,15 @@ import SwiftUI
 struct FitnessAppApp: App {
 
     @State private var appState = AppState()
+    @State private var nutritionManager = NutritionManager()
     let exerciseService = ExerciseService()
 
     var body: some Scene {
         WindowGroup {
             SplashView()
                 .environment(appState)
+                .environment(nutritionManager)
         }
     }
 }
+

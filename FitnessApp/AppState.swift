@@ -11,6 +11,38 @@ class AppState {
     var pendingUserId: String?
     var pendingEmail: String?
 
+    // MARK: - Appearance (per-account)
+    // "Light", "Dark", or "System"; persisted per user id
+    var appearancePreference: String = "System"
+
+    var colorScheme: ColorScheme? {
+        switch appearancePreference.lowercased() {
+        case "light": return .light
+        case "dark":  return .dark
+        default:        return nil
+        }
+    }
+
+    private func appearanceKey(for userId: String?) -> String {
+        let uid = userId ?? "guest"
+        return "appearance_\(uid)"
+    }
+
+    func loadAppearance(for userId: String?) {
+        let key = appearanceKey(for: userId)
+        if let stored = UserDefaults.standard.string(forKey: key) {
+            appearancePreference = stored
+        } else {
+            appearancePreference = "System"
+        }
+    }
+
+    func setAppearance(_ preference: String) {
+        appearancePreference = preference
+        let key = appearanceKey(for: currentUser?.id)
+        UserDefaults.standard.set(preference, forKey: key)
+    }
+
     init() {}
 
     /// Called from RootView.onAppear.
@@ -20,10 +52,12 @@ class AppState {
             isLoggedIn = false
             hasCompletedOnboarding = false
             currentUser = nil
+            loadAppearance(for: nil)
             return
         }
         // First try local cache for instant load
         loadUser(for: userId)
+        loadAppearance(for: userId)
         // Then refresh from Supabase in the background to stay in sync
         Task {
             if let user = try? await ProfileService.shared.fetchProfile(userId: userId) {
@@ -35,6 +69,7 @@ class AppState {
     /// Call after a successful sign-in to load the correct user's profile.
     func signIn(userId: String) {
         loadUser(for: userId)
+        loadAppearance(for: userId)
         isLoggedIn = true
     }
 
@@ -43,6 +78,7 @@ class AppState {
         currentUser = user
         hasCompletedOnboarding = true
         saveUser(user)
+        loadAppearance(for: user.id)
         pendingUserId = nil
         pendingEmail = nil
     }
@@ -55,6 +91,7 @@ class AppState {
         pendingEmail = nil
         // Clear the Supabase session so it won't auto-restore on next launch
         Task { try? await AuthService.shared.signOut() }
+        loadAppearance(for: nil)
     }
 
     // MARK: - Private
@@ -76,6 +113,7 @@ class AppState {
             currentUser = decoded
             hasCompletedOnboarding = true
             isLoggedIn = true
+            loadAppearance(for: userId)
         }
     }
 }

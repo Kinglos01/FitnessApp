@@ -94,21 +94,38 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
-            if showingSignUp {
+            if appState.isLoggedIn && appState.hasCompletedOnboarding {
+                // Main app after onboarding — slide in from trailing to match flow
+                DashboardView()
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+            } else if appState.isLoggedIn && !appState.hasCompletedOnboarding {
+                // After sign up or first sign in without profile, show onboarding with a smooth slide
+                UserInfoView()
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+            } else if showingSignUp {
+                // Swap between login and sign up with mirrored slides
                 SignUpView(showingSignUp: $showingSignUp)
                     .transition(.asymmetric(
-                        insertion: .move(edge: .trailing),
-                        removal: .move(edge: .leading)
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
                     ))
             } else {
                 LoginView(showingSignUp: $showingSignUp)
                     .transition(.asymmetric(
-                        insertion: .move(edge: .leading),
-                        removal: .move(edge: .trailing)
+                        insertion: .move(edge: .leading).combined(with: .opacity),
+                        removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showingSignUp)
+        .animation(.easeInOut(duration: 0.35), value: appState.hasCompletedOnboarding)
+        .animation(.easeInOut(duration: 0.35), value: appState.isLoggedIn)
     }
 }
 
