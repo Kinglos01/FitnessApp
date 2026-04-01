@@ -36,6 +36,7 @@ struct DashboardView: View {
     @State private var completedWorkouts: [ActivityEntry] = []
     @State private var allExercises: [ActivityEntry] = []
     @State private var selectedDaySnapshot: DaySnapshot? = nil
+    @State private var showWeightTracker: Bool = false
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
@@ -114,6 +115,7 @@ struct DashboardView: View {
                     calorieCard
                     waterCard
                     quickStatsBar
+                    weightTrackerCard
                     todaysWorkoutsCard
                     if !nutritionManager.loggedFoods.isEmpty { foodLogPreview }
                 }
@@ -131,6 +133,10 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView()
+                .environment(appState)
+        }
+        .sheet(isPresented: $showWeightTracker) {
+            WeightTrackerSheet()
                 .environment(appState)
         }
     }
@@ -198,7 +204,7 @@ struct DashboardView: View {
                     // Water
                     let waterKey = "waterConsumed_\(uid)_\(f.string(from: dayStart))"
                     let water = UserDefaults.standard.integer(forKey: waterKey)
-                    let waterProgress = min(Double(water) / 8.0, 1.0)
+                    let waterProgress = min(Double(water) / Double(max(waterGoal, 1)), 1.0)
 
                     VStack(spacing: 4) {
                         Text(dayInitials[idx])
@@ -292,7 +298,8 @@ struct DashboardView: View {
             totalCalories: totalCals,
             calorieTarget: nutritionManager.calorieTarget,
             loggedFoods: foods,
-            waterConsumed: water
+            waterConsumed: water,
+            waterGoal: waterGoal
         )
     }
 
@@ -460,16 +467,52 @@ struct DashboardView: View {
 
     private var quickStatsBar: some View {
         HStack(spacing: 0) {
-            QuickStatCell(value: "\(workoutStreak)",    label: "Day Streak",  icon: "flame.fill",              color: .orange)
+            QuickStatCell(value: "\(workoutStreak)",      label: "Day Streak",  icon: "flame.fill",              color: .orange)
             Divider().frame(height: 40)
-            QuickStatCell(value: "\(activeThisWeek)",  label: "Active Days", icon: "calendar.badge.checkmark", color: .green)
+            QuickStatCell(value: "\(activeThisWeek)",    label: "Active Days", icon: "calendar.badge.checkmark", color: .green)
             Divider().frame(height: 40)
-            QuickStatCell(value: "\(workoutsThisMonth)", label: "This Month", icon: "chart.bar.fill",           color: .blue)
+            QuickStatCell(value: "\(workoutsThisMonth)", label: "This Month",  icon: "chart.bar.fill",           color: .blue)
         }
         .padding(.vertical, 12)
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .padding(.horizontal)
+    }
+
+    // MARK: - Weight Tracker Card
+
+    private var weightTrackerCard: some View {
+        Button {
+            showWeightTracker = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "scalemass.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Weight Tracker")
+                        .font(.subheadline).fontWeight(.bold).foregroundColor(.primary)
+                    if let user = appState.currentUser {
+                        Text(String(format: "Current: %.1f lbs", user.weight))
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
+            .padding(.horizontal)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Today's Workouts Card
