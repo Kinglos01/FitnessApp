@@ -1,46 +1,24 @@
 import SwiftUI
 
-// MARK: - Dashboard Workout Reader
-// Reads ActivityEntry data from the same UserDefaults key used by ActivityLogViewModel
-// so no shared state object is needed — just a lightweight reload on appear.
-
-private struct DashboardWorkoutReader {
-    static func storageKey(for userId: String) -> String { "savedExercises_\(userId)" }
-
-    static func completedToday(userId: String) -> [ActivityEntry] {
-        guard
-            let data = UserDefaults.standard.data(forKey: storageKey(for: userId)),
-            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data)
-        else { return [] }
-
-        let today = Calendar.current.startOfDay(for: Date())
-        return decoded.filter {
-            $0.isCompleted &&
-            Calendar.current.startOfDay(for: $0.date) == today
-        }
-    }
-}
-
-// MARK: - DashboardView
-
 struct DashboardView: View {
 
     @Environment(NutritionManager.self) var nutritionManager
     @Environment(AppState.self) var appState
 
     @AppStorage("waterGoal") private var waterGoal: Int = 8
+
     @State private var waterConsumed: Int = 0
-    @State private var showSettings: Bool = false
-    @State private var showSettingsSheet: Bool = false
-    @State private var showWaterGoalPicker: Bool = false
     @State private var completedWorkouts: [ActivityEntry] = []
     @State private var allExercises: [ActivityEntry] = []
     @State private var selectedDaySnapshot: DaySnapshot? = nil
+    @State private var showSettingsSheet: Bool = false
+    @State private var showWeightTracker: Bool = false
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
     private var waterKey: String {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
         return "waterConsumed_\(userId)_\(f.string(from: Date()))"
     }
 
@@ -50,24 +28,61 @@ struct DashboardView: View {
         return first.isEmpty ? "Friend" : first
     }
 
-    private var calorieGoal: Double { Double(nutritionManager.calorieTarget) }
+    private var calorieGoal: Double {
+        Double(nutritionManager.calorieTarget)
+    }
 
-    var calorieProgress: Double {
+    private var calorieProgress: Double {
         min(nutritionManager.totalCalories / max(calorieGoal, 1), 1.0)
     }
 
-    // MARK: - Real Stats
+    private var totalBurnedToday: Int {
+        completedWorkouts.reduce(0) { $0 + $1.caloriesBurned }
+    }
+
+    private var didLogWorkoutToday: Bool {
+        !completedWorkouts.isEmpty
+    }
+
+    private var didLogFoodToday: Bool {
+        nutritionManager.totalCalories > 0
+    }
+
+    private var didMeetWaterHalfway: Bool {
+        waterConsumed >= max(waterGoal / 2, 1)
+    }
+
+    private var dashboardMessage: String {
+        if !didLogWorkoutToday && !didLogFoodToday {
+            return "You still haven’t logged food or a workout today. A quick check-in would make the dashboard feel way more complete."
+        } else if !didLogWorkoutToday {
+            return "Nutrition looks started, but your workout is still missing for today."
+        } else if !didLogFoodToday {
+            return "Nice job moving today. Now log your meals so your calorie progress is accurate."
+        } else if !didMeetWaterHalfway {
+            return "You’re doing good so far. Drink a little more water and keep the momentum going."
+        } else {
+            return "You’re on a good track today. Keep stacking those small wins."
+        }
+    }
+
     var workoutStreak: Int {
         let cal = Calendar.current
         var streak = 0
         var checkDate = cal.startOfDay(for: Date())
+
         while true {
             let hasWorkout = allExercises.contains {
                 $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate
             }
-            if hasWorkout { streak += 1 } else { break }
-            checkDate = cal.date(byAdding: .day, value: -1, to: checkDate)!
+            if hasWorkout {
+                streak += 1
+                checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+            } else {
+                break
+            }
         }
+
         return streak
     }
 
@@ -75,9 +90,10 @@ struct DashboardView: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let daysFromMonday = (cal.component(.weekday, from: today) + 5) % 7
-        let monday = cal.date(byAdding: .day, value: -daysFromMonday, to: today)!
+        let monday = cal.date(byAdding: .day, value: -daysFromMonday, to: today) ?? today
+
         return (0...daysFromMonday).filter { offset in
-            let day = cal.date(byAdding: .day, value: offset, to: monday)!
+            let day = cal.date(byAdding: .day, value: offset, to: monday) ?? today
             return allExercises.contains { $0.isCompleted && cal.startOfDay(for: $0.date) == day }
         }.count
     }
@@ -86,23 +102,20 @@ struct DashboardView: View {
         let cal = Calendar.current
         let now = Date()
         let month = cal.component(.month, from: now)
-        let year  = cal.component(.year,  from: now)
+        let year = cal.component(.year, from: now)
+
         return allExercises.filter {
             $0.isCompleted &&
             cal.component(.month, from: $0.date) == month &&
-            cal.component(.year,  from: $0.date) == year
+            cal.component(.year, from: $0.date) == year
         }.count
     }
 
     var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
         if hour < 12 { return "Good Morning" }
-        else if hour < 17 { return "Good Afternoon" }
-        else { return "Good Evening" }
-    }
-
-    private var totalBurnedToday: Int {
-        completedWorkouts.reduce(0) { $0 + $1.caloriesBurned }
+        if hour < 17 { return "Good Afternoon" }
+        return "Good Evening"
     }
 
     var body: some View {
@@ -110,24 +123,24 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     greetingHeader
-                    weekStrip
+                    todayPromptCard
                     calorieCard
                     waterCard
                     quickStatsBar
+                    quickActionsCard
                     todaysWorkoutsCard
-                    if !nutritionManager.loggedFoods.isEmpty { foodLogPreview }
+
+                    Spacer(minLength: 70)
                 }
                 .padding(.vertical)
             }
             .navigationTitle("Dashboard")
         }
-        .onAppear { reloadAll() }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onAppear {
             reloadAll()
         }
-        .sheet(item: $selectedDaySnapshot) { snap in
-            DayDetailSheet(snapshot: snap)
-                .environment(appState)
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            reloadAll()
         }
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView()
@@ -137,19 +150,22 @@ struct DashboardView: View {
 
     private func reloadAll() {
         let uid = appState.currentUser?.id ?? ""
-        // Load exercises
+
         let key = "savedExercises_\(uid)"
         if let data = UserDefaults.standard.data(forKey: key),
            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
             allExercises = decoded
+        } else {
+            allExercises = []
         }
+
         let today = Calendar.current.startOfDay(for: Date())
         completedWorkouts = allExercises.filter {
             $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
         }
-        // Load water
+
         waterConsumed = UserDefaults.standard.integer(forKey: waterKey)
-        // Ensure nutrition is configured so the calorie card isn't 0 on first load
+
         nutritionManager.configure(userId: uid, user: appState.currentUser)
         nutritionManager.reloadBurnedCalories()
     }
@@ -310,85 +326,90 @@ struct DashboardView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(greeting), \(firstName) 👋")
-                    .font(.title2).fontWeight(.bold)
-                Text("Let's crush today's goals")
-                    .font(.subheadline).foregroundColor(.gray)
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("Let’s keep today moving.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
+
             Spacer()
-            VStack(spacing: 4) {
+
+            Button {
+                showSettingsSheet = true
+            } label: {
                 ZStack {
-                    Circle().stroke(Color.gray.opacity(0.2), lineWidth: 4)
                     Circle()
-                        .trim(from: 0, to: calorieProgress)
-                        .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 44)).foregroundColor(.blue)
-                }
-                .frame(width: 56, height: 56)
-                Button {
-                    showSettingsSheet = true
-                } label: {
+                        .fill(Color(.systemGray6))
+                        .frame(width: 48, height: 48)
+
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 16)).foregroundColor(.gray)
+                        .font(.system(size: 18))
+                        .foregroundColor(.blue)
                 }
             }
         }
         .padding(.horizontal)
     }
 
-    // MARK: - Settings Dropdown
-
-    private var settingsDropdown: some View {
-        VStack(spacing: 0) {
-            settingsRow(icon: "person.fill", label: "Edit Profile", color: .primary) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { showSettings = false }
-                showSettingsSheet = true
-            }
-            Divider()
-            settingsRow(icon: "gearshape", label: "Settings", color: .primary) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { showSettings = false }
-                showSettingsSheet = true
-            }
-            Divider()
-            settingsRow(icon: "rectangle.portrait.and.arrow.right", label: "Log Out", color: .red) {
-                Task {
-                    try? await AuthService.shared.signOut()
-                    appState.signOut()
-                }
-            }
-        }
-        .background(Color(.systemGray6))
-        .cornerRadius(14)
-        .padding(.horizontal)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    private func settingsRow(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private var todayPromptCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: icon)
-                Text(label)
+                Image(systemName: "sparkles")
+                    .foregroundColor(.orange)
+                Text("Today’s Check-In")
+                    .font(.headline)
                 Spacer()
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
+
+            Text(dashboardMessage)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 10) {
+                statusPill(title: "Workout", complete: didLogWorkoutToday, color: .green)
+                statusPill(title: "Food", complete: didLogFoodToday, color: .orange)
+                statusPill(title: "Water", complete: didMeetWaterHalfway, color: .blue)
+            }
         }
-        .foregroundColor(color)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+        .padding(.horizontal)
     }
 
-    // MARK: - Calorie Card
+    private func statusPill(title: String, complete: Bool, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: complete ? "checkmark.circle.fill" : "circle")
+            Text(title)
+        }
+        .font(.system(size: 12, weight: .semibold, design: .rounded))
+        .foregroundColor(complete ? .white : color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule().fill(complete ? color : color.opacity(0.12))
+        )
+    }
 
     private var calorieCard: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Calories").font(.headline)
+                Text("Calories")
+                    .font(.headline)
+
                 Spacer()
+
                 Text("\(Int(nutritionManager.totalCalories)) / \(Int(calorieGoal)) kcal")
-                    .font(.subheadline).foregroundColor(.gray)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
+
             ProgressView(value: calorieProgress)
                 .progressViewStyle(LinearProgressViewStyle(tint: .orange))
                 .scaleEffect(x: 1, y: 2)
+
             HStack(spacing: 0) {
                 MacroCard(value: Int(nutritionManager.totalProtein), label: "Protein", color: .blue)
                 Divider().frame(height: 40)
@@ -396,7 +417,6 @@ struct DashboardView: View {
                 Divider().frame(height: 40)
                 MacroCard(value: Int(nutritionManager.totalFat), label: "Fat", color: .red)
             }
-            .padding(.top, 4)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -404,46 +424,53 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Water Card
-
     private var waterCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("Water Intake", systemImage: "drop.fill")
-                    .font(.headline).foregroundColor(.blue)
+                    .font(.headline)
+                    .foregroundColor(.blue)
+
                 Spacer()
+
                 Text("\(waterConsumed) / \(waterGoal) glasses")
-                    .font(.subheadline).foregroundColor(.gray)
-                Button {
-                    showWaterGoalPicker = true
-                } label: {
-                    Image(systemName: "pencil.circle")
-                        .font(.system(size: 18))
-                        .foregroundColor(.blue.opacity(0.6))
-                }
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
+
+            ProgressView(value: Double(waterConsumed), total: Double(max(waterGoal, 1)))
+                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                .scaleEffect(x: 1, y: 2)
+
             HStack(spacing: 8) {
-                ForEach(0..<waterGoal, id: \.self) { index in
-                    Image(systemName: index < waterConsumed ? "drop.fill" : "drop")
-                        .foregroundColor(index < waterConsumed ? .blue : .gray.opacity(0.3))
-                        .font(.title3)
-                }
-                Spacer()
                 Button {
                     if waterConsumed > 0 {
                         waterConsumed -= 1
                         UserDefaults.standard.set(waterConsumed, forKey: waterKey)
                     }
                 } label: {
-                    Image(systemName: "minus.circle.fill").font(.title2).foregroundColor(.gray)
+                    Image(systemName: "minus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.gray)
                 }
+
+                Spacer()
+
+                Text("This is just helping the user stay on track for the day.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
                 Button {
                     if waterConsumed < waterGoal {
                         waterConsumed += 1
                         UserDefaults.standard.set(waterConsumed, forKey: waterKey)
                     }
                 } label: {
-                    Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.blue)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
                 }
             }
         }
@@ -451,18 +478,13 @@ struct DashboardView: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .padding(.horizontal)
-        .sheet(isPresented: $showWaterGoalPicker) {
-            WaterGoalSheet(waterGoal: $waterGoal, waterConsumed: $waterConsumed)
-        }
     }
-
-    // MARK: - Quick Stats Bar
 
     private var quickStatsBar: some View {
         HStack(spacing: 0) {
-            QuickStatCell(value: "\(workoutStreak)",    label: "Day Streak",  icon: "flame.fill",              color: .orange)
+            QuickStatCell(value: "\(workoutStreak)", label: "Day Streak",  icon: "flame.fill",              color: .orange)
             Divider().frame(height: 40)
-            QuickStatCell(value: "\(activeThisWeek)",  label: "Active Days", icon: "calendar.badge.checkmark", color: .green)
+            QuickStatCell(value: "\(activeThisWeek)", label: "Active Days", icon: "calendar.badge.checkmark", color: .green)
             Divider().frame(height: 40)
             QuickStatCell(value: "\(workoutsThisMonth)", label: "This Month", icon: "chart.bar.fill",           color: .blue)
         }
@@ -472,98 +494,33 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Today's Workouts Card
-
-    private var todaysWorkoutsCard: some View {
+    private var quickActionsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Today's Workouts", systemImage: "checkmark.seal.fill")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Spacer()
-                if !completedWorkouts.isEmpty {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        Text("\(totalBurnedToday) kcal burned")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.orange)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1))
-                    .clipShape(Capsule())
+            Text("Quick Actions")
+                .font(.headline)
+
+            HStack(spacing: 12) {
+                Button {
+                    showWeightTracker = true
+                } label: {
+                    quickActionButton(
+                        title: "Weight",
+                        icon: "scalemass.fill",
+                        color: .orange
+                    )
                 }
-            }
+                .buttonStyle(.plain)
 
-            if completedWorkouts.isEmpty {
-                // Empty state
-                HStack(spacing: 12) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 28))
-                        .foregroundColor(.gray.opacity(0.35))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("No workouts completed yet")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.gray)
-                        Text("Mark exercises as done in Activity Log")
-                            .font(.caption)
-                            .foregroundColor(.gray.opacity(0.7))
-                    }
+                Button {
+                    showSettingsSheet = true
+                } label: {
+                    quickActionButton(
+                        title: "Settings",
+                        icon: "gearshape.fill",
+                        color: .blue
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-            } else {
-                ForEach(completedWorkouts) { workout in
-                    HStack(spacing: 12) {
-                        // Category icon
-                        ZStack {
-                            Circle()
-                                .fill(workout.category.color.opacity(0.15))
-                                .frame(width: 36, height: 36)
-                            Image(systemName: workout.category.icon)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(workout.category.color)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(workout.name)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                            Text(workout.category.rawValue)
-                                .font(.caption)
-                                .foregroundColor(workout.category.color)
-                        }
-
-                        Spacer()
-
-                        // Calories badge
-                        if workout.caloriesBurned > 0 {
-                            HStack(spacing: 3) {
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.orange)
-                                Text("\(workout.caloriesBurned) kcal")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundColor(.orange)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.1))
-                            .clipShape(Capsule())
-                        }
-
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(workout.category.color)
-                            .font(.system(size: 18))
-                    }
-                    .padding(10)
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                }
+                .buttonStyle(.plain)
             }
         }
         .padding()
@@ -572,21 +529,78 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Food Log Preview
+    private func quickActionButton(title: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(color)
 
-    private var foodLogPreview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Today's Food Log", systemImage: "fork.knife").font(.headline)
-            ForEach(nutritionManager.loggedFoods.suffix(3)) { food in
-                HStack {
-                    Text(food.description).font(.subheadline).lineLimit(1)
-                    Spacer()
-                    Text("\(Int(food.calories)) kcal").font(.caption).foregroundColor(.orange)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(Color.white.opacity(0.7))
+        .cornerRadius(14)
+    }
+
+    private var todaysWorkoutsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Today’s Workouts", systemImage: "checkmark.seal.fill")
+                    .font(.headline)
+
+                Spacer()
+
+                if !completedWorkouts.isEmpty {
+                    Text("\(totalBurnedToday) kcal burned")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(Capsule())
                 }
             }
-            if nutritionManager.loggedFoods.count > 3 {
-                Text("+ \(nutritionManager.loggedFoods.count - 3) more items")
-                    .font(.caption).foregroundColor(.gray)
+
+            if completedWorkouts.isEmpty {
+                Text("No workouts completed yet. Once the user marks one done, it shows up here.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(completedWorkouts) { workout in
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(workout.category.color.opacity(0.15))
+                                .frame(width: 42, height: 42)
+
+                            Image(systemName: workout.category.icon)
+                                .foregroundColor(workout.category.color)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(workout.name)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+
+                            if let duration = workout.duration {
+                                Text("\(duration) min • \(workout.caloriesBurned) kcal")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("\(workout.sets) sets × \(workout.reps) reps")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
         .padding()
@@ -596,9 +610,26 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - Quick Stat Cell
+// MARK: - Helpers
 
-struct QuickStatCell: View {
+private struct MacroCard: View {
+    let value: Int
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(value)g")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+            Text(label)
+                .font(.caption)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct QuickStatCell: View {
     let value: String
     let label: String
     let icon: String
@@ -607,111 +638,13 @@ struct QuickStatCell: View {
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold)).foregroundColor(color)
+                .foregroundColor(color)
             Text(value)
-                .font(.system(size: 22, weight: .black, design: .rounded)).foregroundColor(.primary)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
             Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.gray).textCase(.uppercase).tracking(0.5)
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
-}
-
-// MARK: - Macro Card
-
-struct MacroCard: View {
-    let value: Int
-    let label: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text("\(value)g").font(.title3).fontWeight(.bold).foregroundColor(color)
-            Text(label).font(.caption).foregroundColor(.gray)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Water Goal Sheet
-
-struct WaterGoalSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var waterGoal: Int
-    @Binding var waterConsumed: Int
-    @State private var tempGoal: Int = 8
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 32) {
-                Spacer()
-
-                // Drop icon
-                Image(systemName: "drop.fill")
-                    .font(.system(size: 52))
-                    .foregroundColor(.blue)
-
-                // Big number
-                Text("\(tempGoal)")
-                    .font(.system(size: 64, weight: .black, design: .rounded))
-                    .foregroundColor(.primary)
-                Text("glasses per day")
-                    .font(.subheadline).foregroundColor(.secondary)
-
-                // Stepper buttons
-                HStack(spacing: 40) {
-                    Button {
-                        if tempGoal > 1 { tempGoal -= 1 }
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.gray.opacity(0.5))
-                    }
-                    Button {
-                        if tempGoal < 20 { tempGoal += 1 }
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.blue)
-                    }
-                }
-
-                // Reset to default
-                if tempGoal != 8 {
-                    Button("Reset to default (8)") {
-                        tempGoal = 8
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                }
-
-                Spacer()
-            }
-            .navigationTitle("Daily Water Goal")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        waterGoal = tempGoal
-                        // Clamp consumed to new goal
-                        if waterConsumed > waterGoal { waterConsumed = waterGoal }
-                        dismiss()
-                    }
-                    .fontWeight(.bold)
-                }
-            }
-        }
-        .presentationDetents([.medium])
-        .onAppear { tempGoal = waterGoal }
-    }
-}
-
-#Preview {
-    DashboardView()
-        .environment(NutritionManager())
-        .environment(AppState())
 }

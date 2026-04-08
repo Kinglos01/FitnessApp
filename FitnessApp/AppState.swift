@@ -45,42 +45,49 @@ class AppState {
 
     init() {}
 
-    /// Called from RootView.onAppear.
-    /// Only restores session if Supabase has an active session AND we have a saved profile.
+    // Just trying to restore fast first, then refresh after.
     func restoreSessionIfNeeded() {
         guard let userId = AuthService.shared.currentUserId else {
             isLoggedIn = false
             hasCompletedOnboarding = false
             currentUser = nil
             loadAppearance(for: nil)
+            NotificationManager.shared.clearAllFitnessNotifications()
             return
         }
-        // First try local cache for instant load
+
         loadUser(for: userId)
         loadAppearance(for: userId)
         // Then refresh from Supabase in the background to stay in sync
         Task {
             if let user = try? await ProfileService.shared.fetchProfile(userId: userId) {
                 completeOnboarding(user: user)
+            } else if let currentUser {
+                NotificationManager.shared.syncNotifications(for: currentUser)
             }
         }
     }
 
-    /// Call after a successful sign-in to load the correct user's profile.
     func signIn(userId: String) {
         loadUser(for: userId)
         loadAppearance(for: userId)
         isLoggedIn = true
+
+        if let currentUser {
+            NotificationManager.shared.syncNotifications(for: currentUser)
+        }
     }
 
-    /// Call after the user finishes onboarding.
     func completeOnboarding(user: User) {
         currentUser = user
+        isLoggedIn = true
         hasCompletedOnboarding = true
         saveUser(user)
         loadAppearance(for: user.id)
         pendingUserId = nil
         pendingEmail = nil
+
+        NotificationManager.shared.syncNotifications(for: user)
     }
 
     func signOut() {
@@ -94,7 +101,12 @@ class AppState {
         loadAppearance(for: nil)
     }
 
-    // MARK: - Private
+        NotificationManager.shared.clearAllFitnessNotifications()
+
+        Task {
+            try? await AuthService.shared.signOut()
+        }
+    }
 
     private func storageKey(for userId: String) -> String {
         "savedUser_\(userId)"
