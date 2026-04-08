@@ -251,6 +251,8 @@ final class ActivityLogViewModel: ObservableObject {
 struct ActivityLogView: View {
     @StateObject private var vm: ActivityLogViewModel
     @State private var animateStats = false
+    //AI
+    @State private var showAIAssistant = false 
 
     init(userId: String) {
         _vm = StateObject(wrappedValue: ActivityLogViewModel(userId: userId))
@@ -269,6 +271,25 @@ struct ActivityLogView: View {
                 }
                 .padding(.vertical)
             }
+            .navigationTitle("Activity Log") //AI
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showAIAssistant = true } label: {
+                        VStack(spacing: 2) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.orange)
+                                    .frame(width: 38, height: 38)
+                                RobotIcon()
+                             }
+                            Text("Ask AI")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.orange)
+            }
+        }
+    }
+}
+            .overlay(alignment: .bottom) { floatingAddButton }
             .navigationTitle("Activity Log")
             .overlay(alignment: .bottom) {
                 floatingAddButton
@@ -291,6 +312,11 @@ struct ActivityLogView: View {
         .onAppear {
             withAnimation(.easeOut(duration: 0.6)) {
                 animateStats = true
+            }
+            //AI
+            .sheet(isPresented: $showAIAssistant) {  
+                                                   AIAssistantSheet()
+                .environment(appState)
             }
         }
     }
@@ -874,4 +900,154 @@ struct AddExerciseSheet: View {
 
         dismiss()
     }
+}
+
+// MARK: - Preview
+
+// MARK: - Robot Icon
+
+struct RobotIcon: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let s = size.width / 64
+            ctx.fill(Path(roundedRect: CGRect(x: 7*s, y: 6*s, width: 50*s, height: 3*s), cornerRadius: 1.5*s), with: .color(.white))
+            ctx.fill(Path(roundedRect: CGRect(x: 4*s,    y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 1*s,    y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: -1.5*s, y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
+            ctx.fill(Path(roundedRect: CGRect(x: 56.5*s, y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 60*s,   y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: 63*s,   y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
+            ctx.fill(Path(roundedRect: CGRect(x: 9*s,  y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
+            ctx.fill(Path(roundedRect: CGRect(x: 50*s, y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
+            var leftArm = Path(); leftArm.move(to: CGPoint(x: 15*s, y: 42*s))
+            leftArm.addQuadCurve(to: CGPoint(x: 12*s, y: 9*s), control: CGPoint(x: 11*s, y: 27*s))
+            ctx.stroke(leftArm, with: .color(.white), style: StrokeStyle(lineWidth: 6*s, lineCap: .round))
+            var rightArm = Path(); rightArm.move(to: CGPoint(x: 49*s, y: 42*s))
+            rightArm.addQuadCurve(to: CGPoint(x: 52*s, y: 9*s), control: CGPoint(x: 53*s, y: 27*s))
+            ctx.stroke(rightArm, with: .color(.white), style: StrokeStyle(lineWidth: 6*s, lineCap: .round))
+            var body = Path()
+            body.move(to: CGPoint(x: 15*s, y: 42*s))
+            body.addQuadCurve(to: CGPoint(x: 15*s, y: 60*s), control: CGPoint(x: 13*s, y: 54*s))
+            body.addLine(to: CGPoint(x: 49*s, y: 60*s))
+            body.addQuadCurve(to: CGPoint(x: 49*s, y: 42*s), control: CGPoint(x: 51*s, y: 54*s))
+            body.addQuadCurve(to: CGPoint(x: 15*s, y: 42*s), control: CGPoint(x: 32*s, y: 36*s))
+            ctx.fill(body, with: .color(.white.opacity(0.92)))
+            ctx.fill(Path(roundedRect: CGRect(x: 27*s, y: 32*s, width: 10*s, height: 7*s), cornerRadius: 2*s), with: .color(.white.opacity(0.88)))
+            ctx.fill(Path(roundedRect: CGRect(x: 18*s, y: 16*s, width: 28*s, height: 22*s), cornerRadius: 5*s), with: .color(.white.opacity(0.97)))
+            ctx.fill(Path(roundedRect: CGRect(x: 21*s, y: 20*s, width: 8*s, height: 5.5*s), cornerRadius: 2*s), with: .color(.orange))
+            ctx.fill(Path(roundedRect: CGRect(x: 35*s, y: 20*s, width: 8*s, height: 5.5*s), cornerRadius: 2*s), with: .color(.orange))
+            ctx.fill(Path(roundedRect: CGRect(x: 22*s, y: 20.5*s, width: 2.5*s, height: 2*s), cornerRadius: 0.5*s), with: .color(.white.opacity(0.55)))
+            ctx.fill(Path(roundedRect: CGRect(x: 36*s, y: 20.5*s, width: 2.5*s, height: 2*s), cornerRadius: 0.5*s), with: .color(.white.opacity(0.55)))
+            var smile = Path(); smile.move(to: CGPoint(x: 24*s, y: 30*s))
+            smile.addQuadCurve(to: CGPoint(x: 40*s, y: 30*s), control: CGPoint(x: 32*s, y: 36*s))
+            ctx.stroke(smile, with: .color(.orange), style: StrokeStyle(lineWidth: 2.5*s, lineCap: .round))
+        }
+        .frame(width: 26, height: 26)
+    }
+}
+
+// MARK: - AI Assistant Sheet
+
+struct AIAssistantSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) var appState
+    @State private var messageText = ""
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .bottom, spacing: 8) {
+                           ZStack {
+    Circle().fill(Color.orange).frame(width: 32, height: 32)
+    Canvas { ctx, size in
+        let s = size.width / 64
+        ctx.fill(Path(roundedRect: CGRect(x: 12*s, y: 14*s, width: 40*s, height: 30*s), cornerRadius: 6*s), with: .color(.white.opacity(0.97)))
+        ctx.fill(Path(roundedRect: CGRect(x: 18*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
+        ctx.fill(Path(roundedRect: CGRect(x: 38*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
+        var smile = Path(); smile.move(to: CGPoint(x: 20*s, y: 30*s))
+        smile.addQuadCurve(to: CGPoint(x: 44*s, y: 30*s), control: CGPoint(x: 32*s, y: 38*s))
+        ctx.stroke(smile, with: .color(.orange), style: StrokeStyle(lineWidth: 2.5*s, lineCap: .round))
+    }
+    .frame(width: 20, height: 20)
+}
+                            Text("Hey \(appState.currentUser?.name.components(separatedBy: " ").first ?? "there")! Ask me anything about your workouts.")
+                                .font(.system(size: 13))
+                                .padding(10)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(14)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                    }
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(["Show my progress", "Rest day tips", "Calories burned?", "Best exercises"], id: \.self) { chip in
+                            Text(chip)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.orange.opacity(0.1))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 0.5))
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                Divider()
+                HStack(spacing: 10) {
+                    TextField("Ask about your workouts...", text: $messageText)
+                        .font(.system(size: 14))
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(20)
+                    Button { messageText = "" } label: {
+                        ZStack {
+                            Circle().fill(Color.orange).frame(width: 34, height: 34)
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+            }
+.navigationBarHidden(true)
+.safeAreaInset(edge: .top) {
+    HStack(spacing: 12) {
+        ZStack {
+            Circle().fill(Color.orange).frame(width: 44, height: 44)
+            RobotIcon().frame(width: 28, height: 28)
+        }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("AI Fitness Assistant")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.primary)
+            Text("Powered by your workout data")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        Spacer()
+        Button("Done") { dismiss() }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(.orange)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+    .background(Color(.systemBackground))
+    .overlay(Divider(), alignment: .bottom)
+}
+        }
+    }
+}
+
+
+#Preview {
+    ActivityLogView(userId: "preview")
+        .environment(AppState())
 }
