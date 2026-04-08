@@ -252,7 +252,8 @@ struct ActivityLogView: View {
     @StateObject private var vm: ActivityLogViewModel
     @State private var animateStats = false
     //AI
-    @State private var showAIAssistant = false 
+    @State private var showAIAssistant = false
+    @Environment(AppState.self) var appState
 
     init(userId: String) {
         _vm = StateObject(wrappedValue: ActivityLogViewModel(userId: userId))
@@ -313,11 +314,11 @@ struct ActivityLogView: View {
             withAnimation(.easeOut(duration: 0.6)) {
                 animateStats = true
             }
-            //AI
-            .sheet(isPresented: $showAIAssistant) {  
-                                                   AIAssistantSheet()
+        }
+        //AI
+        .sheet(isPresented: $showAIAssistant) {
+            AIAssistantSheet()
                 .environment(appState)
-            }
         }
     }
 
