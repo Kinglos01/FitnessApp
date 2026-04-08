@@ -40,10 +40,16 @@ private class CalendarDataEngine {
     private var waterGoal: Int = 8
 
     func load(userId: String, calorieTarget: Int, waterGoal: Int) {
-        self.userId = userId
+        self.userId        = userId
         self.calorieTarget = calorieTarget
-        self.waterGoal = waterGoal
+        self.waterGoal     = waterGoal
         buildSnapshots()
+        Task { await fetchFromSupabase() }
+    }
+
+    func reload() {
+        buildSnapshots()
+        Task { await fetchFromSupabase() }
     }
 
     private func buildSnapshots() {
@@ -77,9 +83,40 @@ private class CalendarDataEngine {
         snapshots = result
     }
 
+    // Fetches from Supabase and overlays water data on top of local snapshots
+    @MainActor
+    private func fetchFromSupabase() async {
+        guard !userId.isEmpty,
+              let start = Calendar.current.date(from: DateComponents(year: 2026, month: 1, day: 1)),
+              let end   = Calendar.current.date(from: DateComponents(year: 2026, month: 12, day: 31))
+        else { return }
+
+        guard let logs = try? await DailyLogService.shared.fetchLogs(
+            userId: userId, from: start, to: end
+        ) else { return }
+
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+
+        for log in logs {
+            guard let date = f.date(from: log.date) else { continue }
+            let day = Calendar.current.startOfDay(for: date)
+            guard let snapshot = snapshots[day] else { continue }
+            snapshots[day] = DaySnapshot(
+                date: snapshot.date,
+                completedWorkouts: snapshot.completedWorkouts,
+                totalCalories: log.calories_eaten > 0 ? log.calories_eaten : snapshot.totalCalories,
+                calorieTarget: snapshot.calorieTarget,
+                loggedFoods: snapshot.loggedFoods,
+                waterConsumed: log.water_consumed,
+                waterGoal: log.water_goal
+            )
+        }
+    }
+
     private func loadExercises() -> [ActivityEntry] {
         let key = "savedExercises_\(userId)"
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data    = UserDefaults.standard.data(forKey: key),
               let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data)
         else { return [] }
         return decoded
@@ -88,7 +125,7 @@ private class CalendarDataEngine {
     private func loadNutrition(for date: Date) -> (Double, [LoggedFoodEntry]) {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         let key = "nutritionLog_\(userId)_\(f.string(from: date))"
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data    = UserDefaults.standard.data(forKey: key),
               let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data)
         else { return (0, []) }
         let total = entries.reduce(0.0) { $0 + $1.foodItem.calories }
@@ -100,8 +137,6 @@ private class CalendarDataEngine {
         let key = "waterConsumed_\(userId)_\(f.string(from: date))"
         return UserDefaults.standard.integer(forKey: key)
     }
-
-    func reload() { buildSnapshots() }
 }
 
 // MARK: - Main Calendar View
@@ -113,12 +148,10 @@ struct CalendarView: View {
 
     @State private var engine = CalendarDataEngine()
     @State private var selectedDay: DaySnapshot? = nil
-    @State private var showingDaySheet = false
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-    private let weekDayInitials = ["M", "T", "W", "T", "F", "S", "S"]
+    private let columns          = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    private let weekDayInitials  = ["M", "T", "W", "T", "F", "S", "S"]
 
-    // All days in 2026
     private var days: [Date] {
         let cal = Calendar.current
         var comps = DateComponents(year: 2026, month: 1, day: 1)
@@ -127,7 +160,7 @@ struct CalendarView: View {
         guard let end = cal.date(from: comps) else { return [] }
         var dates: [Date] = []
         var current = cal.startOfDay(for: start)
-        let endDay = cal.startOfDay(for: end)
+        let endDay  = cal.startOfDay(for: end)
         while current <= endDay {
             dates.append(current)
             current = cal.date(byAdding: .day, value: 1, to: current)!
@@ -152,8 +185,7 @@ struct CalendarView: View {
                 engine.reload()
             }
             .sheet(item: $selectedDay) { day in
-                DayDetailSheet(snapshot: day)
-                    .environment(appState)
+                DayDetailSheet(snapshot: day).environment(appState)
             }
         }
     }
@@ -171,24 +203,20 @@ struct CalendarView: View {
         HStack(spacing: 14) {
             legendItem(color: Color(red: 0.25, green: 0.72, blue: 0.55), label: "Activity")
             legendItem(color: .orange, label: "Nutrition")
-            legendItem(color: .cyan, label: "Water")
+            legendItem(color: .cyan,   label: "Water")
             Spacer()
-            Text("Tap for details")
-                .font(.caption2).foregroundColor(.secondary)
+            Text("Tap for details").font(.caption2).foregroundColor(.secondary)
         }
         .padding(.horizontal, 4)
     }
 
     private func legendItem(color: Color, label: String) -> some View {
         HStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(color)
-                .frame(width: 12, height: 12)
+            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 12, height: 12)
             Text(label).font(.caption2).foregroundColor(.secondary)
         }
     }
 
-    // Group days into months
     private var monthGroups: [(title: String, days: [Date])] {
         let cal = Calendar.current
         let formatter = DateFormatter()
@@ -203,8 +231,7 @@ struct CalendarView: View {
             let key   = year * 100 + month
             if key != currentMonth {
                 if !current.isEmpty {
-                    let title = formatter.string(from: current[0])
-                    groups.append((title: title, days: current))
+                    groups.append((title: formatter.string(from: current[0]), days: current))
                 }
                 current = []
                 currentMonth = key
@@ -217,7 +244,6 @@ struct CalendarView: View {
         return groups
     }
 
-    // MARK: - Calendar Grid (month-grouped)
     private var calendarGrid: some View {
         VStack(spacing: 20) {
             ForEach(monthGroups, id: \.title) { group in
@@ -227,19 +253,17 @@ struct CalendarView: View {
     }
 
     private func monthSection(title: String, days: [Date]) -> some View {
-        let cal = Calendar.current
+        let cal      = Calendar.current
         let firstDay = days[0]
-        let wd = cal.component(.weekday, from: firstDay)
-        let blanks = (wd + 5) % 7  // Mon=0 offset
+        let wd       = cal.component(.weekday, from: firstDay)
+        let blanks   = (wd + 5) % 7
 
         return VStack(alignment: .leading, spacing: 8) {
-            // Month title
             Text(title)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .padding(.horizontal, 4)
 
-            // Weekday header
             HStack(spacing: 4) {
                 ForEach(Array(weekDayInitials.enumerated()), id: \.offset) { _, initial in
                     Text(initial)
@@ -249,7 +273,6 @@ struct CalendarView: View {
                 }
             }
 
-            // Day grid
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(0..<blanks, id: \.self) { _ in
                     Color.clear.aspectRatio(1, contentMode: .fit)
@@ -277,69 +300,52 @@ struct DayCell: View {
     let snapshot: DaySnapshot?
     let date: Date
 
-    private var isFuture: Bool {
-        date > Calendar.current.startOfDay(for: Date())
-    }
-    private var isToday: Bool { Calendar.current.isDateInToday(date) }
-    private var dayNum: Int { Calendar.current.component(.day, from: date) }
+    private var isFuture: Bool { date > Calendar.current.startOfDay(for: Date()) }
+    private var isToday: Bool  { Calendar.current.isDateInToday(date) }
+    private var dayNum: Int    { Calendar.current.component(.day, from: date) }
 
     var body: some View {
         GeometryReader { geo in
             let size = geo.size.width
             ZStack {
-                // Background
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(cellBackground)
+                RoundedRectangle(cornerRadius: 5).fill(cellBackground)
 
-                // Three concentric rings (only on past/today non-empty days)
                 if let snap = snapshot, !isFuture {
                     let ringPad = size * 0.06
                     let lineW   = size * 0.07
 
-                    // Outer — Activity (green)
                     ZStack {
-                        Circle()
-                            .stroke(Color(red: 0.25, green: 0.72, blue: 0.55).opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color(red: 0.25, green: 0.72, blue: 0.55).opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: snap.hasActivity ? 1.0 : 0)
-                            .stroke(Color(red: 0.25, green: 0.72, blue: 0.55),
-                                    style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color(red: 0.25, green: 0.72, blue: 0.55), style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad)
 
-                    // Middle — Nutrition (orange)
                     ZStack {
-                        Circle()
-                            .stroke(Color.orange.opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color.orange.opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: snap.calorieProgress)
-                            .stroke(Color.orange,
-                                    style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color.orange, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad + lineW * 1.4)
 
-                    // Inner — Water (blue)
                     ZStack {
-                        Circle()
-                            .stroke(Color.cyan.opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color.cyan.opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: min(Double(snap.waterConsumed) / Double(max(snap.waterGoal, 1)), 1.0))
-                            .stroke(Color.cyan,
-                                    style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color.cyan, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad + lineW * 2.8)
                 }
 
-                // Today ring
                 if isToday {
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color.primary, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 5).stroke(Color.primary, lineWidth: 1.5)
                 }
 
-                // Day number
                 Text("\(dayNum)")
                     .font(.system(size: size * 0.22, weight: isToday ? .black : .regular, design: .rounded))
                     .foregroundColor(dayNumberColor)
@@ -360,7 +366,7 @@ struct DayCell: View {
 
     private var dayNumberColor: Color {
         if isFuture { return .secondary.opacity(0.4) }
-        if isToday { return .primary }
+        if isToday  { return .primary }
         guard let snap = snapshot else { return .secondary }
         return snap.hasActivity ? Color(red: 0.15, green: 0.55, blue: 0.40) : .secondary
     }
@@ -386,6 +392,7 @@ struct DayDetailSheet: View {
                     summaryBanner
                     if !snapshot.completedWorkouts.isEmpty { workoutsSection }
                     nutritionSection
+                    waterSection
                     Spacer(minLength: 40)
                 }
                 .padding(16)
@@ -432,15 +439,11 @@ struct DayDetailSheet: View {
     // MARK: Workouts Section
     private var workoutsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Workouts", systemImage: "figure.strengthtraining.traditional")
-                .font(.headline)
-
+            Label("Workouts", systemImage: "figure.strengthtraining.traditional").font(.headline)
             ForEach(snapshot.completedWorkouts) { workout in
                 HStack(spacing: 12) {
                     ZStack {
-                        Circle()
-                            .fill(workout.category.color.opacity(0.15))
-                            .frame(width: 38, height: 38)
+                        Circle().fill(workout.category.color.opacity(0.15)).frame(width: 38, height: 38)
                         Image(systemName: workout.category.icon)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(workout.category.color)
@@ -448,8 +451,7 @@ struct DayDetailSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(workout.name).font(.subheadline).fontWeight(.semibold)
                         HStack(spacing: 8) {
-                            Text(workout.category.rawValue)
-                                .font(.caption).foregroundColor(workout.category.color)
+                            Text(workout.category.rawValue).font(.caption).foregroundColor(workout.category.color)
                             if let dur = workout.duration {
                                 Text("· \(dur) min").font(.caption).foregroundColor(.secondary)
                             }
@@ -457,11 +459,9 @@ struct DayDetailSheet: View {
                     }
                     Spacer()
                     if workout.caloriesBurned > 0 {
-                        Text("\(workout.caloriesBurned) kcal")
-                            .font(.caption).fontWeight(.bold).foregroundColor(.orange)
+                        Text("\(workout.caloriesBurned) kcal").font(.caption).fontWeight(.bold).foregroundColor(.orange)
                     }
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(workout.category.color)
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(workout.category.color)
                 }
                 .padding(12)
                 .background(Color(.systemGray6))
@@ -473,10 +473,8 @@ struct DayDetailSheet: View {
     // MARK: Nutrition Section
     private var nutritionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Nutrition", systemImage: "fork.knife.circle.fill")
-                .font(.headline)
+            Label("Nutrition", systemImage: "fork.knife.circle.fill").font(.headline)
 
-            // Calorie progress bar
             VStack(spacing: 8) {
                 HStack {
                     Text("Calories").font(.subheadline).fontWeight(.semibold)
@@ -486,8 +484,7 @@ struct DayDetailSheet: View {
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.gray.opacity(0.15)).frame(height: 10)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.15)).frame(height: 10)
                         RoundedRectangle(cornerRadius: 6)
                             .fill(snapshot.totalCalories > Double(snapshot.calorieTarget) ? Color.red : Color.orange)
                             .frame(width: geo.size.width * snapshot.calorieProgress, height: 10)
@@ -501,50 +498,65 @@ struct DayDetailSheet: View {
 
             if snapshot.loggedFoods.isEmpty {
                 HStack(spacing: 10) {
-                    Image(systemName: "fork.knife.circle")
-                        .foregroundColor(.gray.opacity(0.4)).font(.system(size: 28))
-                    Text("No foods logged this day")
-                        .font(.subheadline).foregroundColor(.gray)
+                    Image(systemName: "fork.knife.circle").foregroundColor(.gray.opacity(0.4)).font(.system(size: 28))
+                    Text("No foods logged this day").font(.subheadline).foregroundColor(.gray)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
+                .padding(14).background(Color(.systemGray6)).cornerRadius(12)
             } else {
-                // Group by meal type
                 ForEach(NutritionMealType.allCases, id: \.self) { mealType in
                     let entries = snapshot.loggedFoods.filter { $0.mealType == mealType }
                     if !entries.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
-                                Image(systemName: mealType.icon)
-                                    .foregroundColor(.orange).font(.caption)
-                                Text(mealType.rawValue)
-                                    .font(.caption).fontWeight(.bold)
+                                Image(systemName: mealType.icon).foregroundColor(.orange).font(.caption)
+                                Text(mealType.rawValue).font(.caption).fontWeight(.bold)
                                 Spacer()
                                 let total = entries.reduce(0.0) { $0 + $1.foodItem.calories }
-                                Text("\(Int(total)) kcal")
-                                    .font(.caption2).foregroundColor(.secondary)
+                                Text("\(Int(total)) kcal").font(.caption2).foregroundColor(.secondary)
                             }
                             ForEach(entries) { entry in
                                 HStack {
-                                    Text(entry.foodItem.description)
-                                        .font(.caption).lineLimit(1)
+                                    Text(entry.foodItem.description).font(.caption).lineLimit(1)
                                     Spacer()
-                                    Text("\(Int(entry.foodItem.calories)) kcal")
-                                        .font(.caption2).foregroundColor(.orange)
+                                    Text("\(Int(entry.foodItem.calories)) kcal").font(.caption2).foregroundColor(.orange)
                                 }
                                 .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color(.systemBackground))
-                                .cornerRadius(8)
+                                .background(Color(.systemBackground)).cornerRadius(8)
                             }
                         }
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        .padding(10).background(Color(.systemGray6)).cornerRadius(12)
                     }
                 }
             }
+        }
+    }
+
+    // MARK: Water Section
+    private var waterSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Water", systemImage: "drop.fill").font(.headline).foregroundColor(.cyan)
+
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Intake").font(.subheadline).fontWeight(.semibold)
+                    Spacer()
+                    Text("\(snapshot.waterConsumed) / \(snapshot.waterGoal) glasses")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.15)).frame(height: 10)
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.cyan)
+                            .frame(width: geo.size.width * min(Double(snapshot.waterConsumed) / Double(max(snapshot.waterGoal, 1)), 1.0), height: 10)
+                    }
+                }
+                .frame(height: 10)
+            }
+            .padding(12)
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
         }
     }
 }

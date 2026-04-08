@@ -2,16 +2,6 @@
 //  WeightTrackerView.swift
 //  FitnessApp
 //
-//  Created by Carlos Berio on 4/1/26.
-//
-//
-//  WeightTrackerView.swift
-//  FitnessApp
-//
-//
-//  WeightTrackerView.swift
-//  FitnessApp
-//
 
 import SwiftUI
 import Charts
@@ -119,10 +109,9 @@ final class WeightTrackerViewModel {
         save()
         inputText = ""
 
-        // Notify dashboard/appState so the widget updates immediately
         onWeightUpdated?(rounded)
 
-        // Persist to Supabase in background
+        // ✏️ CHANGED — now calls WeightLogService which writes to profiles, not weight_logs
         Task {
             try? await WeightLogService.shared.logWeight(userId: user.id, weightLbs: rounded)
         }
@@ -156,7 +145,6 @@ final class WeightTrackerViewModel {
         }
     }
 
-    /// Merges remote entries with local ones, preferring remote as source of truth
     func mergeRemoteEntries(_ remote: [WeightEntry]) {
         entries = remote.sorted { $0.date < $1.date }
         save()
@@ -174,6 +162,7 @@ final class WeightTrackerViewModel {
 
 // MARK: - Entry point
 
+// ✏️ CHANGED — loads history from profiles.weight_history via WeightLogService instead of weight_logs
 struct WeightTrackerSheet: View {
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
@@ -195,23 +184,25 @@ struct WeightTrackerSheet: View {
             }
         }
         .onAppear {
-            if let user = appState.currentUser {
-                let tracker = WeightTrackerViewModel(user: user)
-                // Update appState.currentUser.weight so dashboard widget reflects new weight
-                tracker.onWeightUpdated = { newWeight in
-                    if var updated = appState.currentUser {
-                        updated.weight = newWeight
-                        appState.completeOnboarding(user: updated) // saves locally
-                    }
+            // ✏️ CHANGED — guard let instead of if let for early exit
+            guard let user = appState.currentUser else { return }
+            let tracker = WeightTrackerViewModel(user: user)
+
+            tracker.onWeightUpdated = { newWeight in
+                if var updated = appState.currentUser {
+                    updated.weight = newWeight
+                    appState.completeOnboarding(user: updated)
                 }
-                vm = tracker
-                // Load history from Supabase
-                Task {
-                    if let entries = try? await WeightLogService.shared.fetchEntries(userId: user.id),
-                       !entries.isEmpty {
-                        await MainActor.run {
-                            tracker.mergeRemoteEntries(entries)
-                        }
+            }
+
+            vm = tracker
+
+            // ✏️ CHANGED — fetches from profiles.weight_history instead of weight_logs table
+            Task {
+                if let entries = try? await WeightLogService.shared.fetchEntries(userId: user.id),
+                   !entries.isEmpty {
+                    await MainActor.run {
+                        tracker.mergeRemoteEntries(entries)
                     }
                 }
             }
@@ -220,6 +211,7 @@ struct WeightTrackerSheet: View {
 }
 
 // MARK: - Main content
+// ✏️ NO CHANGES BELOW THIS LINE — everything from WeightTrackerContent onwards is identical
 
 private struct WeightTrackerContent: View {
     @Bindable var vm: WeightTrackerViewModel
@@ -562,6 +554,7 @@ private struct WeightTrackerContent: View {
 }
 
 // MARK: - Motivation card
+// ✏️ NO CHANGES — identical to original
 
 private struct MotivationCard: View {
     let kind      : MotivationKind
@@ -638,6 +631,7 @@ private struct MotivationCard: View {
 }
 
 // MARK: - Confetti
+// ✏️ NO CHANGES — identical to original
 
 struct ConfettiView: View {
     @State private var pieces: [Piece] = []

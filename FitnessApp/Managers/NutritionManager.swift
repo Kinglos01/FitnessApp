@@ -4,20 +4,16 @@
 //
 //  Created by Nelson Mojica on 2/23/26.
 //
-//  Shared in-memory store for logged foods.
-//  Both NutritionView and DashboardView read from this.
-//  Nothing persists on restart — swap in Firestore later.
-//
 import Observation
 import Foundation
 import SwiftUI
 
 // MARK: - Activity Level
 enum ActivityLevel: String, CaseIterable, Codable {
-    case sedentary      = "Sedentary"
-    case lightlyActive  = "Lightly Active"
+    case sedentary        = "Sedentary"
+    case lightlyActive    = "Lightly Active"
     case moderatelyActive = "Moderately Active"
-    case veryActive     = "Very Active"
+    case veryActive       = "Very Active"
 
     var multiplier: Double {
         switch self {
@@ -30,34 +26,34 @@ enum ActivityLevel: String, CaseIterable, Codable {
 
     var description: String {
         switch self {
-        case .sedentary:          return "Little or no exercise"
-        case .lightlyActive:      return "Exercise 1–3 days/week"
-        case .moderatelyActive:   return "Exercise 3–5 days/week"
-        case .veryActive:         return "Hard exercise 6–7 days/week"
+        case .sedentary:        return "Little or no exercise"
+        case .lightlyActive:    return "Exercise 1–3 days/week"
+        case .moderatelyActive: return "Exercise 3–5 days/week"
+        case .veryActive:       return "Hard exercise 6–7 days/week"
         }
     }
 
     var icon: String {
         switch self {
-        case .sedentary:          return "sofa.fill"
-        case .lightlyActive:      return "figure.walk"
-        case .moderatelyActive:   return "figure.run"
-        case .veryActive:         return "flame.fill"
+        case .sedentary:        return "sofa.fill"
+        case .lightlyActive:    return "figure.walk"
+        case .moderatelyActive: return "figure.run"
+        case .veryActive:       return "flame.fill"
         }
     }
 }
 
 // MARK: - Nutrition Goal
 enum NutritionGoal: String, CaseIterable, Codable {
-    case loseWeight  = "Lose Weight"
-    case maintain    = "Maintain"
-    case gainMuscle  = "Gain Muscle"
+    case loseWeight = "Lose Weight"
+    case maintain   = "Maintain"
+    case gainMuscle = "Gain Muscle"
 
     var calorieDelta: Int {
         switch self {
-        case .loseWeight:  return -500
-        case .maintain:    return 0
-        case .gainMuscle:  return +400
+        case .loseWeight: return -500
+        case .maintain:   return 0
+        case .gainMuscle: return +400
         }
     }
 
@@ -78,7 +74,7 @@ enum NutritionGoal: String, CaseIterable, Codable {
     }
 }
 
-// MARK: - Logged Food Entry (persisted)
+// MARK: - Logged Food Entry
 struct LoggedFoodEntry: Identifiable, Codable {
     let id: UUID
     let foodItem: FoodItem
@@ -86,9 +82,9 @@ struct LoggedFoodEntry: Identifiable, Codable {
     let mealType: NutritionMealType
 
     init(foodItem: FoodItem, mealType: NutritionMealType) {
-        self.id = UUID()
+        self.id       = UUID()
         self.foodItem = foodItem
-        self.date = Date()
+        self.date     = Date()
         self.mealType = mealType
     }
 }
@@ -97,14 +93,9 @@ struct LoggedFoodEntry: Identifiable, Codable {
 @Observable
 class NutritionManager {
 
-    // Persisted settings
     var activityLevel: ActivityLevel = .lightlyActive
     var goal: NutritionGoal = .maintain
-
-    // Today's log
     var loggedEntries: [LoggedFoodEntry] = []
-
-    // User-driven TDEE (set from AppState.currentUser)
     var userTDEE: Int? = nil
 
     private var userId: String = ""
@@ -123,19 +114,17 @@ class NutritionManager {
         loadSettings()
         loadTodayLog()
         if let user = user {
-            // Sync goal from user's primaryGoal in settings
-            goal = nutritionGoal(from: user.primaryGoal)
-            // TDEE uses user's actual activity level
-            userTDEE = Int(UserMetricsCalculator.tdee(bmr: user.bmr, activityLevel: user.activityLevel))
+            goal     = nutritionGoal(from: user.primaryGoal)
+            userTDEE = Int(UserMetricsCalculator.tdee(bmr: user.bmr, activityLevel: user.activityLevel).rounded())
         }
         reloadBurnedCalories()
     }
 
     private func nutritionGoal(from primaryGoal: String) -> NutritionGoal {
         switch primaryGoal.lowercased() {
-        case "lose weight":       return .loseWeight
-        case "build muscle":      return .gainMuscle
-        default:                  return .maintain
+        case "lose weight":  return .loseWeight
+        case "build muscle": return .gainMuscle
+        default:             return .maintain
         }
     }
 
@@ -143,12 +132,12 @@ class NutritionManager {
         caloriesBurnedToday = loadBurnedCaloriesToday()
     }
 
-    // MARK: - Calories Burned (from Activity Log)
+    // MARK: - Calories Burned
     var caloriesBurnedToday: Int = 0
 
     private func loadBurnedCaloriesToday() -> Int {
         let key = "savedExercises_\(userId)"
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data    = UserDefaults.standard.data(forKey: key),
               let entries = try? JSONDecoder().decode([ActivityEntry].self, from: data)
         else { return 0 }
         let today = Calendar.current.startOfDay(for: Date())
@@ -163,12 +152,10 @@ class NutritionManager {
         return max(1200, base + goal.calorieDelta)
     }
 
-    // Net = target + burned - eaten (how many calories left to eat)
     var remainingCalories: Int {
         calorieTarget + caloriesBurnedToday - Int(totalCalories)
     }
 
-    // MARK: - Today's foods (backwards compat for views that use loggedFoods)
     var loggedFoods: [FoodItem] { loggedEntries.map { $0.foodItem } }
 
     // MARK: - Computed Totals
@@ -177,21 +164,23 @@ class NutritionManager {
     var totalCarbs: Double    { loggedEntries.reduce(0) { $0 + $1.foodItem.carbs    } }
     var totalFat: Double      { loggedEntries.reduce(0) { $0 + $1.foodItem.fat      } }
 
-    // MARK: - Macros targets (standard % splits)
-    var proteinTarget: Int { Int(Double(calorieTarget) * 0.30 / 4) }  // 30% calories / 4 cal per g
-    var carbTarget: Int    { Int(Double(calorieTarget) * 0.45 / 4) }  // 45%
-    var fatTarget: Int     { Int(Double(calorieTarget) * 0.25 / 9) }  // 25% / 9 cal per g
+    // MARK: - Macro Targets
+    var proteinTarget: Int { Int(Double(calorieTarget) * 0.30 / 4) }
+    var carbTarget: Int    { Int(Double(calorieTarget) * 0.45 / 4) }
+    var fatTarget: Int     { Int(Double(calorieTarget) * 0.25 / 9) }
 
     // MARK: - Actions
     func logFood(_ food: FoodItem, mealType: NutritionMealType = .snack) {
         let entry = LoggedFoodEntry(foodItem: food, mealType: mealType)
         loggedEntries.append(entry)
         saveTodayLog()
+        syncDailyLog()
     }
 
     func removeEntry(at offsets: IndexSet) {
         loggedEntries.remove(atOffsets: offsets)
         saveTodayLog()
+        syncDailyLog()
     }
 
     func removeFood(at offsets: IndexSet) {
@@ -201,11 +190,52 @@ class NutritionManager {
     func clearAll() {
         loggedEntries.removeAll()
         saveTodayLog()
+        syncDailyLog()
     }
 
     func setGoal(_ goal: NutritionGoal) {
         self.goal = goal
         saveSettings()
+    }
+
+    // MARK: - Supabase Daily Log Sync
+    // Called internally whenever nutrition changes.
+    // Calories burned and workouts are passed as 0 here — the activity
+    // view owns those values and will upsert them separately. Supabase
+    // upsert merges on (user_id, date) so nothing is overwritten.
+    private func syncDailyLog() {
+        guard !userId.isEmpty else { return }
+        let calories = totalCalories
+        Task {
+            try? await DailyLogService.shared.upsertLog(
+                userId: userId,
+                waterConsumed: UserDefaults.standard.integer(
+                    forKey: "waterConsumed_\(userId)_\(todayString)"
+                ),
+                waterGoal: UserDefaults.standard.integer(forKey: "waterGoal"),
+                caloriesEaten: calories,
+                caloriesBurned: caloriesBurnedToday,
+                workoutsCompleted: 0
+            )
+        }
+    }
+
+    // Public version called from NutritionView when it needs
+    // to pass external burned/workout counts.
+    func syncDailyLog(userId: String, caloriesBurned: Int, workoutsCompleted: Int) {
+        guard !userId.isEmpty else { return }
+        let calories = totalCalories
+        let wKey     = "waterConsumed_\(userId)_\(todayString)"
+        Task {
+            try? await DailyLogService.shared.upsertLog(
+                userId: userId,
+                waterConsumed: UserDefaults.standard.integer(forKey: wKey),
+                waterGoal: UserDefaults.standard.integer(forKey: "waterGoal"),
+                caloriesEaten: calories,
+                caloriesBurned: caloriesBurned,
+                workoutsCompleted: workoutsCompleted
+            )
+        }
     }
 
     // MARK: - Persistence
@@ -215,7 +245,7 @@ class NutritionManager {
     }
 
     private func loadSettings() {
-        guard let data = UserDefaults.standard.data(forKey: settingsKey),
+        guard let data     = UserDefaults.standard.data(forKey: settingsKey),
               let settings = try? JSONDecoder().decode(NutritionSettings.self, from: data)
         else { return }
         goal = settings.goal
@@ -227,7 +257,7 @@ class NutritionManager {
     }
 
     private func loadTodayLog() {
-        guard let data = UserDefaults.standard.data(forKey: logKey),
+        guard let data    = UserDefaults.standard.data(forKey: logKey),
               let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data)
         else { loggedEntries = []; return }
         loggedEntries = entries

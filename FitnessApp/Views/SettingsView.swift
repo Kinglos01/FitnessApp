@@ -30,7 +30,6 @@ struct SettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) var dismiss
 
-    // MARK: Local-only preferences
     @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
 
@@ -42,13 +41,11 @@ struct SettingsView: View {
     @AppStorage("settings_workout_reminder_hour") private var workoutReminderHour: Int = 18
     @AppStorage("settings_streak_reminder_hour") private var streakReminderHour: Int = 20
 
-    // MARK: Custom macro overrides
     @AppStorage("useCustomMacros") private var useCustomMacros: Bool = false
     @AppStorage("customProtein") private var customProtein: Int = 150
     @AppStorage("customCarbs") private var customCarbs: Int = 250
     @AppStorage("customFat") private var customFat: Int = 65
 
-    // MARK: Draft state
     @State private var draft: ProfileDraft = ProfileDraft(
         name: "",
         weightLbs: 150,
@@ -68,8 +65,8 @@ struct SettingsView: View {
     @State private var saveError: String = ""
     @State private var hasChanges: Bool = false
     @State private var notificationStatusText: String = "Checking..."
+    @State private var showAdminPanel: Bool = false
 
-    // MARK: Navigation state
     @State private var showEditWeight: Bool = false
     @State private var showEditHeight: Bool = false
     @State private var showEditDOB: Bool = false
@@ -83,14 +80,11 @@ struct SettingsView: View {
     @State private var showTargetWeightSheet: Bool = false
     @State private var showMacroSheet: Bool = false
 
-    // MARK: Section icon colors
     private let profileIconColor = Color.brandLime
     private let targetsIconColor = Color(hex: "48ACF0")
     private let displayIconColor = Color(hex: "A082FF")
     private let notificationsIconColor = Color(hex: "50D2B4")
     private let accountIconColor = Color.brandOrange
-
-    // MARK: Helpers
 
     private func initials(from name: String) -> String {
         let parts = name.split(separator: " ").prefix(2)
@@ -117,13 +111,11 @@ struct SettingsView: View {
         return formatter.string(from: date)
     }
 
-    /// Keeping the same BMR idea you already had, just using the draft values.
     private var draftBMR: Double {
         let totalInches = Double(draft.heightFeet * 12 + draft.heightInches)
         let kg = Double(draft.weightLbs) * 0.453592
         let cm = totalInches * 2.54
         let age = Double(Calendar.current.dateComponents([.year], from: draft.birthDate, to: Date()).year ?? 0)
-
         switch draft.gender.lowercased() {
         case "male":
             return (10 * kg) + (6.25 * cm) - (5 * age) + 5
@@ -148,9 +140,7 @@ struct SettingsView: View {
         )
     }
 
-    private var bodyWeightText: String {
-        "\(draft.weightLbs) lbs"
-    }
+    private var bodyWeightText: String { "\(draft.weightLbs) lbs" }
 
     private var heightText: String {
         formattedHeight(Double(draft.heightFeet * 12 + draft.heightInches))
@@ -171,6 +161,9 @@ struct SettingsView: View {
                         displaySection
                         notificationsSection
                         accountSection
+                        if appState.currentUser?.isAdmin == true {
+                            adminSection
+                        }
                         footerText
                         Spacer(minLength: 110)
                     }
@@ -178,7 +171,6 @@ struct SettingsView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 40)
                 }
-
                 stickyFooter
             }
         }
@@ -187,24 +179,12 @@ struct SettingsView: View {
             loadDraftFromCurrentUser()
             refreshNotificationStatus()
         }
-        .onChange(of: mealReminders) { _, _ in
-            syncNotificationSettings()
-        }
-        .onChange(of: workoutReminder) { _, _ in
-            syncNotificationSettings()
-        }
-        .onChange(of: streakReminder) { _, _ in
-            syncNotificationSettings()
-        }
-        .onChange(of: mealReminderHour) { _, _ in
-            syncNotificationSettings()
-        }
-        .onChange(of: workoutReminderHour) { _, _ in
-            syncNotificationSettings()
-        }
-        .onChange(of: streakReminderHour) { _, _ in
-            syncNotificationSettings()
-        }
+        .onChange(of: mealReminders) { _, _ in syncNotificationSettings() }
+        .onChange(of: workoutReminder) { _, _ in syncNotificationSettings() }
+        .onChange(of: streakReminder) { _, _ in syncNotificationSettings() }
+        .onChange(of: mealReminderHour) { _, _ in syncNotificationSettings() }
+        .onChange(of: workoutReminderHour) { _, _ in syncNotificationSettings() }
+        .onChange(of: streakReminderHour) { _, _ in syncNotificationSettings() }
         .sheet(isPresented: $showEditWeight) {
             EditWeightSheet(draft: $draft, hasChanges: $hasChanges)
         }
@@ -232,57 +212,27 @@ struct SettingsView: View {
                 draft: draft
             )
         }
+        .sheet(isPresented: $showAdminPanel) {
+            AdminPanelView().environment(appState)
+        }
         .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
-            Button("Lose Weight") {
-                draft.primaryGoal = "Lose Weight"
-                hasChanges = true
-            }
-            Button("Maintain Weight") {
-                draft.primaryGoal = "Maintain Weight"
-                hasChanges = true
-            }
-            Button("Build Muscle") {
-                draft.primaryGoal = "Build Muscle"
-                hasChanges = true
-            }
-            Button("Improve Endurance") {
-                draft.primaryGoal = "Improve Endurance"
-                hasChanges = true
-            }
+            Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
+            Button("Maintain Weight") { draft.primaryGoal = "Maintain Weight"; hasChanges = true }
+            Button("Build Muscle") { draft.primaryGoal = "Build Muscle"; hasChanges = true }
+            Button("Improve Endurance") { draft.primaryGoal = "Improve Endurance"; hasChanges = true }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Activity Level", isPresented: $showActivityDialog) {
-            Button("Sedentary") {
-                draft.activityLevel = "Sedentary"
-                hasChanges = true
-            }
-            Button("Lightly Active") {
-                draft.activityLevel = "Lightly Active"
-                hasChanges = true
-            }
-            Button("Moderately Active") {
-                draft.activityLevel = "Moderately Active"
-                hasChanges = true
-            }
-            Button("Very Active") {
-                draft.activityLevel = "Very Active"
-                hasChanges = true
-            }
-            Button("Athlete") {
-                draft.activityLevel = "Athlete"
-                hasChanges = true
-            }
+            Button("Sedentary") { draft.activityLevel = "Sedentary"; hasChanges = true }
+            Button("Lightly Active") { draft.activityLevel = "Lightly Active"; hasChanges = true }
+            Button("Moderately Active") { draft.activityLevel = "Moderately Active"; hasChanges = true }
+            Button("Very Active") { draft.activityLevel = "Very Active"; hasChanges = true }
+            Button("Athlete") { draft.activityLevel = "Athlete"; hasChanges = true }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Units", isPresented: $showUnitsDialog) {
-            Button("Imperial") {
-                draft.units = "Imperial"
-                hasChanges = true
-            }
-            Button("Metric") {
-                draft.units = "Metric"
-                hasChanges = true
-            }
+            Button("Imperial") { draft.units = "Imperial"; hasChanges = true }
+            Button("Metric") { draft.units = "Metric"; hasChanges = true }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Appearance", isPresented: $showAppearanceDialog) {
@@ -302,22 +252,16 @@ struct SettingsView: View {
 
     private var header: some View {
         HStack {
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.brandCream)
             }
-
             Spacer()
-
             Text("Settings")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.brandCream)
-
             Spacer()
-
             Image(systemName: "chevron.left")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.clear)
@@ -334,33 +278,23 @@ struct SettingsView: View {
                 Circle()
                     .fill(Color.brandLime)
                     .frame(width: 52, height: 52)
-
                 Text(appState.currentUser.map { initials(from: $0.name) } ?? "?")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.brandNavy)
             }
-
             VStack(alignment: .leading, spacing: 3) {
                 Text(appState.currentUser?.name ?? "—")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.brandCream)
-
                 Text(appState.currentUser?.email ?? "—")
                     .font(.system(size: 12))
                     .foregroundColor(Color.brandCream.opacity(0.5))
             }
-
             Spacer()
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.brandLime.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.brandLime.opacity(0.2), lineWidth: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.brandLime.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandLime.opacity(0.2), lineWidth: 1))
     }
 
     // MARK: - Profile Section
@@ -368,43 +302,13 @@ struct SettingsView: View {
     private var profileSection: some View {
         sectionBlock(label: "PROFILE") {
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "scalemass.fill",
-                    iconColor: profileIconColor,
-                    label: "Weight",
-                    value: bodyWeightText,
-                    action: { showEditWeight = true }
-                )
-
+                settingsRow(icon: "scalemass.fill", iconColor: profileIconColor, label: "Weight", value: bodyWeightText, action: { showEditWeight = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "ruler.fill",
-                    iconColor: profileIconColor,
-                    label: "Height",
-                    value: heightText,
-                    action: { showEditHeight = true }
-                )
-
+                settingsRow(icon: "ruler.fill", iconColor: profileIconColor, label: "Height", value: heightText, action: { showEditHeight = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "calendar",
-                    iconColor: profileIconColor,
-                    label: "Date of Birth",
-                    value: formattedDate(draft.birthDate),
-                    action: { showEditDOB = true }
-                )
-
+                settingsRow(icon: "calendar", iconColor: profileIconColor, label: "Date of Birth", value: formattedDate(draft.birthDate), action: { showEditDOB = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "person.fill",
-                    iconColor: profileIconColor,
-                    label: "Gender",
-                    value: draft.gender,
-                    action: { showEditGender = true }
-                )
+                settingsRow(icon: "person.fill", iconColor: profileIconColor, label: "Gender", value: draft.gender, action: { showEditGender = true })
             }
         }
     }
@@ -414,87 +318,21 @@ struct SettingsView: View {
     private var targetsSection: some View {
         sectionBlock(label: "TARGETS") {
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "target",
-                    iconColor: targetsIconColor,
-                    label: "Primary Goal",
-                    value: draft.primaryGoal,
-                    action: { showGoalDialog = true }
-                )
-
+                settingsRow(icon: "target", iconColor: targetsIconColor, label: "Primary Goal", value: draft.primaryGoal, action: { showGoalDialog = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "figure.walk",
-                    iconColor: targetsIconColor,
-                    label: "Activity Level",
-                    value: draft.activityLevel,
-                    action: { showActivityDialog = true }
-                )
-
+                settingsRow(icon: "figure.walk", iconColor: targetsIconColor, label: "Activity Level", value: draft.activityLevel, action: { showActivityDialog = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "bolt.fill",
-                    iconColor: targetsIconColor,
-                    label: "Your BMR",
-                    subtitle: "Basal Metabolic Rate",
-                    value: "\(Int(draftBMR.rounded())) kcal",
-                    showChevron: false
-                )
-
+                settingsRow(icon: "bolt.fill", iconColor: targetsIconColor, label: "Your BMR", subtitle: "Basal Metabolic Rate", value: "\(Int(draftBMR.rounded())) kcal", showChevron: false)
                 sectionDivider
-
-                settingsRow(
-                    icon: "chart.bar.fill",
-                    iconColor: targetsIconColor,
-                    label: "Your TDEE",
-                    subtitle: "Total Daily Energy Expenditure",
-                    value: "\(Int(draftTDEE.rounded())) kcal",
-                    showChevron: false
-                )
-
+                settingsRow(icon: "chart.bar.fill", iconColor: targetsIconColor, label: "Your TDEE", subtitle: "Total Daily Energy Expenditure", value: "\(Int(draftTDEE.rounded())) kcal", showChevron: false)
                 sectionDivider
-
-                settingsRow(
-                    icon: "sparkles",
-                    iconColor: targetsIconColor,
-                    label: "Recommended",
-                    subtitle: "Based on goal & activity",
-                    value: "\(recommendedCalories) kcal",
-                    showChevron: false
-                )
-
+                settingsRow(icon: "sparkles", iconColor: targetsIconColor, label: "Recommended", subtitle: "Based on goal & activity", value: "\(recommendedCalories) kcal", showChevron: false)
                 sectionDivider
-
-                settingsRow(
-                    icon: "flame.fill",
-                    iconColor: targetsIconColor,
-                    label: "Daily Calorie Goal",
-                    value: "\(draft.calorieGoal) kcal",
-                    action: { showCalorieSheet = true }
-                )
-
+                settingsRow(icon: "flame.fill", iconColor: targetsIconColor, label: "Daily Calorie Goal", value: "\(draft.calorieGoal) kcal", action: { showCalorieSheet = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "chart.pie.fill",
-                    iconColor: targetsIconColor,
-                    label: "Macro Targets",
-                    subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat",
-                    value: macroTargetSummary,
-                    action: { showMacroSheet = true }
-                )
-
+                settingsRow(icon: "chart.pie.fill", iconColor: targetsIconColor, label: "Macro Targets", subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat", value: macroTargetSummary, action: { showMacroSheet = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "scalemass.fill",
-                    iconColor: targetsIconColor,
-                    label: "Target Weight",
-                    value: "\(draft.targetWeightLbs) lbs",
-                    action: { showTargetWeightSheet = true }
-                )
+                settingsRow(icon: "scalemass.fill", iconColor: targetsIconColor, label: "Target Weight", value: "\(draft.targetWeightLbs) lbs", action: { showTargetWeightSheet = true })
             }
         }
     }
@@ -503,7 +341,6 @@ struct SettingsView: View {
         if useCustomMacros {
             return "\(customProtein)g · \(customCarbs)g · \(customFat)g"
         }
-
         let macros = UserMetricsCalculator.macroTargets(
             weightLbs: Double(draft.weightLbs),
             calorieGoal: draft.calorieGoal,
@@ -517,33 +354,11 @@ struct SettingsView: View {
     private var displaySection: some View {
         sectionBlock(label: "DISPLAY") {
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "ruler",
-                    iconColor: displayIconColor,
-                    label: "Units",
-                    value: draft.units,
-                    action: { showUnitsDialog = true }
-                )
-
+                settingsRow(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "moon.fill",
-                    iconColor: displayIconColor,
-                    label: "Appearance",
-                    value: appearance,
-                    action: { showAppearanceDialog = true }
-                )
-
+                settingsRow(icon: "moon.fill", iconColor: displayIconColor, label: "Appearance", value: appearance, action: { showAppearanceDialog = true })
                 sectionDivider
-
-                settingsRow(
-                    icon: "calendar.badge.clock",
-                    iconColor: displayIconColor,
-                    label: "Week Starts On",
-                    value: weekStart,
-                    action: { showWeekStartDialog = true }
-                )
+                settingsRow(icon: "calendar.badge.clock", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
             }
         }
     }
@@ -553,74 +368,27 @@ struct SettingsView: View {
     private var notificationsSection: some View {
         sectionBlock(label: "NOTIFICATIONS") {
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "bell.badge.fill",
-                    iconColor: notificationsIconColor,
-                    label: "Notification Access",
-                    subtitle: notificationStatusText,
-                    showChevron: false
-                )
-
+                settingsRow(icon: "bell.badge.fill", iconColor: notificationsIconColor, label: "Notification Access", subtitle: notificationStatusText, showChevron: false)
                 sectionDivider
-
-                settingsRow(
-                    icon: "fork.knife",
-                    iconColor: notificationsIconColor,
-                    label: "Meal Reminders",
-                    subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off",
-                    showChevron: false,
-                    toggle: $mealReminders
-                )
-
-                if mealReminders {
-                    hourStepperRow(title: "Meal Reminder Time", hour: $mealReminderHour)
-                }
-
+                settingsRow(icon: "fork.knife", iconColor: notificationsIconColor, label: "Meal Reminders", subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off", showChevron: false, toggle: $mealReminders)
+                if mealReminders { hourStepperRow(title: "Meal Reminder Time", hour: $mealReminderHour) }
                 sectionDivider
-
-                settingsRow(
-                    icon: "dumbbell.fill",
-                    iconColor: notificationsIconColor,
-                    label: "Workout Reminder",
-                    subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off",
-                    showChevron: false,
-                    toggle: $workoutReminder
-                )
-
-                if workoutReminder {
-                    hourStepperRow(title: "Workout Reminder Time", hour: $workoutReminderHour)
-                }
-
+                settingsRow(icon: "dumbbell.fill", iconColor: notificationsIconColor, label: "Workout Reminder", subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off", showChevron: false, toggle: $workoutReminder)
+                if workoutReminder { hourStepperRow(title: "Workout Reminder Time", hour: $workoutReminderHour) }
                 sectionDivider
-
-                settingsRow(
-                    icon: "flame.fill",
-                    iconColor: notificationsIconColor,
-                    label: "Streak Reminder",
-                    subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off",
-                    showChevron: false,
-                    toggle: $streakReminder
-                )
-
-                if streakReminder {
-                    hourStepperRow(title: "Streak Reminder Time", hour: $streakReminderHour)
-                }
-
+                settingsRow(icon: "flame.fill", iconColor: notificationsIconColor, label: "Streak Reminder", subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off", showChevron: false, toggle: $streakReminder)
+                if streakReminder { hourStepperRow(title: "Streak Reminder Time", hour: $streakReminderHour) }
                 sectionDivider
-
                 Button {
-                    // Just trying to help the user re-enable reminders fast.
                     syncNotificationSettings(forcePermissionPrompt: true)
                 } label: {
                     HStack {
                         Image(systemName: "arrow.clockwise.circle.fill")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(notificationsIconColor)
-
                         Text("Refresh Notification Permission")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.brandCream)
-
                         Spacer()
                     }
                     .padding(.horizontal, 14)
@@ -636,26 +404,41 @@ struct SettingsView: View {
     private var accountSection: some View {
         sectionBlock(label: "ACCOUNT") {
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "lock.fill",
-                    iconColor: accountIconColor,
-                    label: "Change Password",
-                    action: { }
-                )
-
+                settingsRow(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
                 sectionDivider
-
-                settingsRow(
-                    icon: "rectangle.portrait.and.arrow.right",
-                    iconColor: accountIconColor,
-                    label: "Log Out",
-                    labelColor: .brandOrange,
-                    showChevron: false,
-                    action: {
-                        appState.signOut()
-                    }
-                )
+                settingsRow(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
             }
+        }
+    }
+
+    // MARK: - Admin Section
+
+    private var adminSection: some View {
+        sectionBlock(label: "ADMIN") {
+            Button {
+                showAdminPanel = true
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.brandOrange.opacity(0.12))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "shield.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.brandOrange)
+                    }
+                    Text("Admin Panel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.brandCream)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.brandCream.opacity(0.25))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -669,28 +452,22 @@ struct SettingsView: View {
                     .foregroundColor(.brandOrange)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
-
             if hasChanges {
                 Text("You have unsaved changes")
                     .font(.system(size: 11))
                     .foregroundColor(Color.brandLime.opacity(0.5))
             }
-
             Button {
                 saveChanges()
             } label: {
                 ZStack {
                     if isSaving {
-                        ProgressView()
-                            .tint(Color.brandNavy)
+                        ProgressView().tint(Color.brandNavy)
                     } else {
                         HStack(spacing: 8) {
                             if hasChanges {
-                                Circle()
-                                    .fill(Color.brandNavy)
-                                    .frame(width: 7, height: 7)
+                                Circle().fill(Color.brandNavy).frame(width: 7, height: 7)
                             }
-
                             Text("Save Changes")
                                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                                 .foregroundColor(hasChanges ? .brandNavy : Color.brandCream.opacity(0.25))
@@ -699,11 +476,7 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(
-                    hasChanges
-                    ? Color.brandLime
-                    : Color.brandCream.opacity(0.06)
-                )
+                .background(hasChanges ? Color.brandLime : Color.brandCream.opacity(0.06))
                 .cornerRadius(14)
             }
             .disabled(!hasChanges || isSaving)
@@ -712,12 +485,7 @@ struct SettingsView: View {
         .padding(.vertical, 12)
         .background(
             Color.brandNavy
-                .overlay(
-                    Rectangle()
-                        .fill(Color.brandCream.opacity(0.06))
-                        .frame(height: 0.5),
-                    alignment: .top
-                )
+                .overlay(Rectangle().fill(Color.brandCream.opacity(0.06)).frame(height: 0.5), alignment: .top)
         )
     }
 
@@ -740,19 +508,12 @@ struct SettingsView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(Color.brandLime.opacity(0.55))
                 .tracking(1.5)
-
             VStack(spacing: 0) {
                 content()
             }
             .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.brandCream.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.brandCream.opacity(0.08), lineWidth: 0.5)
-            )
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.brandCream.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.08), lineWidth: 0.5))
         }
     }
 
@@ -780,36 +541,28 @@ struct SettingsView: View {
                 RoundedRectangle(cornerRadius: 7)
                     .fill(iconColor.opacity(0.12))
                     .frame(width: 28, height: 28)
-
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(iconColor)
             }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(labelColor ?? .brandCream)
-
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 11))
                         .foregroundColor(Color.brandCream.opacity(0.4))
                 }
             }
-
             Spacer()
-
             if let value {
                 Text(value)
                     .font(.system(size: 12))
                     .foregroundColor(Color.brandCream.opacity(0.4))
             }
-
             if let toggle {
-                Toggle("", isOn: toggle)
-                    .labelsHidden()
-                    .tint(.brandLime)
+                Toggle("", isOn: toggle).labelsHidden().tint(.brandLime)
             } else if showChevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
@@ -820,10 +573,7 @@ struct SettingsView: View {
         .padding(.vertical, 11)
 
         if let action {
-            Button(action: action) {
-                rowContent
-            }
-            .buttonStyle(.plain)
+            Button(action: action) { rowContent }.buttonStyle(.plain)
         } else {
             rowContent
         }
@@ -835,30 +585,20 @@ struct SettingsView: View {
             Text(title)
                 .font(.system(size: 12))
                 .foregroundColor(Color.brandCream.opacity(0.6))
-
             Spacer()
-
             Button {
-                if hour.wrappedValue > 0 {
-                    hour.wrappedValue -= 1
-                }
+                if hour.wrappedValue > 0 { hour.wrappedValue -= 1 }
             } label: {
-                Image(systemName: "minus.circle.fill")
-                    .foregroundColor(Color.brandCream.opacity(0.5))
+                Image(systemName: "minus.circle.fill").foregroundColor(Color.brandCream.opacity(0.5))
             }
-
             Text(formattedHour(hour.wrappedValue))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.brandCream)
                 .frame(width: 76)
-
             Button {
-                if hour.wrappedValue < 23 {
-                    hour.wrappedValue += 1
-                }
+                if hour.wrappedValue < 23 { hour.wrappedValue += 1 }
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.brandLime)
+                Image(systemName: "plus.circle.fill").foregroundColor(.brandLime)
             }
         }
         .padding(.horizontal, 14)
@@ -869,7 +609,7 @@ struct SettingsView: View {
 
     private func loadDraftFromCurrentUser() {
         guard let user = appState.currentUser else { return }
-
+        print("👤 isAdmin check: \(user.isAdmin)")
         draft.name = user.name
         draft.weightLbs = Int(user.weight)
         draft.heightFeet = Int(user.height) / 12
@@ -920,22 +660,33 @@ struct SettingsView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
 
-        let update = ProfileUpdate(
-            name: draft.name,
-            weight_lbs: Double(draft.weightLbs),
-            height_in: Double(draft.heightFeet * 12 + draft.heightInches),
-            birth_date: formatter.string(from: draft.birthDate),
-            gender: draft.gender,
-            activity_level: draft.activityLevel,
-            primary_goal: draft.primaryGoal,
-            calorie_goal: draft.calorieGoal,
-            target_weight_lbs: Double(draft.targetWeightLbs),
-            custom_calories_enabled: draft.customCaloriesEnabled,
-            units: draft.units
-        )
+        let weightChanged = Double(draft.weightLbs) != appState.currentUser?.weight
 
         Task {
             do {
+                let existingHistory = (try? await ProfileService.shared.fetchWeightHistory(userId: userId)) ?? []
+
+                var updatedHistory = existingHistory
+                if weightChanged {
+                    let newEntry = WeightHistoryEntry(date: Date(), weight_lbs: Double(draft.weightLbs))
+                    updatedHistory.append(newEntry)
+                }
+
+                let update = ProfileUpdate(
+                    name: draft.name,
+                    weight_lbs: Double(draft.weightLbs),
+                    height_in: Double(draft.heightFeet * 12 + draft.heightInches),
+                    birth_date: formatter.string(from: draft.birthDate),
+                    gender: draft.gender,
+                    activity_level: draft.activityLevel,
+                    primary_goal: draft.primaryGoal,
+                    calorie_goal: draft.calorieGoal,
+                    target_weight_lbs: Double(draft.targetWeightLbs),
+                    custom_calories_enabled: draft.customCaloriesEnabled,
+                    units: draft.units,
+                    weight_history: updatedHistory
+                )
+
                 try await ProfileService.shared.updateProfile(userId: userId, update: update)
 
                 if var user = appState.currentUser {
@@ -953,9 +704,19 @@ struct SettingsView: View {
                     appState.currentUser = user
                 }
 
-                hasChanges = false
+                if weightChanged {
+                    let storageKey = "weightLog_\(userId)"
+                    if let data = UserDefaults.standard.data(forKey: storageKey),
+                       var cached = try? JSONDecoder().decode([WeightEntry].self, from: data) {
+                        let newEntry = WeightEntry(date: Date(), weightLbs: Double(draft.weightLbs))
+                        cached.append(newEntry)
+                        if let encoded = try? JSONEncoder().encode(cached) {
+                            UserDefaults.standard.set(encoded, forKey: storageKey)
+                        }
+                    }
+                }
 
-                // Just making sure reminders stay synced with the latest user/settings info.
+                hasChanges = false
                 NotificationManager.shared.syncNotifications(for: appState.currentUser)
             } catch {
                 saveError = "Failed to save. Please try again."
@@ -981,7 +742,6 @@ private struct CalorieGoalSheet: View {
         let kg = Double(draft.weightLbs) * 0.453592
         let cm = totalInches * 2.54
         let age = Double(Calendar.current.dateComponents([.year], from: draft.birthDate, to: Date()).year ?? 0)
-
         let bmr: Double
         switch draft.gender.lowercased() {
         case "male":
@@ -993,7 +753,6 @@ private struct CalorieGoalSheet: View {
             let f = (10 * kg) + (6.25 * cm) - (5 * age) - 161
             bmr = (m + f) / 2
         }
-
         return UserMetricsCalculator.recommendedCalorieGoal(
             bmr: bmr,
             activityLevel: draft.activityLevel,
@@ -1004,21 +763,16 @@ private struct CalorieGoalSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 HStack {
                     Button("Cancel") { dismiss() }
                         .font(.system(size: 15))
                         .foregroundColor(Color.brandCream.opacity(0.6))
-
                     Spacer()
-
                     Text("Daily Calorie Goal")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.brandCream)
-
                     Spacer()
-
                     Button("Save") {
                         draft.calorieGoal = tempGoal
                         hasChanges = true
@@ -1048,7 +802,6 @@ private struct CalorieGoalSheet: View {
                             .font(.system(size: 44))
                             .foregroundColor(Color.brandCream.opacity(0.3))
                     }
-
                     Button {
                         if tempGoal < 5000 { tempGoal += 50 }
                     } label: {
@@ -1062,10 +815,8 @@ private struct CalorieGoalSheet: View {
                     tempGoal = recommended
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Use Recommended: \(recommended) kcal")
-                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "sparkles").font(.system(size: 12, weight: .semibold))
+                        Text("Use Recommended: \(recommended) kcal").font(.system(size: 13, weight: .semibold))
                     }
                     .foregroundColor(.brandNavy)
                     .padding(.horizontal, 20)
@@ -1077,9 +828,7 @@ private struct CalorieGoalSheet: View {
                 Spacer()
             }
         }
-        .onAppear {
-            tempGoal = draft.calorieGoal
-        }
+        .onAppear { tempGoal = draft.calorieGoal }
         .presentationDetents([.medium])
     }
 }
@@ -1096,21 +845,16 @@ private struct TargetWeightSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 HStack {
                     Button("Cancel") { dismiss() }
                         .font(.system(size: 15))
                         .foregroundColor(Color.brandCream.opacity(0.6))
-
                     Spacer()
-
                     Text("Target Weight")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.brandCream)
-
                     Spacer()
-
                     Button("Save") {
                         draft.targetWeightLbs = tempWeight
                         hasChanges = true
@@ -1140,7 +884,6 @@ private struct TargetWeightSheet: View {
                             .font(.system(size: 44))
                             .foregroundColor(Color.brandCream.opacity(0.3))
                     }
-
                     Button {
                         if tempWeight < 400 { tempWeight += 1 }
                     } label: {
@@ -1153,9 +896,7 @@ private struct TargetWeightSheet: View {
                 Spacer()
             }
         }
-        .onAppear {
-            tempWeight = draft.targetWeightLbs
-        }
+        .onAppear { tempWeight = draft.targetWeightLbs }
         .presentationDetents([.medium])
     }
 }
@@ -1185,24 +926,17 @@ private struct MacroTargetsSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 20) {
                 HStack {
                     Button("Done") { dismiss() }
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.brandLime)
-
                     Spacer()
-
                     Text("Macro Targets")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.brandCream)
-
                     Spacer()
-
-                    Text("Done")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.clear)
+                    Text("Done").font(.system(size: 15, weight: .bold)).foregroundColor(.clear)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -1211,12 +945,8 @@ private struct MacroTargetsSheet: View {
                     Text("Use custom macros")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.brandCream)
-
                     Spacer()
-
-                    Toggle("", isOn: $useCustomMacros)
-                        .labelsHidden()
-                        .tint(.brandLime)
+                    Toggle("", isOn: $useCustomMacros).labelsHidden().tint(.brandLime)
                 }
                 .padding(.horizontal, 24)
 
@@ -1227,25 +957,16 @@ private struct MacroTargetsSheet: View {
                         macroStepper(label: "Fat", value: $customFat, range: 20...250, step: 5, color: .orange)
 
                         HStack {
-                            Text("Total")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(Color.brandCream.opacity(0.5))
-
+                            Text("Total").font(.system(size: 13, weight: .semibold)).foregroundColor(Color.brandCream.opacity(0.5))
                             Spacer()
-
-                            Text("\(customTotalCalories) kcal")
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundColor(.brandLime)
+                            Text("\(customTotalCalories) kcal").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.brandLime)
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 4)
+                        .padding(.horizontal, 24).padding(.top, 4)
 
                         if abs(customTotalCalories - draft.calorieGoal) > 100 {
                             HStack(spacing: 4) {
-                                Image(systemName: "info.circle.fill")
-                                    .font(.system(size: 11))
-                                Text("Macro total differs from your \(draft.calorieGoal) kcal goal by \(abs(customTotalCalories - draft.calorieGoal)) kcal")
-                                    .font(.system(size: 11))
+                                Image(systemName: "info.circle.fill").font(.system(size: 11))
+                                Text("Macro total differs from your \(draft.calorieGoal) kcal goal by \(abs(customTotalCalories - draft.calorieGoal)) kcal").font(.system(size: 11))
                             }
                             .foregroundColor(.brandOrange)
                             .padding(.horizontal, 24)
@@ -1256,7 +977,6 @@ private struct MacroTargetsSheet: View {
                         macroDisplay(label: "Protein", grams: autoMacros.protein, color: Color(hex: "48ACF0"))
                         macroDisplay(label: "Carbs", grams: autoMacros.carbs, color: .green)
                         macroDisplay(label: "Fat", grams: autoMacros.fat, color: .orange)
-
                         Text("Auto-calculated from your weight and calorie goal")
                             .font(.system(size: 11))
                             .foregroundColor(Color.brandCream.opacity(0.35))
@@ -1273,41 +993,19 @@ private struct MacroTargetsSheet: View {
     @ViewBuilder
     private func macroStepper(label: String, value: Binding<Int>, range: ClosedRange<Int>, step: Int, color: Color) -> some View {
         HStack {
-            Circle()
-                .fill(color.opacity(0.2))
-                .frame(width: 10, height: 10)
-                .overlay(Circle().fill(color).frame(width: 6, height: 6))
-
-            Text(label)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.brandCream)
-                .frame(width: 60, alignment: .leading)
-
+            Circle().fill(color.opacity(0.2)).frame(width: 10, height: 10).overlay(Circle().fill(color).frame(width: 6, height: 6))
+            Text(label).font(.system(size: 13, weight: .medium)).foregroundColor(.brandCream).frame(width: 60, alignment: .leading)
             Spacer()
-
             Button {
-                if value.wrappedValue - step >= range.lowerBound {
-                    value.wrappedValue -= step
-                }
+                if value.wrappedValue - step >= range.lowerBound { value.wrappedValue -= step }
             } label: {
-                Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(Color.brandCream.opacity(0.3))
+                Image(systemName: "minus.circle.fill").font(.system(size: 24)).foregroundColor(Color.brandCream.opacity(0.3))
             }
-
-            Text("\(value.wrappedValue)g")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(.brandCream)
-                .frame(width: 60, alignment: .center)
-
+            Text("\(value.wrappedValue)g").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundColor(.brandCream).frame(width: 60, alignment: .center)
             Button {
-                if value.wrappedValue + step <= range.upperBound {
-                    value.wrappedValue += step
-                }
+                if value.wrappedValue + step <= range.upperBound { value.wrappedValue += step }
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.brandLime)
+                Image(systemName: "plus.circle.fill").font(.system(size: 24)).foregroundColor(.brandLime)
             }
         }
         .padding(.horizontal, 24)
@@ -1316,20 +1014,10 @@ private struct MacroTargetsSheet: View {
     @ViewBuilder
     private func macroDisplay(label: String, grams: Int, color: Color) -> some View {
         HStack {
-            Circle()
-                .fill(color.opacity(0.2))
-                .frame(width: 10, height: 10)
-                .overlay(Circle().fill(color).frame(width: 6, height: 6))
-
-            Text(label)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.brandCream)
-
+            Circle().fill(color.opacity(0.2)).frame(width: 10, height: 10).overlay(Circle().fill(color).frame(width: 6, height: 6))
+            Text(label).font(.system(size: 13, weight: .medium)).foregroundColor(.brandCream)
             Spacer()
-
-            Text("\(grams)g")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(color)
+            Text("\(grams)g").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundColor(color)
         }
         .padding(.horizontal, 24)
     }
@@ -1347,43 +1035,25 @@ private struct EditWeightSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 SheetHeader(title: "Weight") {
                     draft.weightLbs = weightLbs
                     hasChanges = true
                     dismiss()
                 }
-
                 Spacer()
-
                 HStack {
                     Picker("", selection: $weightLbs) {
-                        ForEach(80...500, id: \.self) { lbs in
-                            Text("\(lbs)").tag(lbs)
-                        }
+                        ForEach(80...500, id: \.self) { lbs in Text("\(lbs)").tag(lbs) }
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .colorScheme(.dark)
-
-                    Text("lbs")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Color.brandCream.opacity(0.5))
-                        .padding(.trailing, 12)
+                    .pickerStyle(.wheel).frame(maxWidth: .infinity).frame(height: 150).colorScheme(.dark)
+                    Text("lbs").font(.system(size: 16, weight: .semibold)).foregroundColor(Color.brandCream.opacity(0.5)).padding(.trailing, 12)
                 }
-                .background(Color.brandCream.opacity(0.07))
-                .cornerRadius(12)
-                .clipped()
-                .padding(.horizontal, 24)
-
+                .background(Color.brandCream.opacity(0.07)).cornerRadius(12).clipped().padding(.horizontal, 24)
                 Spacer()
             }
         }
-        .onAppear {
-            weightLbs = draft.weightLbs
-        }
+        .onAppear { weightLbs = draft.weightLbs }
         .presentationDetents([.medium])
     }
 }
@@ -1401,7 +1071,6 @@ private struct EditHeightSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 SheetHeader(title: "Height") {
                     draft.heightFeet = heightFeet
@@ -1409,42 +1078,22 @@ private struct EditHeightSheet: View {
                     hasChanges = true
                     dismiss()
                 }
-
                 Spacer()
-
                 HStack(spacing: 0) {
                     Picker("", selection: $heightFeet) {
-                        ForEach(4...7, id: \.self) { ft in
-                            Text("\(ft) ft").tag(ft)
-                        }
+                        ForEach(4...7, id: \.self) { ft in Text("\(ft) ft").tag(ft) }
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .colorScheme(.dark)
-
+                    .pickerStyle(.wheel).frame(maxWidth: .infinity).frame(height: 150).colorScheme(.dark)
                     Picker("", selection: $heightInches) {
-                        ForEach(0...11, id: \.self) { inch in
-                            Text("\(inch) in").tag(inch)
-                        }
+                        ForEach(0...11, id: \.self) { inch in Text("\(inch) in").tag(inch) }
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .colorScheme(.dark)
+                    .pickerStyle(.wheel).frame(maxWidth: .infinity).frame(height: 150).colorScheme(.dark)
                 }
-                .background(Color.brandCream.opacity(0.07))
-                .cornerRadius(12)
-                .clipped()
-                .padding(.horizontal, 24)
-
+                .background(Color.brandCream.opacity(0.07)).cornerRadius(12).clipped().padding(.horizontal, 24)
                 Spacer()
             }
         }
-        .onAppear {
-            heightFeet = draft.heightFeet
-            heightInches = draft.heightInches
-        }
+        .onAppear { heightFeet = draft.heightFeet; heightInches = draft.heightInches }
         .presentationDetents([.medium])
     }
 }
@@ -1461,37 +1110,20 @@ private struct EditDOBSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 SheetHeader(title: "Date of Birth") {
                     draft.birthDate = birthDate
                     hasChanges = true
                     dismiss()
                 }
-
                 Spacer()
-
-                DatePicker(
-                    "",
-                    selection: $birthDate,
-                    in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(height: 150)
-                .clipped()
-                .colorScheme(.dark)
-                .background(Color.brandCream.opacity(0.07))
-                .cornerRadius(12)
-                .padding(.horizontal, 24)
-
+                DatePicker("", selection: $birthDate, in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!, displayedComponents: .date)
+                    .datePickerStyle(.wheel).labelsHidden().frame(height: 150).clipped()
+                    .colorScheme(.dark).background(Color.brandCream.opacity(0.07)).cornerRadius(12).padding(.horizontal, 24)
                 Spacer()
             }
         }
-        .onAppear {
-            birthDate = draft.birthDate
-        }
+        .onAppear { birthDate = draft.birthDate }
         .presentationDetents([.medium])
     }
 }
@@ -1509,35 +1141,22 @@ private struct EditGenderSheet: View {
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
             VStack(spacing: 24) {
                 SheetHeader(title: "Gender") {
                     draft.gender = gender
                     hasChanges = true
                     dismiss()
                 }
-
                 Spacer()
-
                 Picker("", selection: $gender) {
-                    ForEach(genders, id: \.self) { option in
-                        Text(option).tag(option)
-                    }
+                    ForEach(genders, id: \.self) { option in Text(option).tag(option) }
                 }
-                .pickerStyle(.wheel)
-                .frame(height: 150)
-                .colorScheme(.dark)
-                .background(Color.brandCream.opacity(0.07))
-                .cornerRadius(12)
-                .clipped()
-                .padding(.horizontal, 24)
-
+                .pickerStyle(.wheel).frame(height: 150).colorScheme(.dark)
+                .background(Color.brandCream.opacity(0.07)).cornerRadius(12).clipped().padding(.horizontal, 24)
                 Spacer()
             }
         }
-        .onAppear {
-            gender = draft.gender
-        }
+        .onAppear { gender = draft.gender }
         .presentationDetents([.medium])
     }
 }
@@ -1547,30 +1166,17 @@ private struct EditGenderSheet: View {
 private struct SheetHeader: View {
     let title: String
     let onSave: () -> Void
-
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
         HStack {
-            Button("Cancel") {
-                dismiss()
-            }
-            .font(.system(size: 15))
-            .foregroundColor(Color.brandCream.opacity(0.6))
-
+            Button("Cancel") { dismiss() }
+                .font(.system(size: 15))
+                .foregroundColor(Color.brandCream.opacity(0.6))
             Spacer()
-
-            Text(title)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.brandCream)
-
+            Text(title).font(.system(size: 16, weight: .bold)).foregroundColor(.brandCream)
             Spacer()
-
-            Button("Save") {
-                onSave()
-            }
-            .font(.system(size: 15, weight: .bold))
-            .foregroundColor(.brandLime)
+            Button("Save") { onSave() }.font(.system(size: 15, weight: .bold)).foregroundColor(.brandLime)
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
