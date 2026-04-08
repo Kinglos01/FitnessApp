@@ -1,10 +1,3 @@
-//
-//  RootView.swift
-//  FitnessApp
-//
-//  Created by Yohangel Adames on 3/4/26.
-//
-
 import SwiftUI
 
 struct RootView: View {
@@ -21,8 +14,16 @@ struct RootView: View {
                 ContentView()
             }
         }
-        .onAppear {
+        .task {
             appState.restoreSessionIfNeeded()
+
+            let granted = await NotificationManager.shared.requestPermission()
+            if granted {
+                NotificationManager.shared.syncNotifications(for: appState.currentUser)
+            }
+        }
+        .onChange(of: appState.currentUser?.id) { _, _ in
+            NotificationManager.shared.syncNotifications(for: appState.currentUser)
         }
     }
 }

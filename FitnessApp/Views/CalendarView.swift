@@ -16,6 +16,7 @@ struct DaySnapshot: Identifiable {
     let calorieTarget: Int
     let loggedFoods: [LoggedFoodEntry]
     let waterConsumed: Int
+    let waterGoal: Int
 
     var hasActivity: Bool { !completedWorkouts.isEmpty }
     var calorieProgress: Double {
@@ -36,10 +37,12 @@ private class CalendarDataEngine {
 
     private var userId: String = ""
     private var calorieTarget: Int = 2000
+    private var waterGoal: Int = 8
 
-    func load(userId: String, calorieTarget: Int) {
+    func load(userId: String, calorieTarget: Int, waterGoal: Int) {
         self.userId = userId
         self.calorieTarget = calorieTarget
+        self.waterGoal = waterGoal
         buildSnapshots()
     }
 
@@ -66,7 +69,8 @@ private class CalendarDataEngine {
                 totalCalories: calories,
                 calorieTarget: calorieTarget,
                 loggedFoods: foods,
-                waterConsumed: water
+                waterConsumed: water,
+                waterGoal: waterGoal
             )
             current = cal.date(byAdding: .day, value: 1, to: current)!
         }
@@ -105,6 +109,7 @@ private class CalendarDataEngine {
 struct CalendarView: View {
     @Environment(AppState.self) var appState
     @Environment(NutritionManager.self) var nutritionManager
+    @AppStorage("waterGoal") private var waterGoal: Int = 8
 
     @State private var engine = CalendarDataEngine()
     @State private var selectedDay: DaySnapshot? = nil
@@ -156,7 +161,8 @@ struct CalendarView: View {
     private func loadData() {
         engine.load(
             userId: appState.currentUser?.id ?? "guest",
-            calorieTarget: nutritionManager.calorieTarget
+            calorieTarget: nutritionManager.calorieTarget,
+            waterGoal: waterGoal
         )
     }
 
@@ -319,7 +325,7 @@ struct DayCell: View {
                         Circle()
                             .stroke(Color.cyan.opacity(0.18), lineWidth: lineW)
                         Circle()
-                            .trim(from: 0, to: min(Double(snap.waterConsumed) / 8.0, 1.0))
+                            .trim(from: 0, to: min(Double(snap.waterConsumed) / Double(max(snap.waterGoal, 1)), 1.0))
                             .stroke(Color.cyan,
                                     style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
@@ -407,7 +413,7 @@ struct DayDetailSheet: View {
                         value: "\(Int(snapshot.totalCalories))", label: "Eaten")
             Divider().frame(height: 44)
             summaryCell(icon: "drop.fill", color: .cyan,
-                        value: "\(snapshot.waterConsumed)/8", label: "Water")
+                        value: "\(snapshot.waterConsumed)/\(snapshot.waterGoal)", label: "Water")
         }
         .padding(.vertical, 14)
         .background(Color(.systemGray6))
