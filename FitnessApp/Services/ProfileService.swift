@@ -2,16 +2,30 @@
 //  ProfileService.swift
 //  FitnessApp
 //
-//  Reads and writes to the public.profiles table via Supabase.
-//
-
-//
-//  ProfileService.swift
-//  FitnessApp
-//
 
 import Foundation
 import Supabase
+
+// MARK: - WeightHistoryEntry
+
+struct WeightHistoryEntry: Codable, Identifiable {
+    var id: UUID = UUID()
+    var date: Date
+    var weight_lbs: Double
+
+    // Only encode/decode date and weight — never id
+    // id is generated locally and never stored in Supabase
+    enum CodingKeys: String, CodingKey {
+        case date
+        case weight_lbs
+    }
+
+    init(date: Date, weight_lbs: Double) {
+        self.id         = UUID()
+        self.date       = date
+        self.weight_lbs = weight_lbs
+    }
+}
 
 // MARK: - ProfileUpdate
 
@@ -19,7 +33,7 @@ struct ProfileUpdate: Codable {
     let name: String
     let weight_lbs: Double
     let height_in: Double
-    let birth_date: String          // "YYYY-MM-DD"
+    let birth_date: String
     let gender: String
     let activity_level: String
     let primary_goal: String
@@ -27,6 +41,7 @@ struct ProfileUpdate: Codable {
     let target_weight_lbs: Double?
     let custom_calories_enabled: Bool
     let units: String
+    let weight_history: [WeightHistoryEntry]
 }
 
 // MARK: - ProfileResponse
@@ -45,6 +60,8 @@ struct ProfileResponse: Codable {
     let target_weight_lbs: Double?
     let custom_calories_enabled: Bool?
     let units: String?
+    let weight_history: [WeightHistoryEntry]?
+    let is_admin: Bool?
 }
 
 // MARK: - ProfileService
@@ -72,6 +89,8 @@ final class ProfileService {
             .execute()
             .value
 
+       
+        
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let birthDate = formatter.date(from: response.birth_date ?? "") ?? Date()
@@ -89,7 +108,83 @@ final class ProfileService {
             calorieGoal: response.calorie_goal ?? 2200,
             targetWeightLbs: response.target_weight_lbs,
             customCaloriesEnabled: response.custom_calories_enabled ?? false,
-            units: response.units ?? "Imperial"
+            units: response.units ?? "Imperial",
+            isAdmin: response.is_admin ?? false
         )
     }
+
+    // MARK: - Append weight entry
+    func appendWeightEntry(userId: String, weightLbs: Double) async throws {
+        let response: ProfileResponse = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId)
+            .single()
+            .execute()
+            .value
+
+        var history = response.weight_history ?? []
+        let newEntry = WeightHistoryEntry(date: Date(), weight_lbs: weightLbs)
+        history.append(newEntry)
+
+        try await supabase
+            .from("profiles")
+            .update([
+                "weight_lbs":     AnyEncodable(weightLbs),
+                "weight_history": AnyEncodable(history)
+            ])
+            .eq("id", value: userId)
+            .execute()
+    }
+
+    // MARK: - Fetch weight history
+    func fetchWeightHistory(userId: String) async throws -> [WeightHistoryEntry] {
+        let response: ProfileResponse = try await supabase
+            .from("profiles")
+            .select("weight_history")
+            .eq("id", value: userId)
+            .single()
+            .execute()
+            .value
+        
+        return (response.weight_history ?? []).sorted { $0.date < $1.date }
+    }
+
+    // MARK: - Admin: fetch any user's profile by email
+    func fetchProfileByEmail(email: String) async throws -> ProfileResponse {
+        let response: [ProfileResponse] = try await supabase
+            .from("profiles")
+            .select()
+            .eq("email", value: email)
+            .execute()
+            .value
+
+        guard let profile = response.first else {
+            throw NSError(domain: "ProfileService", code: 404,
+                          userInfo: [NSLocalizedDescriptionKey: "No user found with that email."])
+        }
+        return profile
+    }
+
+    // MARK: - Admin: update any user's weight history
+    func updateWeightHistory(userId: String, history: [WeightHistoryEntry]) async throws {
+        let currentWeight = history.last?.weight_lbs
+        var updateDict: [String: AnyEncodable] = [
+            "weight_history": AnyEncodable(history)
+        ]
+        if let w = currentWeight {
+            updateDict["weight_lbs"] = AnyEncodable(w)
+        }
+        try await supabase
+            .from("profiles")
+            .update(updateDict)
+            .eq("id", value: userId)
+            .execute()
+    }
+}
+
+struct AnyEncodable: Encodable {
+    private let _encode: (Encoder) throws -> Void
+    init<T: Encodable>(_ value: T) { _encode = value.encode }
+    func encode(to encoder: Encoder) throws { try _encode(encoder) }
 }

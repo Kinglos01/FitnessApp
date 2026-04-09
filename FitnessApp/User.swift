@@ -14,6 +14,7 @@ struct User: Codable, Identifiable {
     var targetWeightLbs: Double? = nil
     var customCaloriesEnabled: Bool = false
     var units: String = "Imperial"
+    var isAdmin: Bool = false
 
     // MARK: - Computed Getters
 

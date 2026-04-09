@@ -13,7 +13,6 @@ class AppState {
 
     init() {}
 
-    // Just trying to restore fast first, then refresh after.
     func restoreSessionIfNeeded() {
         guard let userId = AuthService.shared.currentUserId else {
             isLoggedIn = false
@@ -23,11 +22,15 @@ class AppState {
             return
         }
 
+        // Load cached user first so UI isn't blank while Supabase fetches
         loadUser(for: userId)
 
         Task {
             if let user = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                completeOnboarding(user: user)
+                // Always overwrite with fresh Supabase data so isAdmin is current
+                await MainActor.run {
+                    completeOnboarding(user: user)
+                }
             } else if let currentUser {
                 NotificationManager.shared.syncNotifications(for: currentUser)
             }
@@ -35,11 +38,17 @@ class AppState {
     }
 
     func signIn(userId: String) {
-        loadUser(for: userId)
+        // Clear stale cache so isAdmin and other new fields are always fresh
+        UserDefaults.standard.removeObject(forKey: storageKey(for: userId))
+
         isLoggedIn = true
 
-        if let currentUser {
-            NotificationManager.shared.syncNotifications(for: currentUser)
+        Task {
+            if let user = try? await ProfileService.shared.fetchProfile(userId: userId) {
+                await MainActor.run {
+                    completeOnboarding(user: user)
+                }
+            }
         }
     }
 
