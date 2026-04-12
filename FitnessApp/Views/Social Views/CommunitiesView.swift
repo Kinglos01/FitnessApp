@@ -192,6 +192,9 @@ struct CommunityChatView: View {
     @State private var messageText: String = ""
     @State private var isLoading: Bool = true
     @State private var showDeleteAlert: Bool = false
+    @State private var showMembers: Bool = false
+    @State private var members: [UserSearchResult] = []
+    @State private var isLoadingMembers: Bool = false
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -279,9 +282,23 @@ struct CommunityChatView: View {
             .navigationTitle(community.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { loadMembers(); showMembers = true } label: {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 14))
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showMembers) {
+                CommunityMembersSheet(
+                    communityName: community.name,
+                    creatorId: community.creator_id,
+                    members: members,
+                    isLoading: isLoadingMembers
+                )
             }
             .alert("Delete Community?", isPresented: $showDeleteAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -323,6 +340,16 @@ struct CommunityChatView: View {
         }
     }
 
+    private func loadMembers() {
+        isLoadingMembers = true
+        Task {
+            do {
+                members = try await CommunityService.shared.fetchMembers(communityId: community.id)
+            } catch { print("Load members error: \(error)") }
+            isLoadingMembers = false
+        }
+    }
+
     private func deleteCommunity() {
         Task {
             do {
@@ -358,6 +385,69 @@ struct CommunityMessageBubble: View {
             }
             if !isMine { Spacer(minLength: 60) }
         }
+    }
+}
+
+// MARK: - Community Members Sheet
+
+struct CommunityMembersSheet: View {
+    let communityName: String
+    let creatorId: UUID
+    let members: [UserSearchResult]
+    let isLoading: Bool
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if members.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "person.3").font(.system(size: 36)).foregroundColor(.gray.opacity(0.4))
+                        Text("No members").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundColor(.secondary)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(members) { member in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color.blue.opacity(0.15)).frame(width: 40, height: 40)
+                                Text(makeInitials(member.name ?? "?"))
+                                    .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.blue)
+                            }
+                            Text(member.name ?? "Unknown")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            if member.id == creatorId {
+                                Text("Creator")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Color.orange.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                            Spacer()
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("Members")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func makeInitials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        let f = parts.first?.prefix(1) ?? ""
+        let l = parts.count > 1 ? parts.last!.prefix(1) : ""
+        return "\(f)\(l)".uppercased()
     }
 }
 

@@ -43,9 +43,15 @@ struct MainTabView: View {
                     Label("Activity", systemImage: "figure.run")
                 }
 
+            SocialView()
+                .tag(3)
+                .tabItem {
+                    Label("Social", systemImage: "person.2.fill")
+                }
+
             CalendarView()
                 .id(appState.currentUser?.id ?? "")
-                .tag(3)
+                .tag(4)
                 .tabItem {
                     Label("Calendar", systemImage: "calendar")
                 }
@@ -60,7 +66,7 @@ struct MainTabView: View {
 
                     withAnimation(.easeInOut(duration: 0.25)) {
                         if horizontalAmount < 0 {
-                            selectedTab = min(selectedTab + 1, 3)
+                            selectedTab = min(selectedTab + 1, 4)
                         } else {
                             selectedTab = max(selectedTab - 1, 0)
                         }

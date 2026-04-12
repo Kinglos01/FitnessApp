@@ -145,6 +145,16 @@ final class WeightTrackerViewModel {
         }
     }
 
+    func deleteEntry(_ entry: WeightEntry) {
+        entries.removeAll { $0.id == entry.id }
+        save()
+        Task {
+            try? await WeightLogService.shared.deleteEntry(
+                userId: user.id, date: entry.date, weightLbs: entry.weightLbs
+            )
+        }
+    }
+
     func mergeRemoteEntries(_ remote: [WeightEntry]) {
         entries = remote.sorted { $0.date < $1.date }
         save()
@@ -218,6 +228,32 @@ private struct WeightTrackerContent: View {
     @Binding   var confettiCount: Int
     @Environment(\.dismiss) private var dismiss
 
+    private var goalPill: some View {
+        let goal = vm.user.primaryGoal
+        let label: String
+        let icon: String
+        let color: Color
+        let teal = Color(red: 0.25, green: 0.72, blue: 0.55)
+
+        switch goal {
+        case "Build Muscle":
+            label = "Goal: build muscle"; icon = "arrow.up"; color = teal
+        case "Maintain Weight":
+            label = "Goal: maintain"; icon = "equal"; color = .secondary
+        case "Improve Endurance":
+            label = "Goal: endurance"; icon = "figure.run"; color = .orange
+        default: // "Lose Weight"
+            label = "Goal: lose weight"; icon = "arrow.down"; color = .red
+        }
+
+        return Label(label, systemImage: icon)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
     private var lineColor: Color {
         vm.isLoseGoal ? .red : Color(red: 0.25, green: 0.72, blue: 0.55)
     }
@@ -279,15 +315,7 @@ private struct WeightTrackerContent: View {
                     .font(.system(size: 14, weight: .bold))
                 Text("\(vm.userAge) y/o · \(vm.heightLabel) · \(vm.user.gender)")
                     .font(.system(size: 11)).foregroundColor(.secondary)
-                Label(
-                    vm.isLoseGoal ? "Goal: lose weight" : "Goal: gain weight",
-                    systemImage: vm.isLoseGoal ? "arrow.down" : "arrow.up"
-                )
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(lineColor)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(lineColor.opacity(0.12))
-                .clipShape(Capsule())
+                goalPill
             }
             Spacer()
             VStack(spacing: 2) {
@@ -538,6 +566,10 @@ private struct WeightTrackerContent: View {
                     .font(.system(size: 11, weight: .bold)).foregroundColor(diffColor)
                     .frame(width: 56, alignment: .trailing)
             }
+            Image(systemName: "xmark.circle.fill")
+                .foregroundColor(.red.opacity(0.7))
+                .font(.system(size: 14))
+                .onTapGesture { vm.deleteEntry(entry) }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color(.systemGray6)).cornerRadius(10)
