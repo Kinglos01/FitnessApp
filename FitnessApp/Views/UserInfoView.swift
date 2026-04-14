@@ -8,9 +8,9 @@
 import SwiftUI
 
 struct UserInfoView: View {
-
+    
     @Environment(AppState.self) var appState
-
+    
     @State private var name = ""
     @State private var weightLbs = 150
     @State private var heightFeet = 5
@@ -21,17 +21,17 @@ struct UserInfoView: View {
     @State private var errorMessage = ""
     @State private var appeared = false
     @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
-
+    
     let genders = ["Male", "Female", "Other", "Prefer Not To Say"]
-
+    
     private var totalHeightInInches: Int { heightFeet * 12 + heightInches }
-
+    
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-
+            
             VStack(spacing: 0) {
-
+                
                 // MARK: - Header
                 ZStack(alignment: .bottomLeading) {
                     GeometryReader { geo in
@@ -46,7 +46,7 @@ struct UserInfoView: View {
                         }
                         .fill(Color.brandLime)
                     }
-
+                    
                     VStack(alignment: .leading, spacing: 4) {
                         Image(systemName: "person.crop.circle.badge.checkmark")
                             .font(.system(size: 46, weight: .bold))
@@ -54,14 +54,14 @@ struct UserInfoView: View {
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 10)
                             .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.05), value: appeared)
-
+                        
                         Text("Set Up Profile")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .foregroundColor(.brandNavy)
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 8)
                             .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
-
+                        
                         Text("We'll use this to personalize your experience")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.brandNavy.opacity(0.6))
@@ -74,11 +74,11 @@ struct UserInfoView: View {
                 }
                 .frame(height: 210)
                 .clipped()
-
+                
                 // MARK: - Form
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 20) {
-
+                        
                         // Name
                         formSection(label: "FULL NAME", delay: 0.22) {
                             ZStack(alignment: .leading) {
@@ -96,7 +96,7 @@ struct UserInfoView: View {
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
                             .cornerRadius(12)
                         }
-
+                        
                         // Gender
                         formSection(label: "GENDER", delay: 0.27) {
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -114,15 +114,15 @@ struct UserInfoView: View {
                                                 .padding(.vertical, 10)
                                                 .background(
                                                     gender == option
-                                                        ? Color.brandLime
-                                                        : Color.brandCream.opacity(0.07)
+                                                    ? Color.brandLime
+                                                    : Color.brandCream.opacity(0.07)
                                                 )
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 10)
                                                         .stroke(
                                                             gender == option
-                                                                ? Color.clear
-                                                                : Color.brandCream.opacity(0.18),
+                                                            ? Color.clear
+                                                            : Color.brandCream.opacity(0.18),
                                                             lineWidth: 1
                                                         )
                                                 )
@@ -132,7 +132,7 @@ struct UserInfoView: View {
                                 }
                             }
                         }
-
+                        
                         // Date of Birth
                         formSection(label: "DATE OF BIRTH", delay: 0.32) {
                             DatePicker(
@@ -149,7 +149,7 @@ struct UserInfoView: View {
                             .background(Color.brandCream.opacity(0.07))
                             .cornerRadius(12)
                         }
-
+                        
                         // Weight
                         formSection(label: "WEIGHT", delay: 0.37) {
                             HStack {
@@ -163,7 +163,7 @@ struct UserInfoView: View {
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 80)
                                 .colorScheme(.dark)
-
+                                
                                 Text("lbs")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(Color.brandCream.opacity(0.5))
@@ -173,7 +173,7 @@ struct UserInfoView: View {
                             .cornerRadius(12)
                             .clipped()
                         }
-
+                        
                         // Height
                         formSection(label: "HEIGHT", delay: 0.42) {
                             HStack(spacing: 0) {
@@ -186,7 +186,7 @@ struct UserInfoView: View {
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 80)
                                 .colorScheme(.dark)
-
+                                
                                 Picker("", selection: $heightInches) {
                                     ForEach(0...11, id: \.self) { inch in
                                         Text("\(inch) in").tag(inch)
@@ -201,7 +201,7 @@ struct UserInfoView: View {
                             .cornerRadius(12)
                             .clipped()
                         }
-
+                        
                         // Error
                         if !errorMessage.isEmpty {
                             HStack(spacing: 6) {
@@ -212,7 +212,7 @@ struct UserInfoView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-
+                        
                         // Save Button
                         Button {
                             withAnimation(.easeInOut(duration: 0.1)) { savePressed = true }
@@ -235,8 +235,8 @@ struct UserInfoView: View {
                         .frame(height: 54)
                         .background(
                             (name.isEmpty || isSaving)
-                                ? Color.brandLime.opacity(0.4)
-                                : (savePressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
+                            ? Color.brandLime.opacity(0.4)
+                            : (savePressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
                         )
                         .cornerRadius(14)
                         .scaleEffect(savePressed ? 0.97 : 1.0)
@@ -244,7 +244,7 @@ struct UserInfoView: View {
                         .disabled(name.isEmpty || isSaving)
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.48), value: appeared)
-
+                        
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 28)
@@ -256,7 +256,7 @@ struct UserInfoView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { appeared = true }
         }
     }
-
+    
     // MARK: - Section Builder
     @ViewBuilder
     private func formSection<Content: View>(label: String, delay: Double, @ViewBuilder content: () -> Content) -> some View {
@@ -271,7 +271,7 @@ struct UserInfoView: View {
         .offset(y: appeared ? 0 : 12)
         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(delay), value: appeared)
     }
-
+    
     // MARK: - Save
     private func saveUserInfo() {
         guard let uid = appState.pendingUserId ?? appState.currentUser?.id else {
@@ -279,10 +279,13 @@ struct UserInfoView: View {
             return
         }
         let email = appState.pendingEmail ?? appState.currentUser?.email ?? ""
-
+        
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-
+        
+        
+        let initialEntry = WeightHistoryEntry(date: Date(), weight_lbs: Double(weightLbs))
+        
         let profileUpdate = ProfileUpdate(
             name: name,
             weight_lbs: Double(weightLbs),
@@ -294,12 +297,13 @@ struct UserInfoView: View {
             calorie_goal: 2200,
             target_weight_lbs: nil,
             custom_calories_enabled: false,
-            units: "Imperial"
+            units: "Imperial",
+            weight_history: [initialEntry] 
         )
-
+        
         isSaving = true
         errorMessage = ""
-
+        
         Task {
             do {
                 try await ProfileService.shared.updateProfile(userId: uid, update: profileUpdate)
@@ -326,7 +330,6 @@ struct UserInfoView: View {
         }
     }
 }
-
 #Preview {
     UserInfoView()
         .environment(AppState())

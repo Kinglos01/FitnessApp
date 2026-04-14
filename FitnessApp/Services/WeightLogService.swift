@@ -2,10 +2,6 @@
 //  WeightLogService.swift
 //  FitnessApp
 //
-//  Created by Carlos Berio on 4/1/26.
-//
-//
-
 
 import Foundation
 import Supabase
@@ -14,49 +10,27 @@ final class WeightLogService {
     static let shared = WeightLogService()
     private init() {}
 
-    // MARK: - Insert into weight_logs + update profiles.weight_lbs
+    // MARK: - Log weight (appends to profiles.weight_history + updates weight_lbs)
     func logWeight(userId: String, weightLbs: Double) async throws {
-        // 1. Insert into weight_logs table
-        let entry = WeightLogInsert(user_id: userId, weight_lbs: weightLbs)
-        try await supabase
-            .from("weight_logs")
-            .insert(entry)
-            .execute()
-
-        // 2. Update weight_lbs on the profiles table so it stays in sync
-        try await supabase
-            .from("profiles")
-            .update(["weight_lbs": weightLbs])
-            .eq("id", value: userId)
-            .execute()
+        try await ProfileService.shared.appendWeightEntry(userId: userId, weightLbs: weightLbs)
     }
 
-    // MARK: - Fetch all weight log entries for user
-    func fetchEntries(userId: String) async throws -> [WeightEntry] {
-        let rows: [WeightLogRow] = try await supabase
-            .from("weight_logs")
-            .select()
-            .eq("user_id", value: userId)
-            .order("logged_at", ascending: true)
-            .execute()
-            .value
+    // MARK: - Delete a single weight entry from profiles.weight_history
+    func deleteEntry(userId: String, date: Date, weightLbs: Double) async throws {
+        var history = try await ProfileService.shared.fetchWeightHistory(userId: userId)
+        if let idx = history.firstIndex(where: {
+            abs($0.date.timeIntervalSince(date)) < 1 && abs($0.weight_lbs - weightLbs) < 0.01
+        }) {
+            history.remove(at: idx)
+        }
+        try await ProfileService.shared.updateWeightHistory(userId: userId, history: history)
+    }
 
-        return rows.map {
-            WeightEntry(id: $0.id, date: $0.logged_at, weightLbs: $0.weight_lbs)
+    // MARK: - Fetch all weight entries from profiles.weight_history
+    func fetchEntries(userId: String) async throws -> [WeightEntry] {
+        let history = try await ProfileService.shared.fetchWeightHistory(userId: userId)
+        return history.map {
+            WeightEntry(id: $0.id, date: $0.date, weightLbs: $0.weight_lbs)
         }
     }
-}
-
-// MARK: - Codable helpers
-
-private struct WeightLogInsert: Codable {
-    let user_id: String
-    let weight_lbs: Double
-}
-
-private struct WeightLogRow: Codable {
-    let id: UUID
-    let user_id: String
-    let weight_lbs: Double
-    let logged_at: Date
 }

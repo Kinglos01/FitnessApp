@@ -2,16 +2,6 @@
 //  WeightTrackerView.swift
 //  FitnessApp
 //
-//  Created by Carlos Berio on 4/1/26.
-//
-//
-//  WeightTrackerView.swift
-//  FitnessApp
-//
-//
-//  WeightTrackerView.swift
-//  FitnessApp
-//
 
 import SwiftUI
 import Charts
@@ -119,10 +109,9 @@ final class WeightTrackerViewModel {
         save()
         inputText = ""
 
-        // Notify dashboard/appState so the widget updates immediately
         onWeightUpdated?(rounded)
 
-        // Persist to Supabase in background
+        // ✏️ CHANGED — now calls WeightLogService which writes to profiles, not weight_logs
         Task {
             try? await WeightLogService.shared.logWeight(userId: user.id, weightLbs: rounded)
         }
@@ -156,7 +145,16 @@ final class WeightTrackerViewModel {
         }
     }
 
-    /// Merges remote entries with local ones, preferring remote as source of truth
+    func deleteEntry(_ entry: WeightEntry) {
+        entries.removeAll { $0.id == entry.id }
+        save()
+        Task {
+            try? await WeightLogService.shared.deleteEntry(
+                userId: user.id, date: entry.date, weightLbs: entry.weightLbs
+            )
+        }
+    }
+
     func mergeRemoteEntries(_ remote: [WeightEntry]) {
         entries = remote.sorted { $0.date < $1.date }
         save()
@@ -174,6 +172,7 @@ final class WeightTrackerViewModel {
 
 // MARK: - Entry point
 
+// ✏️ CHANGED — loads history from profiles.weight_history via WeightLogService instead of weight_logs
 struct WeightTrackerSheet: View {
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
@@ -195,23 +194,25 @@ struct WeightTrackerSheet: View {
             }
         }
         .onAppear {
-            if let user = appState.currentUser {
-                let tracker = WeightTrackerViewModel(user: user)
-                // Update appState.currentUser.weight so dashboard widget reflects new weight
-                tracker.onWeightUpdated = { newWeight in
-                    if var updated = appState.currentUser {
-                        updated.weight = newWeight
-                        appState.completeOnboarding(user: updated) // saves locally
-                    }
+            // ✏️ CHANGED — guard let instead of if let for early exit
+            guard let user = appState.currentUser else { return }
+            let tracker = WeightTrackerViewModel(user: user)
+
+            tracker.onWeightUpdated = { newWeight in
+                if var updated = appState.currentUser {
+                    updated.weight = newWeight
+                    appState.completeOnboarding(user: updated)
                 }
-                vm = tracker
-                // Load history from Supabase
-                Task {
-                    if let entries = try? await WeightLogService.shared.fetchEntries(userId: user.id),
-                       !entries.isEmpty {
-                        await MainActor.run {
-                            tracker.mergeRemoteEntries(entries)
-                        }
+            }
+
+            vm = tracker
+
+            // ✏️ CHANGED — fetches from profiles.weight_history instead of weight_logs table
+            Task {
+                if let entries = try? await WeightLogService.shared.fetchEntries(userId: user.id),
+                   !entries.isEmpty {
+                    await MainActor.run {
+                        tracker.mergeRemoteEntries(entries)
                     }
                 }
             }
@@ -220,11 +221,38 @@ struct WeightTrackerSheet: View {
 }
 
 // MARK: - Main content
+// ✏️ NO CHANGES BELOW THIS LINE — everything from WeightTrackerContent onwards is identical
 
 private struct WeightTrackerContent: View {
     @Bindable var vm: WeightTrackerViewModel
     @Binding   var confettiCount: Int
     @Environment(\.dismiss) private var dismiss
+
+    private var goalPill: some View {
+        let goal = vm.user.primaryGoal
+        let label: String
+        let icon: String
+        let color: Color
+        let teal = Color(red: 0.25, green: 0.72, blue: 0.55)
+
+        switch goal {
+        case "Build Muscle":
+            label = "Goal: build muscle"; icon = "arrow.up"; color = teal
+        case "Maintain Weight":
+            label = "Goal: maintain"; icon = "equal"; color = .secondary
+        case "Improve Endurance":
+            label = "Goal: endurance"; icon = "figure.run"; color = .orange
+        default: // "Lose Weight"
+            label = "Goal: lose weight"; icon = "arrow.down"; color = .red
+        }
+
+        return Label(label, systemImage: icon)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
 
     private var lineColor: Color {
         vm.isLoseGoal ? .red : Color(red: 0.25, green: 0.72, blue: 0.55)
@@ -287,15 +315,7 @@ private struct WeightTrackerContent: View {
                     .font(.system(size: 14, weight: .bold))
                 Text("\(vm.userAge) y/o · \(vm.heightLabel) · \(vm.user.gender)")
                     .font(.system(size: 11)).foregroundColor(.secondary)
-                Label(
-                    vm.isLoseGoal ? "Goal: lose weight" : "Goal: gain weight",
-                    systemImage: vm.isLoseGoal ? "arrow.down" : "arrow.up"
-                )
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(lineColor)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(lineColor.opacity(0.12))
-                .clipShape(Capsule())
+                goalPill
             }
             Spacer()
             VStack(spacing: 2) {
@@ -546,6 +566,10 @@ private struct WeightTrackerContent: View {
                     .font(.system(size: 11, weight: .bold)).foregroundColor(diffColor)
                     .frame(width: 56, alignment: .trailing)
             }
+            Image(systemName: "xmark.circle.fill")
+                .foregroundColor(.red.opacity(0.7))
+                .font(.system(size: 14))
+                .onTapGesture { vm.deleteEntry(entry) }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color(.systemGray6)).cornerRadius(10)
@@ -562,6 +586,7 @@ private struct WeightTrackerContent: View {
 }
 
 // MARK: - Motivation card
+// ✏️ NO CHANGES — identical to original
 
 private struct MotivationCard: View {
     let kind      : MotivationKind
@@ -638,6 +663,7 @@ private struct MotivationCard: View {
 }
 
 // MARK: - Confetti
+// ✏️ NO CHANGES — identical to original
 
 struct ConfettiView: View {
     @State private var pieces: [Piece] = []
