@@ -2,8 +2,6 @@
 //  CalendarView.swift
 //  FitnessApp
 //
-//  Created by Carlos Berio on 3/27/26.
-//
 import SwiftUI
 
 // MARK: - Calendar Data Engine
@@ -34,7 +32,6 @@ struct DaySnapshot: Identifiable {
 @Observable
 private class CalendarDataEngine {
     var snapshots: [Date: DaySnapshot] = [:]
-
     private var userId: String = ""
     private var calorieTarget: Int = 2000
     private var waterGoal: Int = 8
@@ -83,7 +80,6 @@ private class CalendarDataEngine {
         snapshots = result
     }
 
-    // Fetches from Supabase and overlays water data on top of local snapshots
     @MainActor
     private func fetchFromSupabase() async {
         guard !userId.isEmpty,
@@ -95,9 +91,7 @@ private class CalendarDataEngine {
             userId: userId, from: start, to: end
         ) else { return }
 
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         for log in logs {
             guard let date = f.date(from: log.date) else { continue }
             let day = Calendar.current.startOfDay(for: date)
@@ -149,8 +143,8 @@ struct CalendarView: View {
     @State private var engine = CalendarDataEngine()
     @State private var selectedDay: DaySnapshot? = nil
 
-    private let columns          = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-    private let weekDayInitials  = ["M", "T", "W", "T", "F", "S", "S"]
+    private let columns         = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    private let weekDayInitials = ["M", "T", "W", "T", "F", "S", "S"]
 
     private var days: [Date] {
         let cal = Calendar.current
@@ -170,16 +164,23 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    legend
-                    calendarGrid
-                    Spacer(minLength: 40)
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        legend
+                        calendarGrid
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
             }
             .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .onAppear { loadData() }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 engine.reload()
@@ -201,11 +202,11 @@ struct CalendarView: View {
     // MARK: - Legend
     private var legend: some View {
         HStack(spacing: 14) {
-            legendItem(color: Color(red: 0.25, green: 0.72, blue: 0.55), label: "Activity")
-            legendItem(color: .orange, label: "Nutrition")
-            legendItem(color: .cyan,   label: "Water")
+            legendItem(color: .brandLime,  label: "Activity")
+            legendItem(color: .brandOrange, label: "Nutrition")
+            legendItem(color: .brandBlue,   label: "Water")
             Spacer()
-            Text("Tap for details").font(.caption2).foregroundColor(.secondary)
+            Text("Tap for details").font(.caption2).foregroundColor(Color.brandCream.opacity(0.4))
         }
         .padding(.horizontal, 4)
     }
@@ -213,7 +214,7 @@ struct CalendarView: View {
     private func legendItem(color: Color, label: String) -> some View {
         HStack(spacing: 5) {
             RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 12, height: 12)
-            Text(label).font(.caption2).foregroundColor(.secondary)
+            Text(label).font(.caption2).foregroundColor(Color.brandCream.opacity(0.6))
         }
     }
 
@@ -224,7 +225,6 @@ struct CalendarView: View {
         var groups: [(title: String, days: [Date])] = []
         var current: [Date] = []
         var currentMonth = -1
-
         for date in days {
             let month = cal.component(.month, from: date)
             let year  = cal.component(.year,  from: date)
@@ -261,14 +261,14 @@ struct CalendarView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
+                .foregroundColor(.brandCream)
                 .padding(.horizontal, 4)
 
             HStack(spacing: 4) {
                 ForEach(Array(weekDayInitials.enumerated()), id: \.offset) { _, initial in
                     Text(initial)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.brandCream.opacity(0.4))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -289,7 +289,8 @@ struct CalendarView: View {
             }
         }
         .padding(12)
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
     }
 }
@@ -314,36 +315,39 @@ struct DayCell: View {
                     let ringPad = size * 0.06
                     let lineW   = size * 0.07
 
+                    // Outer — Activity (lime)
                     ZStack {
-                        Circle().stroke(Color(red: 0.25, green: 0.72, blue: 0.55).opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color.brandLime.opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: snap.hasActivity ? 1.0 : 0)
-                            .stroke(Color(red: 0.25, green: 0.72, blue: 0.55), style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color.brandLime, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad)
 
+                    // Middle — Nutrition (orange)
                     ZStack {
-                        Circle().stroke(Color.orange.opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color.brandOrange.opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: snap.calorieProgress)
-                            .stroke(Color.orange, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color.brandOrange, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad + lineW * 1.4)
 
+                    // Inner — Water (blue)
                     ZStack {
-                        Circle().stroke(Color.cyan.opacity(0.18), lineWidth: lineW)
+                        Circle().stroke(Color.brandBlue.opacity(0.18), lineWidth: lineW)
                         Circle()
                             .trim(from: 0, to: min(Double(snap.waterConsumed) / Double(max(snap.waterGoal, 1)), 1.0))
-                            .stroke(Color.cyan, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
+                            .stroke(Color.brandBlue, style: StrokeStyle(lineWidth: lineW, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                     }
                     .padding(ringPad + lineW * 2.8)
                 }
 
                 if isToday {
-                    RoundedRectangle(cornerRadius: 5).stroke(Color.primary, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 5).stroke(Color.brandLime, lineWidth: 1.5)
                 }
 
                 Text("\(dayNum)")
@@ -355,20 +359,20 @@ struct DayCell: View {
     }
 
     private var cellBackground: Color {
-        if isFuture { return Color(.systemGray5).opacity(0.3) }
-        guard let snap = snapshot else { return Color(.systemGray5) }
+        if isFuture { return Color.brandCream.opacity(0.03) }
+        guard let snap = snapshot else { return Color.brandCream.opacity(0.05) }
         if snap.hasActivity {
-            return Color(red: 0.25, green: 0.72, blue: 0.55).opacity(0.15 + snap.activityIntensity * 0.35)
+            return Color.brandLime.opacity(0.08 + snap.activityIntensity * 0.20)
         }
-        if snap.totalCalories > 0 { return Color.orange.opacity(0.08) }
-        return Color(.systemGray5)
+        if snap.totalCalories > 0 { return Color.brandOrange.opacity(0.06) }
+        return Color.brandCream.opacity(0.04)
     }
 
     private var dayNumberColor: Color {
-        if isFuture { return .secondary.opacity(0.4) }
-        if isToday  { return .primary }
-        guard let snap = snapshot else { return .secondary }
-        return snap.hasActivity ? Color(red: 0.15, green: 0.55, blue: 0.40) : .secondary
+        if isFuture { return Color.brandCream.opacity(0.2) }
+        if isToday  { return .brandNavy }
+        guard let snap = snapshot else { return Color.brandCream.opacity(0.5) }
+        return snap.hasActivity ? .brandLime : Color.brandCream.opacity(0.6)
     }
 }
 
@@ -387,59 +391,65 @@ struct DayDetailSheet: View {
 
     var body: some View {
         NavigationView {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
-                    summaryBanner
-                    if !snapshot.completedWorkouts.isEmpty { workoutsSection }
-                    nutritionSection
-                    waterSection
-                    Spacer(minLength: 40)
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        summaryBanner
+                        if !snapshot.completedWorkouts.isEmpty { workoutsSection }
+                        nutritionSection
+                        waterSection
+                        Spacer(minLength: 40)
+                    }
+                    .padding(16)
                 }
-                .padding(16)
             }
             .navigationTitle(dateTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { dismiss() }.foregroundColor(.brandLime)
                 }
             }
         }
     }
 
-    // MARK: Summary Banner
     private var summaryBanner: some View {
         HStack(spacing: 0) {
-            summaryCell(icon: "checkmark.circle.fill", color: Color(red: 0.25, green: 0.72, blue: 0.55),
+            summaryCell(icon: "checkmark.circle.fill", color: .brandLime,
                         value: "\(snapshot.completedWorkouts.count)", label: "Workouts")
-            Divider().frame(height: 44)
-            summaryCell(icon: "flame.fill", color: .orange,
+            Divider().frame(height: 44).background(Color.brandCream.opacity(0.12))
+            summaryCell(icon: "flame.fill", color: .brandOrange,
                         value: "\(snapshot.completedWorkouts.reduce(0) { $0 + $1.caloriesBurned })", label: "Burned")
-            Divider().frame(height: 44)
-            summaryCell(icon: "fork.knife", color: .blue,
+            Divider().frame(height: 44).background(Color.brandCream.opacity(0.12))
+            summaryCell(icon: "fork.knife", color: .brandBlue,
                         value: "\(Int(snapshot.totalCalories))", label: "Eaten")
-            Divider().frame(height: 44)
-            summaryCell(icon: "drop.fill", color: .cyan,
+            Divider().frame(height: 44).background(Color.brandCream.opacity(0.12))
+            summaryCell(icon: "drop.fill", color: .brandBlue,
                         value: "\(snapshot.waterConsumed)/\(snapshot.waterGoal)", label: "Water")
         }
         .padding(.vertical, 14)
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
     }
 
     private func summaryCell(icon: String, color: Color, value: String, label: String) -> some View {
         VStack(spacing: 5) {
             Image(systemName: icon).foregroundColor(color).font(.system(size: 16))
-            Text(value).font(.system(size: 18, weight: .black, design: .rounded))
-            Text(label).font(.caption2).foregroundColor(.secondary)
+            Text(value).font(.system(size: 18, weight: .black, design: .rounded)).foregroundColor(.brandCream)
+            Text(label).font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Workouts Section
     private var workoutsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Workouts", systemImage: "figure.strengthtraining.traditional").font(.headline)
+            Label("Workouts", systemImage: "figure.strengthtraining.traditional")
+                .font(.headline).foregroundColor(.brandCream)
             ForEach(snapshot.completedWorkouts) { workout in
                 HStack(spacing: 12) {
                     ZStack {
@@ -449,113 +459,121 @@ struct DayDetailSheet: View {
                             .foregroundColor(workout.category.color)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(workout.name).font(.subheadline).fontWeight(.semibold)
+                        Text(workout.name).font(.subheadline).fontWeight(.semibold).foregroundColor(.brandCream)
                         HStack(spacing: 8) {
                             Text(workout.category.rawValue).font(.caption).foregroundColor(workout.category.color)
                             if let dur = workout.duration {
-                                Text("· \(dur) min").font(.caption).foregroundColor(.secondary)
+                                Text("· \(dur) min").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                             }
                         }
                     }
                     Spacer()
                     if workout.caloriesBurned > 0 {
-                        Text("\(workout.caloriesBurned) kcal").font(.caption).fontWeight(.bold).foregroundColor(.orange)
+                        Text("\(workout.caloriesBurned) kcal").font(.caption).fontWeight(.bold).foregroundColor(.brandOrange)
                     }
-                    Image(systemName: "checkmark.circle.fill").foregroundColor(workout.category.color)
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.brandLime)
                 }
                 .padding(12)
-                .background(Color(.systemGray6))
+                .background(Color.brandCream.opacity(0.06))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
                 .cornerRadius(12)
             }
         }
     }
 
-    // MARK: Nutrition Section
     private var nutritionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Nutrition", systemImage: "fork.knife.circle.fill").font(.headline)
+            Label("Nutrition", systemImage: "fork.knife.circle.fill")
+                .font(.headline).foregroundColor(.brandCream)
 
             VStack(spacing: 8) {
                 HStack {
-                    Text("Calories").font(.subheadline).fontWeight(.semibold)
+                    Text("Calories").font(.subheadline).fontWeight(.semibold).foregroundColor(.brandCream)
                     Spacer()
                     Text("\(Int(snapshot.totalCalories)) / \(snapshot.calorieTarget) kcal")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.15)).frame(height: 10)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.brandCream.opacity(0.1)).frame(height: 10)
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(snapshot.totalCalories > Double(snapshot.calorieTarget) ? Color.red : Color.orange)
+                            .fill(snapshot.totalCalories > Double(snapshot.calorieTarget) ? Color.brandOrange : Color.brandLime)
                             .frame(width: geo.size.width * snapshot.calorieProgress, height: 10)
                     }
                 }
                 .frame(height: 10)
             }
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(Color.brandCream.opacity(0.06))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
             .cornerRadius(12)
 
             if snapshot.loggedFoods.isEmpty {
                 HStack(spacing: 10) {
-                    Image(systemName: "fork.knife.circle").foregroundColor(.gray.opacity(0.4)).font(.system(size: 28))
-                    Text("No foods logged this day").font(.subheadline).foregroundColor(.gray)
+                    Image(systemName: "fork.knife.circle").foregroundColor(Color.brandCream.opacity(0.2)).font(.system(size: 28))
+                    Text("No foods logged this day").font(.subheadline).foregroundColor(Color.brandCream.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14).background(Color(.systemGray6)).cornerRadius(12)
+                .padding(14)
+                .background(Color.brandCream.opacity(0.06))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                .cornerRadius(12)
             } else {
                 ForEach(NutritionMealType.allCases, id: \.self) { mealType in
                     let entries = snapshot.loggedFoods.filter { $0.mealType == mealType }
                     if !entries.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 6) {
-                                Image(systemName: mealType.icon).foregroundColor(.orange).font(.caption)
-                                Text(mealType.rawValue).font(.caption).fontWeight(.bold)
+                                Image(systemName: mealType.icon).foregroundColor(.brandLime).font(.caption)
+                                Text(mealType.rawValue).font(.caption).fontWeight(.bold).foregroundColor(.brandCream)
                                 Spacer()
                                 let total = entries.reduce(0.0) { $0 + $1.foodItem.calories }
-                                Text("\(Int(total)) kcal").font(.caption2).foregroundColor(.secondary)
+                                Text("\(Int(total)) kcal").font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
                             }
                             ForEach(entries) { entry in
                                 HStack {
-                                    Text(entry.foodItem.description).font(.caption).lineLimit(1)
+                                    Text(entry.foodItem.description).font(.caption).lineLimit(1).foregroundColor(.brandCream)
                                     Spacer()
-                                    Text("\(Int(entry.foodItem.calories)) kcal").font(.caption2).foregroundColor(.orange)
+                                    Text("\(Int(entry.foodItem.calories)) kcal").font(.caption2).foregroundColor(.brandOrange)
                                 }
                                 .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color(.systemBackground)).cornerRadius(8)
+                                .background(Color.brandCream.opacity(0.04)).cornerRadius(8)
                             }
                         }
-                        .padding(10).background(Color(.systemGray6)).cornerRadius(12)
+                        .padding(10)
+                        .background(Color.brandCream.opacity(0.06))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                        .cornerRadius(12)
                     }
                 }
             }
         }
     }
 
-    // MARK: Water Section
     private var waterSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Water", systemImage: "drop.fill").font(.headline).foregroundColor(.cyan)
+            Label("Water", systemImage: "drop.fill").font(.headline).foregroundColor(.brandBlue)
 
             VStack(spacing: 8) {
                 HStack {
-                    Text("Intake").font(.subheadline).fontWeight(.semibold)
+                    Text("Intake").font(.subheadline).fontWeight(.semibold).foregroundColor(.brandCream)
                     Spacer()
                     Text("\(snapshot.waterConsumed) / \(snapshot.waterGoal) glasses")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.15)).frame(height: 10)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.brandCream.opacity(0.1)).frame(height: 10)
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.cyan)
+                            .fill(Color.brandBlue)
                             .frame(width: geo.size.width * min(Double(snapshot.waterConsumed) / Double(max(snapshot.waterGoal, 1)), 1.0), height: 10)
                     }
                 }
                 .frame(height: 10)
             }
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(Color.brandCream.opacity(0.06))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
             .cornerRadius(12)
         }
     }

@@ -90,6 +90,8 @@ final class AchievementService {
             let existing = try await fetchUnlocked(userId: userId)
             let existingIds = Set(existing.map { $0.id })
             
+        
+            
             let newIds = AchievementEngine.evaluate(
                 existing: existingIds,
                 workoutStreak: workoutStreak,
@@ -123,6 +125,8 @@ final class AchievementService {
                 strengthWorkouts: strengthWorkouts,
                 hasLogged30DaysAny: hasLogged30DaysAny
             )
+            
+           
             
             for id in newIds {
                 try await unlock(userId: userId, achievementId: id)
