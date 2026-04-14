@@ -219,7 +219,7 @@ struct DashboardView: View {
 
         let weekendCount = (satCount > 0 ? 1 : 0) + (sunCount > 0 ? 1 : 0)
         let cardioCount = completedAll.filter { $0.category == .cardio }.count
-        let coreCount = completedAll.filter { $0.category == .core }.count
+        let coreCount = completedAll.filter { $0.category == .flexibility }.count
         let strengthCount = completedAll.filter { $0.category == .strength }.count
 
         Task {
@@ -712,6 +712,61 @@ struct DashboardView: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .padding(.horizontal)
+    }
+
+    // MARK: - Missing helpers restored after merge
+
+    private func refreshLatestWeight() async {
+        isLoadingWeight = true
+        do {
+            let entries = try await WeightLogService.shared.fetchEntries(userId: userId)
+            weightEntries = entries
+            latestWeight = entries.last?.weightLbs
+        } catch {
+            print("Failed to fetch weight: \(error)")
+        }
+        isLoadingWeight = false
+    }
+
+    private func loadWeightEntries() async {
+        do {
+            weightEntries = try await WeightLogService.shared.fetchEntries(userId: userId)
+            latestWeight = weightEntries.last?.weightLbs
+        } catch {
+            print("Failed to load weight entries: \(error)")
+        }
+    }
+
+    private func syncDailyLog() {
+        guard !userId.isEmpty else { return }
+        let today = Calendar.current.startOfDay(for: Date())
+        let todayWorkouts = allExercises.filter {
+            $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
+        }
+        let burned = todayWorkouts.reduce(0) { $0 + $1.caloriesBurned }
+        let count = todayWorkouts.count
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let todayString = f.string(from: Date())
+        let wKey = "waterConsumed_\(userId)_\(todayString)"
+        let waterAmt = UserDefaults.standard.integer(forKey: wKey)
+        let wGoal = UserDefaults.standard.integer(forKey: "waterGoal")
+        let nutritionKey = "nutritionLog_\(userId)_\(todayString)"
+        var caloriesEaten: Double = 0
+        if let data = UserDefaults.standard.data(forKey: nutritionKey),
+           let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data) {
+            caloriesEaten = entries.reduce(0) { $0 + $1.foodItem.calories }
+        }
+        Task {
+            try? await DailyLogService.shared.upsertLog(
+                userId: userId,
+                waterConsumed: waterAmt,
+                waterGoal: wGoal == 0 ? 8 : wGoal,
+                caloriesEaten: caloriesEaten,
+                caloriesBurned: burned,
+                workoutsCompleted: count
+            )
+        }
     }
 }
 
