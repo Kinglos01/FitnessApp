@@ -321,10 +321,12 @@ struct ActivityLogView: View {
             }
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.6)) { animateStats = true }
+            withAnimation(.easeOut(duration: 0.6)) {
+                animateStats = true
+            }
         }
         .sheet(isPresented: $showAIAssistant) {
-            AIAssistantSheet().environment(appState)
+            AIAssistantSheet()
         }
     }
 
