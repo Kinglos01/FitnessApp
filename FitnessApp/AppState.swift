@@ -11,6 +11,9 @@ class AppState {
     var pendingUserId: String?
     var pendingEmail: String?
 
+    // NEW: shared profile store used across Profile / Settings / Dashboard
+    var profileStore = ProfileStore()
+
     init() {}
 
     func restoreSessionIfNeeded() {
@@ -18,16 +21,15 @@ class AppState {
             isLoggedIn = false
             hasCompletedOnboarding = false
             currentUser = nil
+            profileStore.profile = nil
             NotificationManager.shared.clearAllFitnessNotifications()
             return
         }
 
-        // Load cached user first so UI isn't blank while Supabase fetches
         loadUser(for: userId)
 
         Task {
             if let user = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                // Always overwrite with fresh Supabase data so isAdmin is current
                 await MainActor.run {
                     completeOnboarding(user: user)
                 }
@@ -38,9 +40,7 @@ class AppState {
     }
 
     func signIn(userId: String) {
-        // Clear stale cache so isAdmin and other new fields are always fresh
         UserDefaults.standard.removeObject(forKey: storageKey(for: userId))
-
         isLoggedIn = true
 
         Task {
@@ -60,6 +60,7 @@ class AppState {
         pendingUserId = nil
         pendingEmail = nil
 
+        syncProfileStoreFromCurrentUser()
         NotificationManager.shared.syncNotifications(for: user)
     }
 
@@ -69,12 +70,26 @@ class AppState {
         hasCompletedOnboarding = false
         pendingUserId = nil
         pendingEmail = nil
+        profileStore.profile = nil
 
         NotificationManager.shared.clearAllFitnessNotifications()
 
         Task {
             try? await AuthService.shared.signOut()
         }
+    }
+
+    func syncProfileStoreFromCurrentUser() {
+        guard let user = currentUser else {
+            profileStore.profile = nil
+            return
+        }
+
+        profileStore.load(
+            userId: user.id,
+            displayName: user.name,
+            email: user.email
+        )
     }
 
     private func storageKey(for userId: String) -> String {
@@ -94,6 +109,7 @@ class AppState {
             currentUser = decoded
             hasCompletedOnboarding = true
             isLoggedIn = true
+            syncProfileStoreFromCurrentUser()
         }
     }
 }
