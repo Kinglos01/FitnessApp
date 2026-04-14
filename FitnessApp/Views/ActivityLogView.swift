@@ -98,6 +98,13 @@ final class ActivityLogViewModel: ObservableObject {
     @Published var preselectedCategory: ExerciseCategory = .strength
     @Published var searchText: String = ""
     @Published var isLoading: Bool = false
+    @Published var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+
+    var selectedDateString: String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: selectedDate)
+    }
 
     let userId: String
     private var storageKey: String { "savedExercises_\(userId)" }
@@ -115,10 +122,12 @@ final class ActivityLogViewModel: ObservableObject {
     }
 
     var filteredExercises: [ActivityEntry] {
-        let sorted = exercises.sorted { $0.date > $1.date }
+        let dateFiltered = exercises.filter {
+            Calendar.current.startOfDay(for: $0.date) == selectedDate
+        }.sorted { $0.date > $1.date }
         let categoryFiltered: [ActivityEntry] = selectedFilter == nil
-            ? sorted
-            : sorted.filter { $0.category == selectedFilter }
+            ? dateFiltered
+            : dateFiltered.filter { $0.category == selectedFilter }
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return categoryFiltered
         }
@@ -128,24 +137,21 @@ final class ActivityLogViewModel: ObservableObject {
         }
     }
 
-    var totalCaloriesToday: Int {
-        let today = Calendar.current.startOfDay(for: Date())
-        return exercises
-            .filter { Calendar.current.startOfDay(for: $0.date) == today && $0.isCompleted }
+    var totalCaloriesForDay: Int {
+        exercises
+            .filter { Calendar.current.startOfDay(for: $0.date) == selectedDate && $0.isCompleted }
             .reduce(0) { $0 + $1.caloriesBurned }
     }
 
-    var totalWorkoutsToday: Int {
-        let today = Calendar.current.startOfDay(for: Date())
-        return exercises.filter {
-            Calendar.current.startOfDay(for: $0.date) == today && $0.isCompleted
+    var totalWorkoutsForDay: Int {
+        exercises.filter {
+            Calendar.current.startOfDay(for: $0.date) == selectedDate && $0.isCompleted
         }.count
     }
 
-    var totalMinutesToday: Int {
-        let today = Calendar.current.startOfDay(for: Date())
-        return exercises
-            .filter { Calendar.current.startOfDay(for: $0.date) == today && $0.isCompleted }
+    var totalMinutesForDay: Int {
+        exercises
+            .filter { Calendar.current.startOfDay(for: $0.date) == selectedDate && $0.isCompleted }
             .compactMap { $0.duration }
             .reduce(0, +)
     }
@@ -277,6 +283,7 @@ struct ActivityLogView: View {
         NavigationView {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
+                    dateNavigationBar
                     statsStrip
                     searchBar
                     categorySection
@@ -307,7 +314,8 @@ struct ActivityLogView: View {
                     editingExercise: nil,
                     initialCategory: vm.preselectedCategory,
                     userWeightKg: appState.currentUser?.weightKg ?? 70,
-                    isImperial: appState.currentUser?.units == "Imperial"
+                    isImperial: appState.currentUser?.units == "Imperial",
+                    selectedDate: vm.selectedDate
                 )
             }
             .sheet(item: $vm.editingExercise) { exercise in
@@ -316,7 +324,8 @@ struct ActivityLogView: View {
                     editingExercise: exercise,
                     initialCategory: exercise.category,
                     userWeightKg: appState.currentUser?.weightKg ?? 70,
-                    isImperial: appState.currentUser?.units == "Imperial"
+                    isImperial: appState.currentUser?.units == "Imperial",
+                    selectedDate: vm.selectedDate
                 )
             }
         }
@@ -330,10 +339,54 @@ struct ActivityLogView: View {
         }
     }
 
+    private var dateNavigationBar: some View {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let isToday = cal.isDateInToday(vm.selectedDate)
+        let isYesterday = cal.isDateInYesterday(vm.selectedDate)
+
+        return HStack {
+            Button {
+                if let prev = cal.date(byAdding: .day, value: -1, to: vm.selectedDate) {
+                    withAnimation(.easeInOut(duration: 0.2)) { vm.selectedDate = prev }
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.gray)
+                    .frame(width: 36, height: 36)
+            }
+
+            Spacer()
+
+            Text(isToday ? "Today" : isYesterday ? "Yesterday" : {
+                let f = DateFormatter()
+                f.dateFormat = "MMM d, yyyy"
+                return f.string(from: vm.selectedDate)
+            }())
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+
+            Spacer()
+
+            Button {
+                if let next = cal.date(byAdding: .day, value: 1, to: vm.selectedDate) {
+                    withAnimation(.easeInOut(duration: 0.2)) { vm.selectedDate = next }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isToday ? .clear : .gray)
+                    .frame(width: 36, height: 36)
+            }
+            .disabled(isToday)
+        }
+        .padding(.horizontal)
+    }
+
     private var statsStrip: some View {
         HStack(spacing: 12) {
-            StatCard(value: "\(vm.totalWorkoutsToday)", label: "Workouts", icon: "checkmark.circle.fill", color: .green,  animate: animateStats)
-            StatCard(value: "\(vm.totalCaloriesToday)", label: "Calories",  icon: "flame.fill",            color: .orange, animate: animateStats)
+            StatCard(value: "\(vm.totalWorkoutsForDay)", label: "Workouts", icon: "checkmark.circle.fill", color: .green,  animate: animateStats)
+            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories",  icon: "flame.fill",            color: .orange, animate: animateStats)
             StatCard(value: "\(vm.currentStreak)",      label: "Streak",    icon: "bolt.fill",             color: .blue,   animate: animateStats)
         }
         .padding(.horizontal)
@@ -579,6 +632,7 @@ struct AddExerciseSheet: View {
     let initialCategory: ExerciseCategory
     let userWeightKg: Double
     let isImperial: Bool
+    var selectedDate: Date = Date()
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -769,7 +823,7 @@ struct AddExerciseSheet: View {
             duration:       category.usesDuration ? Int(duration) : nil,
             caloriesBurned: Int(calories) ?? 0,
             notes:          notes,
-            date:           editingExercise?.date ?? Date(),
+            date:           editingExercise?.date ?? selectedDate,
             isCompleted:    editingExercise?.isCompleted ?? false
         )
         if isEditing { vm.update(entry) } else { vm.add(entry) }
