@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Foundation
 
 // MARK: - Models
 
@@ -29,61 +30,63 @@ struct ActivityEntry: Identifiable, Codable {
         date: Date = Date(),
         isCompleted: Bool = false
     ) {
-        self.id             = id
-        self.name           = name
-        self.category       = category
-        self.sets           = sets
-        self.reps           = reps
-        self.weight         = weight
-        self.duration       = duration
+        self.id = id
+        self.name = name
+        self.category = category
+        self.sets = sets
+        self.reps = reps
+        self.weight = weight
+        self.duration = duration
         self.caloriesBurned = caloriesBurned
-        self.notes          = notes
-        self.date           = date
-        self.isCompleted    = isCompleted
+        self.notes = notes
+        self.date = date
+        self.isCompleted = isCompleted
     }
 }
 
 enum ExerciseCategory: String, CaseIterable, Codable {
-    case strength    = "Strength"
-    case cardio      = "Cardio"
-    case sports      = "Sports"
+    case strength = "Strength"
+    case cardio = "Cardio"
+    case sports = "Sports"
     case flexibility = "Flexibility"
-    case outdoor     = "Outdoor"
+    case outdoor = "Outdoor"
 
     var icon: String {
         switch self {
-        case .strength:    return "dumbbell.fill"
-        case .cardio:      return "figure.run"
-        case .sports:      return "sportscourt.fill"
+        case .strength: return "dumbbell.fill"
+        case .cardio: return "figure.run"
+        case .sports: return "sportscourt.fill"
         case .flexibility: return "figure.cooldown"
-        case .outdoor:     return "sun.max.fill"
+        case .outdoor: return "sun.max.fill"
         }
     }
 
     var color: Color {
         switch self {
-        case .strength:    return Color(red: 0.96, green: 0.35, blue: 0.35)
-        case .cardio:      return Color(red: 0.25, green: 0.72, blue: 0.55)
-        case .sports:      return Color(red: 0.65, green: 0.35, blue: 0.95)
+        case .strength: return Color(red: 0.96, green: 0.35, blue: 0.35)
+        case .cardio: return Color(red: 0.25, green: 0.72, blue: 0.55)
+        case .sports: return Color(red: 0.65, green: 0.35, blue: 0.95)
         case .flexibility: return Color(red: 0.40, green: 0.60, blue: 0.95)
-        case .outdoor:     return Color(red: 0.95, green: 0.78, blue: 0.22)
+        case .outdoor: return Color(red: 0.95, green: 0.78, blue: 0.22)
         }
     }
 
     var suggestedExercises: [String] {
         switch self {
-        case .strength:    return ["Bench Press", "Squat", "Deadlift", "Shoulder Press", "Lat Pulldown", "Bicep Curl", "Leg Press"]
-        case .cardio:      return ["Walk", "Jog", "Run", "Treadmill", "Elliptical", "Bike", "Stairmaster"]
-        case .sports:      return ["Basketball", "Soccer", "Football", "Rock Climbing"]
+        case .strength: return ["Bench Press", "Squat", "Deadlift", "Shoulder Press", "Lat Pulldown", "Bicep Curl", "Leg Press"]
+        case .cardio: return ["Walk", "Jog", "Run", "Treadmill", "Elliptical", "Bike", "Stairmaster"]
+        case .sports: return ["Basketball", "Soccer", "Football", "Rock Climbing"]
         case .flexibility: return ["Yoga", "Pilates", "Stretching", "Mobility Flow"]
-        case .outdoor:     return ["Hike", "Outdoor Run", "Cycling", "Trail Walk", "Stadium Steps"]
+        case .outdoor: return ["Hike", "Outdoor Run", "Cycling", "Trail Walk", "Stadium Steps"]
         }
     }
 
     var usesDuration: Bool {
         switch self {
-        case .cardio, .sports, .flexibility, .outdoor: return true
-        case .strength:                                return false
+        case .cardio, .sports, .flexibility, .outdoor:
+            return true
+        case .strength:
+            return false
         }
     }
 }
@@ -122,15 +125,18 @@ final class ActivityLogViewModel: ObservableObject {
     }
 
     var filteredExercises: [ActivityEntry] {
-        let dateFiltered = exercises.filter {
-            Calendar.current.startOfDay(for: $0.date) == selectedDate
-        }.sorted { $0.date > $1.date }
+        let dateFiltered = exercises
+            .filter { Calendar.current.startOfDay(for: $0.date) == selectedDate }
+            .sorted { $0.date > $1.date }
+
         let categoryFiltered: [ActivityEntry] = selectedFilter == nil
             ? dateFiltered
             : dateFiltered.filter { $0.category == selectedFilter }
+
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return categoryFiltered
         }
+
         return categoryFiltered.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) ||
             $0.notes.localizedCaseInsensitiveContains(searchText)
@@ -144,9 +150,9 @@ final class ActivityLogViewModel: ObservableObject {
     }
 
     var totalWorkoutsForDay: Int {
-        exercises.filter {
-            Calendar.current.startOfDay(for: $0.date) == selectedDate && $0.isCompleted
-        }.count
+        exercises
+            .filter { Calendar.current.startOfDay(for: $0.date) == selectedDate && $0.isCompleted }
+            .count
     }
 
     var totalMinutesForDay: Int {
@@ -160,15 +166,20 @@ final class ActivityLogViewModel: ObservableObject {
         let cal = Calendar.current
         var streak = 0
         var checkDate = cal.startOfDay(for: Date())
+
         while true {
             let hasWorkout = exercises.contains {
                 $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate
             }
+
             if hasWorkout {
                 streak += 1
                 checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
-            } else { break }
+            } else {
+                break
+            }
         }
+
         return streak
     }
 
@@ -226,21 +237,27 @@ final class ActivityLogViewModel: ObservableObject {
 
     private func syncDailyLog() {
         guard !userId.isEmpty else { return }
+
         let today = Calendar.current.startOfDay(for: Date())
         let todayWorkouts = exercises.filter {
             $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
         }
-        let burned        = todayWorkouts.reduce(0) { $0 + $1.caloriesBurned }
-        let count         = todayWorkouts.count
-        let waterKey      = "waterConsumed_\(userId)_\(todayString)"
+
+        let burned = todayWorkouts.reduce(0) { $0 + $1.caloriesBurned }
+        let count = todayWorkouts.count
+
+        let waterKey = "waterConsumed_\(userId)_\(todayString)"
         let waterConsumed = UserDefaults.standard.integer(forKey: waterKey)
-        let waterGoal     = UserDefaults.standard.integer(forKey: "waterGoal")
-        let nutritionKey  = "nutritionLog_\(userId)_\(todayString)"
+        let waterGoal = UserDefaults.standard.integer(forKey: "waterGoal")
+
+        let nutritionKey = "nutritionLog_\(userId)_\(todayString)"
         var caloriesEaten: Double = 0
-        if let data    = UserDefaults.standard.data(forKey: nutritionKey),
+
+        if let data = UserDefaults.standard.data(forKey: nutritionKey),
            let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data) {
             caloriesEaten = entries.reduce(0) { $0 + $1.foodItem.calories }
         }
+
         Task {
             try? await DailyLogService.shared.upsertLog(
                 userId: userId,
@@ -260,7 +277,7 @@ final class ActivityLogViewModel: ObservableObject {
     }
 
     private func loadFromCache() {
-        if let data    = UserDefaults.standard.data(forKey: storageKey),
+        if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
             exercises = decoded
         }
@@ -302,7 +319,9 @@ struct ActivityLogView: View {
                                 Circle().fill(Color.orange).frame(width: 38, height: 38)
                                 RobotIcon()
                             }
-                            Text("Ask AI").font(.system(size: 9, weight: .bold)).foregroundColor(.orange)
+                            Text("Ask AI")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.orange)
                         }
                     }
                 }
@@ -335,20 +354,24 @@ struct ActivityLogView: View {
             }
         }
         .sheet(isPresented: $showAIAssistant) {
-            AIAssistantSheet()
+            AIAssistantSheet(
+                userId: vm.userId,
+                userName: appState.currentUser?.name
+            )
         }
     }
 
     private var dateNavigationBar: some View {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
         let isToday = cal.isDateInToday(vm.selectedDate)
         let isYesterday = cal.isDateInYesterday(vm.selectedDate)
 
         return HStack {
             Button {
                 if let prev = cal.date(byAdding: .day, value: -1, to: vm.selectedDate) {
-                    withAnimation(.easeInOut(duration: 0.2)) { vm.selectedDate = prev }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        vm.selectedDate = prev
+                    }
                 }
             } label: {
                 Image(systemName: "chevron.left")
@@ -359,18 +382,23 @@ struct ActivityLogView: View {
 
             Spacer()
 
-            Text(isToday ? "Today" : isYesterday ? "Yesterday" : {
-                let f = DateFormatter()
-                f.dateFormat = "MMM d, yyyy"
-                return f.string(from: vm.selectedDate)
-            }())
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Text(
+                isToday ? "Today" :
+                isYesterday ? "Yesterday" : {
+                    let f = DateFormatter()
+                    f.dateFormat = "MMM d, yyyy"
+                    return f.string(from: vm.selectedDate)
+                }()
+            )
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
 
             Spacer()
 
             Button {
                 if let next = cal.date(byAdding: .day, value: 1, to: vm.selectedDate) {
-                    withAnimation(.easeInOut(duration: 0.2)) { vm.selectedDate = next }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        vm.selectedDate = next
+                    }
                 }
             } label: {
                 Image(systemName: "chevron.right")
@@ -385,21 +413,43 @@ struct ActivityLogView: View {
 
     private var statsStrip: some View {
         HStack(spacing: 12) {
-            StatCard(value: "\(vm.totalWorkoutsForDay)", label: "Workouts", icon: "checkmark.circle.fill", color: .green,  animate: animateStats)
-            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories",  icon: "flame.fill",            color: .orange, animate: animateStats)
-            StatCard(value: "\(vm.currentStreak)",      label: "Streak",    icon: "bolt.fill",             color: .blue,   animate: animateStats)
+            StatCard(
+                value: "\(vm.totalWorkoutsForDay)",
+                label: "Workouts",
+                icon: "checkmark.circle.fill",
+                color: .green,
+                animate: animateStats
+            )
+            StatCard(
+                value: "\(vm.totalCaloriesForDay)",
+                label: "Calories",
+                icon: "flame.fill",
+                color: .orange,
+                animate: animateStats
+            )
+            StatCard(
+                value: "\(vm.currentStreak)",
+                label: "Streak",
+                icon: "bolt.fill",
+                color: .blue,
+                animate: animateStats
+            )
         }
         .padding(.horizontal)
     }
 
     private var searchBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundColor(.gray)
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.gray)
+
             TextField("Search workouts or notes", text: $vm.searchText)
                 .textInputAutocapitalization(.words)
+
             if !vm.searchText.isEmpty {
                 Button { vm.searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
                 }
             }
         }
@@ -412,16 +462,30 @@ struct ActivityLogView: View {
     private var categorySection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                FilterChip(label: "All", icon: "square.grid.2x2.fill", color: .blue, isSelected: vm.selectedFilter == nil) {
+                FilterChip(
+                    label: "All",
+                    icon: "square.grid.2x2.fill",
+                    color: .blue,
+                    isSelected: vm.selectedFilter == nil
+                ) {
                     withAnimation { vm.selectedFilter = nil }
                 }
+
                 ForEach(ExerciseCategory.allCases, id: \.self) { cat in
-                    FilterChip(label: cat.rawValue, icon: cat.icon, color: cat.color, isSelected: vm.selectedFilter == cat) {
-                        withAnimation { vm.selectedFilter = vm.selectedFilter == cat ? nil : cat }
+                    FilterChip(
+                        label: cat.rawValue,
+                        icon: cat.icon,
+                        color: cat.color,
+                        isSelected: vm.selectedFilter == cat
+                    ) {
+                        withAnimation {
+                            vm.selectedFilter = vm.selectedFilter == cat ? nil : cat
+                        }
                     }
                 }
             }
-            .padding(.horizontal).padding(.vertical, 4)
+            .padding(.horizontal)
+            .padding(.vertical, 4)
         }
     }
 
@@ -429,7 +493,10 @@ struct ActivityLogView: View {
         Group {
             if !vm.recentFavorites.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Quick Add").font(.headline).padding(.horizontal)
+                    Text("Quick Add")
+                        .font(.headline)
+                        .padding(.horizontal)
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
                             ForEach(vm.recentFavorites, id: \.self) { name in
@@ -443,8 +510,10 @@ struct ActivityLogView: View {
                                     }
                                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                                     .foregroundColor(.primary)
-                                    .padding(.horizontal, 14).padding(.vertical, 10)
-                                    .background(Color(.systemGray6)).cornerRadius(12)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -473,10 +542,21 @@ struct ActivityLogView: View {
                             }
                         }
                     )
-                    .onTapGesture { vm.editingExercise = exercise }
+                    .onTapGesture {
+                        vm.editingExercise = exercise
+                    }
                     .contextMenu {
-                        Button { vm.editingExercise = exercise } label: { Label("Edit", systemImage: "pencil") }
-                        Button(role: .destructive) { vm.deleteEntry(exercise) } label: { Label("Delete", systemImage: "trash") }
+                        Button {
+                            vm.editingExercise = exercise
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+
+                        Button(role: .destructive) {
+                            vm.deleteEntry(exercise)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -487,13 +567,19 @@ struct ActivityLogView: View {
     private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 52)).foregroundColor(.gray.opacity(0.3))
+                .font(.system(size: 52))
+                .foregroundColor(.gray.opacity(0.3))
+
             Text("No workouts yet")
-                .font(.system(size: 18, weight: .semibold, design: .rounded)).foregroundColor(.gray)
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundColor(.gray)
+
             Text("Tap the button below and log something for today.")
-                .font(.system(size: 14)).foregroundColor(.gray.opacity(0.7))
+                .font(.system(size: 14))
+                .foregroundColor(.gray.opacity(0.7))
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 60)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
     }
 
     private var floatingAddButton: some View {
@@ -507,7 +593,8 @@ struct ActivityLogView: View {
             }
             .font(.system(size: 16, weight: .bold, design: .rounded))
             .foregroundColor(.white)
-            .padding(.horizontal, 28).padding(.vertical, 16)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 16)
             .background(Color.blue)
             .clipShape(Capsule())
             .shadow(color: Color.blue.opacity(0.35), radius: 10, x: 0, y: 4)
@@ -527,14 +614,21 @@ struct StatCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundColor(color)
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(color)
+
             Text(value)
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundColor(.primary)
                 .scaleEffect(animate ? 1.0 : 0.5)
                 .opacity(animate ? 1.0 : 0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.6), value: animate)
-            Text(label).font(.system(size: 11, weight: .medium)).foregroundColor(.gray).textCase(.uppercase)
+
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
@@ -554,11 +648,14 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 12, weight: .semibold))
-                Text(label).font(.system(size: 13, weight: .semibold, design: .rounded))
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
             .foregroundColor(isSelected ? .white : .primary)
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .background(Capsule().fill(isSelected ? color : Color(.systemGray5)))
         }
         .buttonStyle(.plain)
@@ -587,40 +684,64 @@ struct ExerciseRow: View {
                 Circle()
                     .fill(exercise.isCompleted ? exercise.category.color : exercise.category.color.opacity(0.15))
                     .frame(width: 48, height: 48)
+
                 Image(systemName: exercise.isCompleted ? "checkmark" : exercise.category.icon)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(exercise.isCompleted ? .white : exercise.category.color)
             }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
-                    .font(.subheadline).fontWeight(.bold)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
                     .foregroundColor(exercise.isCompleted ? .gray : .primary)
                     .strikethrough(exercise.isCompleted)
-                Text(subtitleText).font(.caption).foregroundColor(.gray)
+
+                Text(subtitleText)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+
                 if !exercise.notes.isEmpty {
-                    Text(exercise.notes).font(.caption2).foregroundColor(.gray.opacity(0.75)).lineLimit(1)
+                    Text(exercise.notes)
+                        .font(.caption2)
+                        .foregroundColor(.gray.opacity(0.75))
+                        .lineLimit(1)
                 }
             }
+
             Spacer()
+
             VStack(alignment: .trailing, spacing: 8) {
                 Text(exercise.category.rawValue)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(exercise.category.color)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                     .background(exercise.category.color.opacity(0.15))
                     .clipShape(Capsule())
+
                 Button { onToggleComplete() } label: {
                     Text(exercise.isCompleted ? "Done" : "Mark Done")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(exercise.isCompleted ? .white : exercise.category.color)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Capsule().fill(exercise.isCompleted ? exercise.category.color : exercise.category.color.opacity(0.12)))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(
+                                exercise.isCompleted
+                                ? exercise.category.color
+                                : exercise.category.color.opacity(0.12)
+                            )
+                        )
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(exercise.isCompleted ? Color(.systemGray6).opacity(0.6) : Color(.systemGray6)))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(exercise.isCompleted ? Color(.systemGray6).opacity(0.6) : Color(.systemGray6))
+        )
     }
 }
 
@@ -633,6 +754,7 @@ struct AddExerciseSheet: View {
     let userWeightKg: Double
     let isImperial: Bool
     var selectedDate: Date = Date()
+
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -662,13 +784,18 @@ struct AddExerciseSheet: View {
             .navigationTitle(isEditing ? "Edit Workout" : "Log Workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+
                 if isEditing {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(role: .destructive) {
                             if let e = editingExercise { vm.deleteEntry(e) }
                             dismiss()
-                        } label: { Image(systemName: "trash") }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
                     }
                 }
             }
@@ -689,7 +816,11 @@ struct AddExerciseSheet: View {
 
     private var categoryPickerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Category").font(.caption).foregroundColor(.gray).textCase(.uppercase)
+            Text("Category")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ExerciseCategory.allCases, id: \.self) { cat in
@@ -703,7 +834,8 @@ struct AddExerciseSheet: View {
                             }
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundColor(category == cat ? .white : cat.color)
-                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                             .background(Capsule().fill(category == cat ? cat.color : cat.color.opacity(0.12)))
                         }
                         .buttonStyle(.plain)
@@ -715,10 +847,20 @@ struct AddExerciseSheet: View {
 
     private var suggestedExercisesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Workout Name").font(.caption).foregroundColor(.gray).textCase(.uppercase)
+            Text("Workout Name")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
+
             TextField("Enter workout name", text: $name)
-                .padding(12).background(Color(.systemGray6)).cornerRadius(12)
-            Text("Quick picks").font(.subheadline).fontWeight(.semibold)
+                .padding(12)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+
+            Text("Quick picks")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], spacing: 10) {
                 ForEach(category.suggestedExercises, id: \.self) { suggestion in
                     Button { name = suggestion } label: {
@@ -726,8 +868,10 @@ struct AddExerciseSheet: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10).padding(.horizontal, 10)
-                            .background(Color(.systemGray6)).cornerRadius(12)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 10)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
                 }
@@ -737,7 +881,10 @@ struct AddExerciseSheet: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Details").font(.caption).foregroundColor(.gray).textCase(.uppercase)
+            Text("Details")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
 
             if category.usesDuration {
                 detailField(title: "Duration (minutes)", text: $duration, keyboard: .numberPad)
@@ -749,17 +896,23 @@ struct AddExerciseSheet: View {
 
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Calories Burned").font(.caption).foregroundColor(.gray)
+                    Text("Calories Burned")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+
                     TextField("e.g. 300", text: $calories)
                         .keyboardType(.numberPad)
                         .padding(10)
                         .background(Color.white.opacity(0.7))
                         .cornerRadius(10)
                 }
+
                 Button { showCalcSheet = true } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: "flame.fill").font(.system(size: 14, weight: .semibold))
-                        Text("Calc").font(.system(size: 10, weight: .bold))
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Calc")
+                            .font(.system(size: 10, weight: .bold))
                     }
                     .foregroundColor(.white)
                     .frame(width: 52, height: 40)
@@ -769,14 +922,23 @@ struct AddExerciseSheet: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding().background(Color(.systemGray6)).cornerRadius(14)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(14)
     }
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Notes").font(.caption).foregroundColor(.gray).textCase(.uppercase)
+            Text("Notes")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
+
             TextField("Add a quick note...", text: $notes, axis: .vertical)
-                .lineLimit(3...5).padding(12).background(Color(.systemGray6)).cornerRadius(12)
+                .lineLimit(3...5)
+                .padding(12)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
         }
     }
 
@@ -785,48 +947,62 @@ struct AddExerciseSheet: View {
             Text(isEditing ? "Save Changes" : "Add Workout")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
-                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(category.color).cornerRadius(14)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(category.color)
+                .cornerRadius(14)
         }
         .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private func detailField(title: String, text: Binding<String>, keyboard: UIKeyboardType) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption).foregroundColor(.gray)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.gray)
+
             TextField(title, text: text)
-                .keyboardType(keyboard).padding(10)
-                .background(Color.white.opacity(0.7)).cornerRadius(10)
+                .keyboardType(keyboard)
+                .padding(10)
+                .background(Color.white.opacity(0.7))
+                .cornerRadius(10)
         }
     }
 
     private func populateIfNeeded() {
         category = editingExercise?.category ?? initialCategory
         guard let exercise = editingExercise else { return }
-        name     = exercise.name
-        sets     = exercise.sets
-        reps     = exercise.reps
-        weight   = exercise.weight.map { String(Int($0)) } ?? ""
+
+        name = exercise.name
+        sets = exercise.sets
+        reps = exercise.reps
+        weight = exercise.weight.map { String(Int($0)) } ?? ""
         duration = exercise.duration.map { String($0) } ?? ""
         calories = String(exercise.caloriesBurned)
-        notes    = exercise.notes
+        notes = exercise.notes
     }
 
     private func saveExercise() {
         let entry = ActivityEntry(
-            id:             editingExercise?.id ?? UUID(),
-            name:           name.trimmingCharacters(in: .whitespacesAndNewlines),
-            category:       category,
-            sets:           category.usesDuration ? 0 : sets,
-            reps:           category.usesDuration ? 0 : reps,
-            weight:         category.usesDuration ? nil : Double(weight),
-            duration:       category.usesDuration ? Int(duration) : nil,
+            id: editingExercise?.id ?? UUID(),
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            category: category,
+            sets: category.usesDuration ? 0 : sets,
+            reps: category.usesDuration ? 0 : reps,
+            weight: category.usesDuration ? nil : Double(weight),
+            duration: category.usesDuration ? Int(duration) : nil,
             caloriesBurned: Int(calories) ?? 0,
-            notes:          notes,
-            date:           editingExercise?.date ?? selectedDate,
-            isCompleted:    editingExercise?.isCompleted ?? false
+            notes: notes,
+            date: editingExercise?.date ?? selectedDate,
+            isCompleted: editingExercise?.isCompleted ?? false
         )
-        if isEditing { vm.update(entry) } else { vm.add(entry) }
+
+        if isEditing {
+            vm.update(entry)
+        } else {
+            vm.add(entry)
+        }
+
         dismiss()
     }
 }
@@ -839,9 +1015,9 @@ struct CalorieCalculatorSheet: View {
     let userWeightKg: Double
     let isImperial: Bool
     let onResult: (Int, Int?) -> Void
+
     @Environment(\.dismiss) private var dismiss
 
-    // Display weight in user's preferred unit
     private var displayWeight: String {
         isImperial
             ? String(format: "%.1f lbs", userWeightKg * 2.20462)
@@ -852,11 +1028,12 @@ struct CalorieCalculatorSheet: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // User weight banner
                     HStack(spacing: 8) {
-                        Image(systemName: "person.fill").foregroundColor(.secondary)
+                        Image(systemName: "person.fill")
+                            .foregroundColor(.secondary)
                         Text("Your weight: \(displayWeight)")
-                            .font(.caption).foregroundColor(.secondary)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         Spacer()
                     }
                     .padding(12)
@@ -866,25 +1043,31 @@ struct CalorieCalculatorSheet: View {
                     switch category {
                     case .strength:
                         StrengthCalculator(userWeightKg: userWeightKg, isImperial: isImperial) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                            onResult(cals, dur)
+                            dismiss()
                         }
                     case .cardio:
                         CardioCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                            onResult(cals, dur)
+                            dismiss()
                         }
                     case .sports:
                         SportsCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                            onResult(cals, dur)
+                            dismiss()
                         }
                     case .flexibility:
                         FlexibilityCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                            onResult(cals, dur)
+                            dismiss()
                         }
                     case .outdoor:
                         OutdoorCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                            onResult(cals, dur)
+                            dismiss()
                         }
                     }
+
                     Spacer(minLength: 40)
                 }
                 .padding()
@@ -910,23 +1093,32 @@ private struct CalcStepper: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
             HStack {
                 Button {
                     if value - step >= range.lowerBound { value -= step }
                 } label: {
                     Image(systemName: "minus.circle.fill")
-                        .font(.system(size: 28)).foregroundColor(Color(.systemGray3))
+                        .font(.system(size: 28))
+                        .foregroundColor(Color(.systemGray3))
                 }
+
                 Spacer()
+
                 Text("\(value)")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
+
                 Spacer()
+
                 Button {
                     if value + step <= range.upperBound { value += step }
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 28)).foregroundColor(.blue)
+                        .font(.system(size: 28))
+                        .foregroundColor(.blue)
                 }
             }
             .padding(.horizontal, 8)
@@ -942,13 +1134,19 @@ private struct CalcTextField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
             TextField(placeholder, text: $text)
                 .keyboardType(keyboard)
                 .padding(12)
                 .background(Color(.systemBackground))
                 .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray4), lineWidth: 0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(.systemGray4), lineWidth: 0.5)
+                )
         }
     }
 }
@@ -966,10 +1164,13 @@ private struct FormulaInfoButton: View {
                     Image(systemName: expanded ? "info.circle.fill" : "info.circle")
                         .font(.system(size: 13))
                         .foregroundColor(.blue)
+
                     Text("How we calculate this")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.blue)
+
                     Spacer()
+
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -995,15 +1196,21 @@ private struct FormulaInfoButton: View {
 
 private struct ResultBanner: View {
     let calories: Int
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Estimated Burn").font(.caption).foregroundColor(.secondary)
+                Text("Estimated Burn")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
                 Text("\(calories) kcal")
                     .font(.system(size: 28, weight: .black, design: .rounded))
                     .foregroundColor(.orange)
             }
+
             Spacer()
+
             Image(systemName: "flame.fill")
                 .font(.system(size: 32))
                 .foregroundColor(.orange.opacity(0.3))
@@ -1040,6 +1247,7 @@ private struct UseResultButton: View {
 
 private struct CalculateButton: View {
     let action: () -> Void
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
@@ -1058,7 +1266,6 @@ private struct CalculateButton: View {
 }
 
 // MARK: - Strength Calculator
-// Formula: (MET × weight_kg × duration_hrs) + (sets × reps × weight_kg × 0.075)
 
 private struct StrengthCalculator: View {
     let userWeightKg: Double
@@ -1072,7 +1279,6 @@ private struct StrengthCalculator: View {
 
     private var weightUnit: String { isImperial ? "lbs" : "kg" }
 
-    // Convert lift weight to kg for calculation
     private var liftWeightKg: Double {
         let val = Double(liftWeightText) ?? 0
         return isImperial ? val * 0.453592 : val
@@ -1098,9 +1304,7 @@ private struct StrengthCalculator: View {
             )
 
             CalculateButton {
-                // Per-rep energy: each rep burns ~0.075 kcal per kg lifted
                 let repCals = Double(sets * reps) * liftWeightKg * 0.075
-                // MET-based session cost: MET 6.0, estimate ~45 sec per set including rest
                 let estimatedDurationHrs = Double(sets) * 0.75 / 60.0
                 let metCals = 6.0 * userWeightKg * estimatedDurationHrs
                 result = max(1, Int(repCals + metCals))
@@ -1118,7 +1322,6 @@ private struct StrengthCalculator: View {
 }
 
 // MARK: - Cardio Calculator
-// Formula: Calories = MET × weight_kg × (distance / speed)
 
 private struct CardioCalculator: View {
     let userWeightKg: Double
@@ -1127,28 +1330,30 @@ private struct CardioCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum CardioType: String, CaseIterable {
-        case walking   = "Walking"
-        case running   = "Running"
+        case walking = "Walking"
+        case running = "Running"
         case sprinting = "Sprinting"
 
         var met: Double {
             switch self {
-            case .walking:   return 3.5
-            case .running:   return 9.8
+            case .walking: return 3.5
+            case .running: return 9.8
             case .sprinting: return 14.0
             }
         }
+
         var defaultSpeedMph: Double {
             switch self {
-            case .walking:   return 3.0
-            case .running:   return 6.0
+            case .walking: return 3.0
+            case .running: return 6.0
             case .sprinting: return 12.0
             }
         }
+
         var icon: String {
             switch self {
-            case .walking:   return "figure.walk"
-            case .running:   return "figure.run"
+            case .walking: return "figure.walk"
+            case .running: return "figure.run"
             case .sprinting: return "figure.run"
             }
         }
@@ -1176,7 +1381,10 @@ private struct CardioCalculator: View {
 
             HStack(spacing: 8) {
                 ForEach(CardioType.allCases, id: \.self) { type in
-                    Button { selectedType = type; result = nil } label: {
+                    Button {
+                        selectedType = type
+                        result = nil
+                    } label: {
                         VStack(spacing: 4) {
                             Image(systemName: type.icon).font(.system(size: 16))
                             Text(type.rawValue).font(.system(size: 11, weight: .semibold))
@@ -1184,9 +1392,13 @@ private struct CardioCalculator: View {
                         .foregroundColor(selectedType == type ? .white : .primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(
-                            selectedType == type ? Color(red: 0.25, green: 0.72, blue: 0.55) : Color(.systemGray5)
-                        ))
+                        .background(
+                            RoundedRectangle(cornerRadius: 10).fill(
+                                selectedType == type
+                                ? Color(red: 0.25, green: 0.72, blue: 0.55)
+                                : Color(.systemGray5)
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -1199,9 +1411,13 @@ private struct CardioCalculator: View {
             )
 
             HStack(spacing: 6) {
-                Image(systemName: "clock").foregroundColor(.secondary).font(.caption)
+                Image(systemName: "clock")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+
                 Text("Estimated time: ~\(estimatedMins) min at \(String(format: "%.0f", selectedType.defaultSpeedMph)) mph")
-                    .font(.caption).foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             FormulaInfoButton(formula:
@@ -1222,7 +1438,8 @@ private struct CardioCalculator: View {
                 ResultBanner(calories: r)
                 if let d = calculatedDuration {
                     Text("Estimated duration: \(d) min")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 UseResultButton(calories: r, duration: calculatedDuration, onResult: onResult)
             }
@@ -1231,15 +1448,18 @@ private struct CardioCalculator: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("walk")        { selectedType = .walking }
-            else if workoutName.lowercased().contains("sprint") { selectedType = .sprinting }
-            else                                                 { selectedType = .running }
+            if workoutName.lowercased().contains("walk") {
+                selectedType = .walking
+            } else if workoutName.lowercased().contains("sprint") {
+                selectedType = .sprinting
+            } else {
+                selectedType = .running
+            }
         }
     }
 }
 
 // MARK: - Sports Calculator
-// Formula: Calories = MET × weight_kg × duration_hrs
 
 private struct SportsCalculator: View {
     let userWeightKg: Double
@@ -1248,24 +1468,25 @@ private struct SportsCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum SportType: String, CaseIterable {
-        case football     = "Football"
-        case basketball   = "Basketball"
-        case soccer       = "Soccer"
+        case football = "Football"
+        case basketball = "Basketball"
+        case soccer = "Soccer"
         case rockClimbing = "Rock Climbing"
 
         var met: Double {
             switch self {
-            case .football:     return 8.0
-            case .basketball:   return 8.0
-            case .soccer:       return 10.0
+            case .football: return 8.0
+            case .basketball: return 8.0
+            case .soccer: return 10.0
             case .rockClimbing: return 7.5
             }
         }
+
         var icon: String {
             switch self {
-            case .football:     return "sportscourt.fill"
-            case .basketball:   return "basketball.fill"
-            case .soccer:       return "soccerball"
+            case .football: return "sportscourt.fill"
+            case .basketball: return "basketball.fill"
+            case .soccer: return "soccerball"
             case .rockClimbing: return "mountain.2.fill"
             }
         }
@@ -1283,7 +1504,10 @@ private struct SportsCalculator: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(SportType.allCases, id: \.self) { sport in
-                    Button { selectedSport = sport; result = nil } label: {
+                    Button {
+                        selectedSport = sport
+                        result = nil
+                    } label: {
                         HStack(spacing: 6) {
                             Image(systemName: sport.icon).font(.system(size: 13))
                             Text(sport.rawValue).font(.system(size: 12, weight: .semibold))
@@ -1291,9 +1515,13 @@ private struct SportsCalculator: View {
                         .foregroundColor(selectedSport == sport ? .white : .primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(
-                            selectedSport == sport ? Color(red: 0.65, green: 0.35, blue: 0.95) : Color(.systemGray5)
-                        ))
+                        .background(
+                            RoundedRectangle(cornerRadius: 10).fill(
+                                selectedSport == sport
+                                ? Color(red: 0.65, green: 0.35, blue: 0.95)
+                                : Color(.systemGray5)
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -1311,8 +1539,7 @@ private struct SportsCalculator: View {
                 "• Football MET: 8.0\n" +
                 "• Basketball MET: 8.0\n" +
                 "• Soccer MET: 10.0\n" +
-                "• Rock Climbing MET: 7.5\n\n" +
-                "MET values sourced from the Compendium of Physical Activities (Ainsworth et al.)."
+                "• Rock Climbing MET: 7.5"
             )
 
             CalculateButton {
@@ -1328,16 +1555,20 @@ private struct SportsCalculator: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("football")        { selectedSport = .football }
-            else if workoutName.lowercased().contains("basketball") { selectedSport = .basketball }
-            else if workoutName.lowercased().contains("soccer")     { selectedSport = .soccer }
-            else if workoutName.lowercased().contains("climb")      { selectedSport = .rockClimbing }
+            if workoutName.lowercased().contains("football") {
+                selectedSport = .football
+            } else if workoutName.lowercased().contains("basketball") {
+                selectedSport = .basketball
+            } else if workoutName.lowercased().contains("soccer") {
+                selectedSport = .soccer
+            } else if workoutName.lowercased().contains("climb") {
+                selectedSport = .rockClimbing
+            }
         }
     }
 }
 
 // MARK: - Flexibility Calculator
-// Formula: Calories = MET × intensity_multiplier × weight_kg × duration_hrs
 
 private struct FlexibilityCalculator: View {
     let userWeightKg: Double
@@ -1346,24 +1577,26 @@ private struct FlexibilityCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum FlexType: String, CaseIterable {
-        case yoga    = "Yoga"
+        case yoga = "Yoga"
         case pilates = "Pilates"
 
         var met: Double {
             switch self {
-            case .yoga:    return 3.0
+            case .yoga: return 3.0
             case .pilates: return 3.5
             }
         }
+
         var icon: String {
             switch self {
-            case .yoga:    return "figure.mind.and.body"
+            case .yoga: return "figure.mind.and.body"
             case .pilates: return "figure.cooldown"
             }
         }
+
         var description: String {
             switch self {
-            case .yoga:    return "Hatha, Vinyasa or restorative"
+            case .yoga: return "Hatha, Vinyasa or restorative"
             case .pilates: return "Mat or reformer Pilates"
             }
         }
@@ -1371,7 +1604,7 @@ private struct FlexibilityCalculator: View {
 
     @State private var selectedType: FlexType = .yoga
     @State private var durationText: String = "60"
-    @State private var intensityIndex: Int = 1 // 0=Light, 1=Moderate, 2=Intense
+    @State private var intensityIndex: Int = 1
     @State private var result: Int? = nil
 
     private let intensityLabels = ["Light", "Moderate", "Intense"]
@@ -1384,7 +1617,10 @@ private struct FlexibilityCalculator: View {
 
             HStack(spacing: 8) {
                 ForEach(FlexType.allCases, id: \.self) { type in
-                    Button { selectedType = type; result = nil } label: {
+                    Button {
+                        selectedType = type
+                        result = nil
+                    } label: {
                         VStack(spacing: 6) {
                             Image(systemName: type.icon).font(.system(size: 20))
                             Text(type.rawValue).font(.system(size: 12, weight: .semibold))
@@ -1396,9 +1632,13 @@ private struct FlexibilityCalculator: View {
                         .foregroundColor(selectedType == type ? .white : .primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(
-                            selectedType == type ? Color(red: 0.40, green: 0.60, blue: 0.95) : Color(.systemGray5)
-                        ))
+                        .background(
+                            RoundedRectangle(cornerRadius: 12).fill(
+                                selectedType == type
+                                ? Color(red: 0.40, green: 0.60, blue: 0.95)
+                                : Color(.systemGray5)
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -1426,8 +1666,7 @@ private struct FlexibilityCalculator: View {
                 "• Yoga MET: 3.0 | Pilates MET: 3.5\n" +
                 "• Light intensity: ×0.85\n" +
                 "• Moderate intensity: ×1.0\n" +
-                "• Intense intensity: ×1.2\n\n" +
-                "Intensity accounts for faster flows, harder poses, or more challenging sequences."
+                "• Intense intensity: ×1.2"
             )
 
             CalculateButton {
@@ -1444,14 +1683,16 @@ private struct FlexibilityCalculator: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("pilates") { selectedType = .pilates }
-            else { selectedType = .yoga }
+            if workoutName.lowercased().contains("pilates") {
+                selectedType = .pilates
+            } else {
+                selectedType = .yoga
+            }
         }
     }
 }
 
 // MARK: - Outdoor Calculator
-// Formula: Calories = (MET × weight_kg × duration_hrs) + elevation_bonus
 
 private struct OutdoorCalculator: View {
     let userWeightKg: Double
@@ -1460,24 +1701,26 @@ private struct OutdoorCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum HikeType: String, CaseIterable {
-        case uphill   = "Uphill"
+        case uphill = "Uphill"
         case downhill = "Downhill"
 
         var met: Double {
             switch self {
-            case .uphill:   return 8.0
+            case .uphill: return 8.0
             case .downhill: return 5.3
             }
         }
+
         var icon: String {
             switch self {
-            case .uphill:   return "arrow.up.right"
+            case .uphill: return "arrow.up.right"
             case .downhill: return "arrow.down.right"
             }
         }
+
         var description: String {
             switch self {
-            case .uphill:   return "Ascending, elevation gain"
+            case .uphill: return "Ascending, elevation gain"
             case .downhill: return "Descending, less effort"
             }
         }
@@ -1493,7 +1736,6 @@ private struct OutdoorCalculator: View {
     private var elevationUnit: String { isImperial ? "ft" : "m" }
     private var durationMins: Int { Int(durationText) ?? 90 }
 
-    // Convert elevation to feet for formula
     private var elevationFt: Double {
         let val = Double(elevationText) ?? 0
         return isImperial ? val : val * 3.28084
@@ -1505,7 +1747,10 @@ private struct OutdoorCalculator: View {
 
             HStack(spacing: 8) {
                 ForEach(HikeType.allCases, id: \.self) { type in
-                    Button { selectedType = type; result = nil } label: {
+                    Button {
+                        selectedType = type
+                        result = nil
+                    } label: {
                         VStack(spacing: 6) {
                             Image(systemName: type.icon).font(.system(size: 18))
                             Text(type.rawValue).font(.system(size: 13, weight: .semibold))
@@ -1517,9 +1762,13 @@ private struct OutdoorCalculator: View {
                         .foregroundColor(selectedType == type ? .white : .primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(
-                            selectedType == type ? Color(red: 0.95, green: 0.78, blue: 0.22) : Color(.systemGray5)
-                        ))
+                        .background(
+                            RoundedRectangle(cornerRadius: 12).fill(
+                                selectedType == type
+                                ? Color(red: 0.95, green: 0.78, blue: 0.22)
+                                : Color(.systemGray5)
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -1550,14 +1799,11 @@ private struct OutdoorCalculator: View {
             FormulaInfoButton(formula:
                 "Calories = (MET × body_weight_kg × duration_hrs) + elevation_bonus\n\n" +
                 "• Uphill MET: 8.0\n" +
-                "• Downhill MET: 5.3\n\n" +
-                "Elevation bonus (uphill only):\n" +
-                "= (elevation_ft ÷ 100) × (body_weight_lbs ÷ 100) × 0.35\n\n" +
-                "The elevation bonus accounts for the extra energy cost of gaining altitude, approximately 0.35 kcal per 100 ft of gain per 100 lbs of body weight."
+                "• Downhill MET: 5.3"
             )
 
             CalculateButton {
-                let baseCals  = selectedType.met * userWeightKg * Double(durationMins) / 60.0
+                let baseCals = selectedType.met * userWeightKg * Double(durationMins) / 60.0
                 let elevBonus = selectedType == .uphill
                     ? (elevationFt / 100.0) * ((userWeightKg * 2.20462) / 100.0) * 0.35
                     : 0
@@ -1573,8 +1819,11 @@ private struct OutdoorCalculator: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("down") { selectedType = .downhill }
-            else { selectedType = .uphill }
+            if workoutName.lowercased().contains("down") {
+                selectedType = .downhill
+            } else {
+                selectedType = .uphill
+            }
         }
     }
 }
@@ -1586,20 +1835,25 @@ struct RobotIcon: View {
         Canvas { ctx, size in
             let s = size.width / 64
             ctx.fill(Path(roundedRect: CGRect(x: 7*s, y: 6*s, width: 50*s, height: 3*s), cornerRadius: 1.5*s), with: .color(.white))
-            ctx.fill(Path(roundedRect: CGRect(x: 4*s,    y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
-            ctx.fill(Path(roundedRect: CGRect(x: 1*s,    y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: 4*s, y: 3.5*s, width: 3.5*s, height: 8*s), cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 1*s, y: 3*s, width: 3*s, height: 9*s), cornerRadius: s), with: .color(.white.opacity(0.8)))
             ctx.fill(Path(roundedRect: CGRect(x: -1.5*s, y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
-            ctx.fill(Path(roundedRect: CGRect(x: 56.5*s, y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
-            ctx.fill(Path(roundedRect: CGRect(x: 60*s,   y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
-            ctx.fill(Path(roundedRect: CGRect(x: 63*s,   y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
-            ctx.fill(Path(roundedRect: CGRect(x: 9*s,  y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
+            ctx.fill(Path(roundedRect: CGRect(x: 56.5*s, y: 3.5*s, width: 3.5*s, height: 8*s), cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 60*s, y: 3*s, width: 3*s, height: 9*s), cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: 63*s, y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
+            ctx.fill(Path(roundedRect: CGRect(x: 9*s, y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
             ctx.fill(Path(roundedRect: CGRect(x: 50*s, y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
-            var leftArm = Path(); leftArm.move(to: CGPoint(x: 15*s, y: 42*s))
+
+            var leftArm = Path()
+            leftArm.move(to: CGPoint(x: 15*s, y: 42*s))
             leftArm.addQuadCurve(to: CGPoint(x: 12*s, y: 9*s), control: CGPoint(x: 11*s, y: 27*s))
             ctx.stroke(leftArm, with: .color(.white), style: StrokeStyle(lineWidth: 6*s, lineCap: .round))
-            var rightArm = Path(); rightArm.move(to: CGPoint(x: 49*s, y: 42*s))
+
+            var rightArm = Path()
+            rightArm.move(to: CGPoint(x: 49*s, y: 42*s))
             rightArm.addQuadCurve(to: CGPoint(x: 52*s, y: 9*s), control: CGPoint(x: 53*s, y: 27*s))
             ctx.stroke(rightArm, with: .color(.white), style: StrokeStyle(lineWidth: 6*s, lineCap: .round))
+
             var body = Path()
             body.move(to: CGPoint(x: 15*s, y: 42*s))
             body.addQuadCurve(to: CGPoint(x: 15*s, y: 60*s), control: CGPoint(x: 13*s, y: 54*s))
@@ -1607,13 +1861,16 @@ struct RobotIcon: View {
             body.addQuadCurve(to: CGPoint(x: 49*s, y: 42*s), control: CGPoint(x: 51*s, y: 54*s))
             body.addQuadCurve(to: CGPoint(x: 15*s, y: 42*s), control: CGPoint(x: 32*s, y: 36*s))
             ctx.fill(body, with: .color(.white.opacity(0.92)))
+
             ctx.fill(Path(roundedRect: CGRect(x: 27*s, y: 32*s, width: 10*s, height: 7*s), cornerRadius: 2*s), with: .color(.white.opacity(0.88)))
             ctx.fill(Path(roundedRect: CGRect(x: 18*s, y: 16*s, width: 28*s, height: 22*s), cornerRadius: 5*s), with: .color(.white.opacity(0.97)))
             ctx.fill(Path(roundedRect: CGRect(x: 21*s, y: 20*s, width: 8*s, height: 5.5*s), cornerRadius: 2*s), with: .color(.orange))
             ctx.fill(Path(roundedRect: CGRect(x: 35*s, y: 20*s, width: 8*s, height: 5.5*s), cornerRadius: 2*s), with: .color(.orange))
             ctx.fill(Path(roundedRect: CGRect(x: 22*s, y: 20.5*s, width: 2.5*s, height: 2*s), cornerRadius: 0.5*s), with: .color(.white.opacity(0.55)))
             ctx.fill(Path(roundedRect: CGRect(x: 36*s, y: 20.5*s, width: 2.5*s, height: 2*s), cornerRadius: 0.5*s), with: .color(.white.opacity(0.55)))
-            var smile = Path(); smile.move(to: CGPoint(x: 24*s, y: 30*s))
+
+            var smile = Path()
+            smile.move(to: CGPoint(x: 24*s, y: 30*s))
             smile.addQuadCurve(to: CGPoint(x: 40*s, y: 30*s), control: CGPoint(x: 32*s, y: 36*s))
             ctx.stroke(smile, with: .color(.orange), style: StrokeStyle(lineWidth: 2.5*s, lineCap: .round))
         }
@@ -1621,70 +1878,469 @@ struct RobotIcon: View {
     }
 }
 
+// MARK: - AI CHAT SUPPORT
+
+struct ExerciseChatMessage: Identifiable, Equatable {
+    enum Sender {
+        case user
+        case assistant
+    }
+
+    let id = UUID()
+    let sender: Sender
+    let text: String
+    let timestamp: Date = Date()
+}
+
+enum ExerciseQueryIntent: Equatable {
+    case bodyPart(String)
+    case target(String)
+    case progress
+    case caloriesToday
+    case streak
+    case recentWorkouts
+    case help
+    case unknownWorkout
+    case offTopic
+}
+
+struct ExerciseOnlyGuard {
+    private static let workoutKeywords: [String] = [
+        "exercise", "exercises", "workout", "workouts", "train", "training",
+        "gym", "lift", "lifting", "muscle", "chest", "back", "legs", "leg",
+        "arms", "arm", "shoulders", "shoulder", "triceps", "biceps", "quads",
+        "hamstrings", "glutes", "abs", "calves", "cardio", "strength",
+        "sports", "flexibility", "stretch", "run", "running", "walk", "walking",
+        "bike", "cycling", "yoga", "pilates", "calories burned", "streak",
+        "progress", "sets", "reps"
+    ]
+
+    static func isAllowed(_ text: String) -> Bool {
+        let q = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return false }
+        return workoutKeywords.contains { q.contains($0) }
+    }
+
+    static func parseIntent(_ text: String) -> ExerciseQueryIntent {
+        let q = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !q.isEmpty else { return .offTopic }
+        guard isAllowed(q) else { return .offTopic }
+
+        if q.contains("progress") || q.contains("how am i doing") || q.contains("how many workouts") {
+            return .progress
+        }
+
+        if q.contains("calories") && (q.contains("today") || q.contains("burned")) {
+            return .caloriesToday
+        }
+
+        if q.contains("streak") {
+            return .streak
+        }
+
+        if q.contains("recent workouts") || q.contains("what did i do") || q.contains("my workouts") {
+            return .recentWorkouts
+        }
+
+        if q.contains("help") || q.contains("what can you do") {
+            return .help
+        }
+
+        let bodyPartMap: [String: String] = [
+            "chest": "chest",
+            "back": "back",
+            "shoulders": "shoulders",
+            "shoulder": "shoulders",
+            "arms": "upper arms",
+            "arm": "upper arms",
+            "legs": "upper legs",
+            "leg": "upper legs",
+            "quads": "upper legs",
+            "hamstrings": "upper legs",
+            "glutes": "upper legs",
+            "calves": "lower legs",
+            "abs": "waist",
+            "core": "waist",
+            "waist": "waist",
+            "cardio": "cardio",
+            "neck": "neck"
+        ]
+
+        for (keyword, bodyPart) in bodyPartMap {
+            if q.contains(keyword) {
+                return .bodyPart(bodyPart)
+            }
+        }
+
+        let targetMap: [String: String] = [
+            "triceps": "triceps",
+            "biceps": "biceps",
+            "lats": "lats",
+            "delts": "delts",
+            "deltoids": "delts",
+            "forearms": "forearms",
+            "calves": "calves",
+            "hamstrings": "hamstrings",
+            "quads": "quads",
+            "glutes": "glutes",
+            "abs": "abs"
+        ]
+
+        for (keyword, target) in targetMap {
+            if q.contains(keyword) {
+                return .target(target)
+            }
+        }
+
+        return .unknownWorkout
+    }
+}
+
+extension ExerciseService {
+    func fetchTargetListAsync() async throws -> [String] {
+        try await withCheckedThrowingContinuation { continuation in
+            fetchTargetList { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+
+    func fetchExercisesAsync(for target: String) async throws -> [Exercise] {
+        try await withCheckedThrowingContinuation { continuation in
+            fetchExercises(for: target) { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+
+    func fetchExercisesByBodyPartAsync(for bodyPart: String) async throws -> [Exercise] {
+        try await withCheckedThrowingContinuation { continuation in
+            fetchExercisesByBodyPart(for: bodyPart) { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+}
+
+final class ExerciseAssistantService {
+    static let shared = ExerciseAssistantService()
+
+    private let exerciseService = ExerciseService()
+
+    private init() {}
+
+    func handleQuery(_ text: String, userId: String) async -> String {
+        let intent = ExerciseOnlyGuard.parseIntent(text)
+
+        switch intent {
+        case .offTopic:
+            return "I only answer exercise and workout questions right now. Ask me about body parts, exercises, calories burned, progress, recent workouts, or your streak."
+
+        case .help:
+            return """
+            I can help with:
+            • exercises for chest, back, legs, shoulders, arms, or abs
+            • target muscles like triceps, biceps, glutes, or hamstrings
+            • your workout progress
+            • calories burned today
+            • your current streak
+            • your recent workouts
+            """
+
+        case .progress:
+            return await progressSummary(userId: userId)
+
+        case .caloriesToday:
+            return await caloriesToday(userId: userId)
+
+        case .streak:
+            return await streakSummary(userId: userId)
+
+        case .recentWorkouts:
+            return await recentWorkoutSummary(userId: userId)
+
+        case .bodyPart(let bodyPart):
+            return await exercisesForBodyPart(bodyPart)
+
+        case .target(let target):
+            return await exercisesForTarget(target)
+
+        case .unknownWorkout:
+            return "Try asking things like “show chest exercises”, “leg exercises”, “triceps exercises”, “show my progress”, “how many calories did I burn today?”, or “what is my streak?”"
+        }
+    }
+
+    private func exercisesForBodyPart(_ bodyPart: String) async -> String {
+        do {
+            let exercises = try await exerciseService.fetchExercisesByBodyPartAsync(for: bodyPart)
+            let top = Array(exercises.prefix(5))
+
+            guard !top.isEmpty else {
+                return "I could not find exercises for \(bodyPart). Try chest, back, shoulders, upper legs, lower legs, waist, or cardio."
+            }
+
+            let formatted = top.map {
+                "• \($0.name.capitalized) — target: \($0.target), equipment: \($0.equipment)"
+            }.joined(separator: "\n")
+
+            return "Here are some \(bodyPart) exercises:\n\(formatted)"
+        } catch {
+            return "I had trouble loading \(bodyPart) exercises right now. Please try again."
+        }
+    }
+
+    private func exercisesForTarget(_ target: String) async -> String {
+        do {
+            let exercises = try await exerciseService.fetchExercisesAsync(for: target)
+            let top = Array(exercises.prefix(5))
+
+            guard !top.isEmpty else {
+                return "I could not find exercises for \(target). Try triceps, biceps, lats, glutes, hamstrings, quads, calves, or abs."
+            }
+
+            let formatted = top.map {
+                "• \($0.name.capitalized) — body part: \($0.bodyPart), equipment: \($0.equipment)"
+            }.joined(separator: "\n")
+
+            return "Here are some exercises for \(target):\n\(formatted)"
+        } catch {
+            return "I had trouble loading \(target) exercises right now. Please try again."
+        }
+    }
+
+    private func progressSummary(userId: String) async -> String {
+        do {
+            let workouts = try await WorkoutService.shared.fetchWorkouts(userId: userId)
+            let completed = workouts.filter { $0.isCompleted }
+
+            guard !completed.isEmpty else {
+                return "You do not have any completed workouts yet. Start logging workouts and I can summarize your progress."
+            }
+
+            let thisWeek = completed.filter {
+                Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .weekOfYear)
+            }
+
+            let totalCalories = thisWeek.reduce(0) { $0 + $1.caloriesBurned }
+
+            return """
+            This week you completed \(thisWeek.count) workout(s) and burned about \(totalCalories) calories.
+            Overall, you have \(completed.count) completed workout(s) logged.
+            """
+        } catch {
+            return "I could not load your workout progress right now."
+        }
+    }
+
+    private func caloriesToday(userId: String) async -> String {
+        do {
+            if let log = try await DailyLogService.shared.fetchLog(userId: userId, date: Date()) {
+                return "Today you burned \(log.calories_burned) calories from \(log.workouts_completed) completed workout(s)."
+            }
+
+            let workouts = try await WorkoutService.shared.fetchWorkouts(userId: userId)
+            let today = Calendar.current.startOfDay(for: Date())
+            let todayCompleted = workouts.filter {
+                $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
+            }
+            let burned = todayCompleted.reduce(0) { $0 + $1.caloriesBurned }
+
+            return "Today you burned \(burned) calories from \(todayCompleted.count) completed workout(s)."
+        } catch {
+            return "I could not load today’s calorie data right now."
+        }
+    }
+
+    private func streakSummary(userId: String) async -> String {
+        do {
+            let workouts = try await WorkoutService.shared.fetchWorkouts(userId: userId)
+            let completed = workouts.filter { $0.isCompleted }
+
+            var streak = 0
+            let cal = Calendar.current
+            var checkDate = cal.startOfDay(for: Date())
+
+            while true {
+                let hasWorkout = completed.contains {
+                    cal.startOfDay(for: $0.date) == checkDate
+                }
+
+                if hasWorkout {
+                    streak += 1
+                    checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+                } else {
+                    break
+                }
+            }
+
+            return "Your current workout streak is \(streak) day(s)."
+        } catch {
+            return "I could not load your streak right now."
+        }
+    }
+
+    private func recentWorkoutSummary(userId: String) async -> String {
+        do {
+            let workouts = try await WorkoutService.shared.fetchWorkouts(userId: userId)
+            let recent = Array(workouts.prefix(5))
+
+            guard !recent.isEmpty else {
+                return "You do not have any workouts logged yet."
+            }
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
+
+            let lines = recent.map {
+                "• \($0.name) — \($0.category.rawValue) on \(formatter.string(from: $0.date))"
+            }.joined(separator: "\n")
+
+            return "Here are your recent workouts:\n\(lines)"
+        } catch {
+            return "I could not load your recent workouts right now."
+        }
+    }
+}
+
+@MainActor
+final class ExerciseAssistantViewModel: ObservableObject {
+    @Published var messages: [ExerciseChatMessage] = []
+    @Published var inputText: String = ""
+    @Published var isLoading: Bool = false
+
+    let userId: String
+
+    init(userId: String, userName: String?) {
+        self.userId = userId
+
+        let firstName = userName?
+            .components(separatedBy: " ")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        messages = [
+            ExerciseChatMessage(
+                sender: .assistant,
+                text: "Hey \(firstName?.isEmpty == false ? firstName! : "there")! Ask me about exercises, body parts, calories burned, your progress, recent workouts, or your streak."
+            )
+        ]
+    }
+
+    func sendCurrentMessage() async {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        inputText = ""
+        await send(trimmed)
+    }
+
+    func send(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        messages.append(ExerciseChatMessage(sender: .user, text: trimmed))
+        isLoading = true
+
+        let reply = await ExerciseAssistantService.shared.handleQuery(trimmed, userId: userId)
+
+        messages.append(ExerciseChatMessage(sender: .assistant, text: reply))
+        isLoading = false
+    }
+}
+
 // MARK: - AI Assistant Sheet
 
 struct AIAssistantSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppState.self) var appState
-    @State private var messageText = ""
+    @StateObject private var vm: ExerciseAssistantViewModel
+
+    init(userId: String, userName: String?) {
+        _vm = StateObject(wrappedValue: ExerciseAssistantViewModel(userId: userId, userName: userName))
+    }
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .bottom, spacing: 8) {
-                            ZStack {
-                                Circle().fill(Color.orange).frame(width: 32, height: 32)
-                                Canvas { ctx, size in
-                                    let s = size.width / 64
-                                    ctx.fill(Path(roundedRect: CGRect(x: 12*s, y: 14*s, width: 40*s, height: 30*s), cornerRadius: 6*s), with: .color(.white.opacity(0.97)))
-                                    ctx.fill(Path(roundedRect: CGRect(x: 18*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
-                                    ctx.fill(Path(roundedRect: CGRect(x: 38*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
-                                    var smile = Path(); smile.move(to: CGPoint(x: 20*s, y: 30*s))
-                                    smile.addQuadCurve(to: CGPoint(x: 44*s, y: 30*s), control: CGPoint(x: 32*s, y: 38*s))
-                                    ctx.stroke(smile, with: .color(.orange), style: StrokeStyle(lineWidth: 2.5*s, lineCap: .round))
-                                }
-                                .frame(width: 20, height: 20)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(vm.messages) { message in
+                                ChatBubble(message: message)
+                                    .id(message.id)
                             }
-                            Text("Hey \(appState.currentUser?.name.components(separatedBy: " ").first ?? "there")! Ask me anything about your workouts.")
-                                .font(.system(size: 13))
-                                .padding(10)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(14)
+
+                            if vm.isLoading {
+                                HStack {
+                                    ProgressView()
+                                    Text("Thinking...")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                            }
                         }
-                        .padding(.horizontal)
                         .padding(.top, 16)
+                        .padding(.bottom, 8)
+                    }
+                    .onChange(of: vm.messages.count) { _, _ in
+                        if let last = vm.messages.last {
+                            withAnimation {
+                                proxy.scrollTo(last.id, anchor: .bottom)
+                            }
+                        }
                     }
                 }
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(["Show my progress", "Rest day tips", "Calories burned?", "Best exercises"], id: \.self) { chip in
-                            Text(chip)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.orange)
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .background(Color.orange.opacity(0.1))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 0.5))
+                        QuickChip(title: "Chest exercises") {
+                            Task { await vm.send("Show me chest exercises") }
+                        }
+                        QuickChip(title: "Leg exercises") {
+                            Task { await vm.send("Show me leg exercises") }
+                        }
+                        QuickChip(title: "Triceps exercises") {
+                            Task { await vm.send("Show me triceps exercises") }
+                        }
+                        QuickChip(title: "My progress") {
+                            Task { await vm.send("Show my progress") }
+                        }
+                        QuickChip(title: "Calories today") {
+                            Task { await vm.send("How many calories did I burn today?") }
+                        }
+                        QuickChip(title: "My streak") {
+                            Task { await vm.send("What is my streak?") }
                         }
                     }
-                    .padding(.horizontal).padding(.vertical, 8)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
+
                 Divider()
+
                 HStack(spacing: 10) {
-                    TextField("Ask about your workouts...", text: $messageText)
-                        .font(.system(size: 14)).padding(10)
-                        .background(Color(.systemGray6)).cornerRadius(20)
-                    Button { messageText = "" } label: {
+                    TextField("Ask about exercises or workouts...", text: $vm.inputText)
+                        .font(.system(size: 14))
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(20)
+
+                    Button {
+                        Task { await vm.sendCurrentMessage() }
+                    } label: {
                         ZStack {
                             Circle().fill(Color.orange).frame(width: 34, height: 34)
                             Image(systemName: "paperplane.fill")
-                                .font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
                         }
                     }
+                    .disabled(vm.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
                 }
-                .padding(.horizontal).padding(.vertical, 10)
+                .padding(.horizontal)
+                .padding(.vertical, 10)
             }
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
@@ -1693,18 +2349,96 @@ struct AIAssistantSheet: View {
                         Circle().fill(Color.orange).frame(width: 44, height: 44)
                         RobotIcon().frame(width: 28, height: 28)
                     }
+
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("AI Fitness Assistant").font(.system(size: 16, weight: .bold)).foregroundColor(.primary)
-                        Text("Powered by your workout data").font(.system(size: 12)).foregroundColor(.secondary)
+                        Text("AI Fitness Assistant")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.primary)
+
+                        Text("Exercise and workout questions only")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
                     }
+
                     Spacer()
-                    Button("Done") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundColor(.orange)
+
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.orange)
                 }
-                .padding(.horizontal, 16).padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
                 .background(Color(.systemBackground))
                 .overlay(Divider(), alignment: .bottom)
             }
         }
+    }
+}
+
+private struct QuickChip: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ChatBubble: View {
+    let message: ExerciseChatMessage
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            if message.sender == .assistant {
+                ZStack {
+                    Circle().fill(Color.orange).frame(width: 30, height: 30)
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            } else {
+                Spacer(minLength: 40)
+            }
+
+            Text(message.text)
+                .font(.system(size: 13))
+                .foregroundColor(.primary)
+                .padding(10)
+                .background(
+                    message.sender == .assistant
+                    ? Color(.systemGray6)
+                    : Color.orange.opacity(0.18)
+                )
+                .cornerRadius(14)
+                .frame(
+                    maxWidth: 260,
+                    alignment: message.sender == .assistant ? .leading : .trailing
+                )
+
+            if message.sender == .user {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.gray.opacity(0.7))
+            } else {
+                Spacer()
+            }
+        }
+        .padding(.horizontal)
     }
 }
 
