@@ -18,6 +18,7 @@ struct DashboardView: View {
     @State private var tempWaterGoal: Int = 8
     @State private var isLoadingWeight: Bool = true
     @State private var showProfile: Bool = false
+    @State private var latestWeight: Double? = nil
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
@@ -153,6 +154,10 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             reloadAll()
         }
+        .task { await refreshLatestWeight() }
+        .onChange(of: showWeightTracker) { _, isShowing in
+            if !isShowing { Task { await refreshLatestWeight() } }
+        }
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView().environment(appState)
         }
@@ -203,6 +208,19 @@ struct DashboardView: View {
             print("loadWeightEntries error: \(error)")
         }
         isLoadingWeight = false
+    }
+
+    @MainActor
+    private func refreshLatestWeight() async {
+        guard !userId.isEmpty else { return }
+        do {
+            let entries = try await WeightLogService.shared.fetchEntries(userId: userId)
+            if let latest = entries.last {
+                latestWeight = latest.weightLbs
+            }
+        } catch {
+            print("Failed to fetch weight: \(error)")
+        }
     }
 
     private func syncDailyLog() {
@@ -527,26 +545,24 @@ struct DashboardView: View {
                         ProgressView()
                             .scaleEffect(0.7)
                             .frame(height: 30)
-                    } else if weightEntries.isEmpty {
-                        Text("Tap to log")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
                     } else {
-                        Text(String(format: "%.1f lb", current))
+                        Text("\(Int(latestWeight ?? appState.currentUser?.weightLbs ?? 0)) lbs")
                             .font(.system(size: 22, weight: .black, design: .rounded))
                             .foregroundColor(.primary)
 
-                        HStack(spacing: 4) {
-                            Image(systemName: deltaPositive ? "arrow.up" : "arrow.down")
-                                .font(.system(size: 10, weight: .bold))
-                            Text(String(format: "%.1f lb", abs(delta)))
-                                .font(.system(size: 12, weight: .semibold))
+                        if weightEntries.count >= 2 {
+                            HStack(spacing: 4) {
+                                Image(systemName: deltaPositive ? "arrow.up" : "arrow.down")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text(String(format: "%.1f lb", abs(delta)))
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(deltaColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(deltaColor.opacity(0.1))
+                            .clipShape(Capsule())
                         }
-                        .foregroundColor(deltaColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(deltaColor.opacity(0.1))
-                        .clipShape(Capsule())
                     }
                 }
                 .frame(width: 110, alignment: .leading)
@@ -560,14 +576,6 @@ struct DashboardView: View {
                             .overlay(
                                 ProgressView()
                                     .scaleEffect(0.7)
-                            )
-                    } else if weightEntries.isEmpty {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemGray5))
-                            .overlay(
-                                Text("No data yet")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
                             )
                     } else if !hasChartData {
                         // Single entry — show a simple dot indicator instead of chart

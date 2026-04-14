@@ -15,6 +15,17 @@ final class WeightLogService {
         try await ProfileService.shared.appendWeightEntry(userId: userId, weightLbs: weightLbs)
     }
 
+    // MARK: - Delete a single weight entry from profiles.weight_history
+    func deleteEntry(userId: String, date: Date, weightLbs: Double) async throws {
+        var history = try await ProfileService.shared.fetchWeightHistory(userId: userId)
+        if let idx = history.firstIndex(where: {
+            abs($0.date.timeIntervalSince(date)) < 1 && abs($0.weight_lbs - weightLbs) < 0.01
+        }) {
+            history.remove(at: idx)
+        }
+        try await ProfileService.shared.updateWeightHistory(userId: userId, history: history)
+    }
+
     // MARK: - Fetch all weight entries from profiles.weight_history
     func fetchEntries(userId: String) async throws -> [WeightEntry] {
         let history = try await ProfileService.shared.fetchWeightHistory(userId: userId)

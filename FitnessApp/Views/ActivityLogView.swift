@@ -212,14 +212,7 @@ final class ActivityLogViewModel: ObservableObject {
         guard !userId.isEmpty else { return }
         isLoading = true
         if let remote = try? await WorkoutService.shared.fetchWorkouts(userId: userId) {
-            let today = Calendar.current.startOfDay(for: Date())
-            exercises = remote.map { entry in
-                var updated = entry
-                if updated.isCompleted && Calendar.current.startOfDay(for: updated.date) != today {
-                    updated.isCompleted = false
-                }
-                return updated
-            }
+            exercises = remote
             saveToCache()
         }
         isLoading = false
@@ -263,14 +256,7 @@ final class ActivityLogViewModel: ObservableObject {
     private func loadFromCache() {
         if let data    = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
-            let today = Calendar.current.startOfDay(for: Date())
-            exercises = decoded.map { entry in
-                var updated = entry
-                if updated.isCompleted && Calendar.current.startOfDay(for: updated.date) != today {
-                    updated.isCompleted = false
-                }
-                return updated
-            }
+            exercises = decoded
         }
     }
 }
