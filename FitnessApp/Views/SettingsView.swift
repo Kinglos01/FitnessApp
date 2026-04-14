@@ -32,6 +32,7 @@ struct SettingsView: View {
 
     @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
+    @AppStorage("showEmailOnProfile") private var showEmailOnProfile: Bool = true
 
     @AppStorage("settings_meal_reminders") private var mealReminders: Bool = true
     @AppStorage("settings_workout_reminder") private var workoutReminder: Bool = false
@@ -146,6 +147,22 @@ struct SettingsView: View {
         formattedHeight(Double(draft.heightFeet * 12 + draft.heightInches))
     }
 
+    private var activeProfile: Profile? {
+        appState.profileStore.profile
+    }
+
+    private var profileDisplayName: String {
+        activeProfile?.displayName ?? appState.currentUser?.name ?? "—"
+    }
+
+    private var profileEmail: String {
+        activeProfile?.email ?? appState.currentUser?.email ?? "—"
+    }
+
+    private var profileImageData: Data? {
+        activeProfile?.profileImageData
+    }
+    
     // MARK: - Body
 
     var body: some View {
@@ -176,6 +193,7 @@ struct SettingsView: View {
         }
         .background(Color.brandNavy.ignoresSafeArea())
         .onAppear {
+            appState.syncProfileStoreFromCurrentUser()
             loadDraftFromCurrentUser()
             refreshNotificationStatus()
         }
@@ -274,22 +292,22 @@ struct SettingsView: View {
 
     private var profileCard: some View {
         HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Color.brandLime)
-                    .frame(width: 52, height: 52)
-                Text(appState.currentUser.map { initials(from: $0.name) } ?? "?")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.brandNavy)
-            }
+            ProfileAvatar(
+                imageData: profileImageData,
+                initials: initials(from: profileDisplayName)
+            )
+            .frame(width: 52, height: 52)
+
             VStack(alignment: .leading, spacing: 3) {
-                Text(appState.currentUser?.name ?? "—")
+                Text(profileDisplayName)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.brandCream)
-                Text(appState.currentUser?.email ?? "—")
+
+                Text(profileEmail)
                     .font(.system(size: 12))
                     .foregroundColor(Color.brandCream.opacity(0.5))
             }
+
             Spacer()
         }
         .padding(16)
@@ -357,6 +375,15 @@ struct SettingsView: View {
                 settingsRow(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
                 sectionDivider
                 settingsRow(icon: "moon.fill", iconColor: displayIconColor, label: "Appearance", value: appearance, action: { showAppearanceDialog = true })
+                sectionDivider
+                settingsRow(
+                    icon: "envelope.fill",
+                    iconColor: displayIconColor,
+                    label: "Show Email on Profile",
+                    subtitle: showEmailOnProfile ? "Visible on profile page" : "Hidden on profile page",
+                    showChevron: false,
+                    toggle: $showEmailOnProfile
+                )
                 sectionDivider
                 settingsRow(icon: "calendar.badge.clock", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
             }

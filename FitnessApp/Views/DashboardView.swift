@@ -17,6 +17,7 @@ struct DashboardView: View {
     @State private var showWaterGoalEditor: Bool = false
     @State private var tempWaterGoal: Int = 8
     @State private var isLoadingWeight: Bool = true
+    @State private var showProfile: Bool = false
     @State private var latestWeight: Double? = nil
 
     private var userId: String { appState.currentUser?.id ?? "" }
@@ -27,8 +28,26 @@ struct DashboardView: View {
         return "waterConsumed_\(userId)_\(f.string(from: Date()))"
     }
 
+    private var activeProfile: Profile? {
+        appState.profileStore.profile
+    }
+
+    private var dashboardDisplayName: String {
+        activeProfile?.displayName ?? appState.currentUser?.name ?? ""
+    }
+
+    private var dashboardProfileImageData: Data? {
+        activeProfile?.profileImageData
+    }
+
+    private var dashboardInitials: String {
+        let parts = dashboardDisplayName.split(separator: " ").prefix(2)
+        let joined = parts.map { String($0.prefix(1)) }.joined()
+        return joined.isEmpty ? "?" : joined.uppercased()
+    }
+    
     private var firstName: String {
-        let full = appState.currentUser?.name ?? ""
+        let full = dashboardDisplayName
         let first = full.split(separator: " ").first.map(String.init) ?? ""
         return first.isEmpty ? "Friend" : first
     }
@@ -124,7 +143,10 @@ struct DashboardView: View {
             }
             .navigationTitle("Dashboard")
         }
-        .onAppear { reloadAll() }
+        .onAppear {
+            appState.syncProfileStoreFromCurrentUser()
+            reloadAll()
+        }
         .onChange(of: appState.currentUser?.id) { _, newId in
             guard newId != nil else { return }
             reloadAll()
@@ -144,9 +166,14 @@ struct DashboardView: View {
         }) {
             WeightTrackerSheet().environment(appState)
         }
+        .sheet(isPresented: $showProfile) {
+            ProfileView().environment(appState)
+        }
     }
 
     private func reloadAll() {
+        appState.syncProfileStoreFromCurrentUser()
+        
         let uid = appState.currentUser?.id ?? ""
         let key = "savedExercises_\(uid)"
         if let data = UserDefaults.standard.data(forKey: key),
@@ -225,16 +252,28 @@ struct DashboardView: View {
                     .foregroundColor(.gray)
             }
             Spacer()
-            Button {
-                showSettingsSheet = true
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color(.systemGray6))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.blue)
+            HStack(spacing: 8) {
+                Button {
+                    showProfile = true
+                } label: {
+                    ProfileAvatar(
+                        imageData: dashboardProfileImageData,
+                        initials: dashboardInitials
+                    )
+                    .frame(width: 48, height: 48)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    showSettingsSheet = true
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color(.systemGray6))
+                            .frame(width: 48, height: 48)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.blue)
+                    }
                 }
             }
         }
