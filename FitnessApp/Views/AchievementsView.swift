@@ -2,38 +2,38 @@
 //  AchievementsView.swift
 //  FitnessApp
 //
- 
+
 import SwiftUI
- 
+
 // MARK: - AchievementsView
- 
+
 struct AchievementsView: View {
- 
+
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) var dismiss
- 
+
     @State private var unlocked: [UnlockedAchievement] = []
     @State private var isLoading = true
     @State private var selectedCategory: AchievementCategory? = nil
- 
+
     private var userId: String { appState.currentUser?.id ?? "" }
- 
+
     private var unlockedIds: Set<String> { Set(unlocked.map { $0.id }) }
- 
+
     private var filteredDefinitions: [AchievementDefinition] {
         if let cat = selectedCategory {
             return AchievementDefinition.all.filter { $0.category == cat }
         }
         return AchievementDefinition.all
     }
- 
+
     private var unlockedCount: Int { unlocked.count }
     private var totalCount: Int { AchievementDefinition.all.count }
- 
+
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
- 
+
             VStack(spacing: 0) {
                 header
                 progressBanner
@@ -53,9 +53,9 @@ struct AchievementsView: View {
         }
         .onAppear { Task { await load() } }
     }
- 
+
     // MARK: - Header
- 
+
     private var header: some View {
         HStack {
             Button { dismiss() } label: {
@@ -73,9 +73,9 @@ struct AchievementsView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
     }
- 
+
     // MARK: - Progress Banner
- 
+
     private var progressBanner: some View {
         VStack(spacing: 10) {
             HStack {
@@ -102,7 +102,7 @@ struct AchievementsView: View {
                         .foregroundColor(.brandLime)
                 }
             }
- 
+
             // progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -126,9 +126,9 @@ struct AchievementsView: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
     }
- 
+
     // MARK: - Category Filter
- 
+
     private var categoryFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -145,7 +145,7 @@ struct AchievementsView: View {
             .padding(.bottom, 12)
         }
     }
- 
+
     private func filterChip(label: String, icon: String, color: Color, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
@@ -160,9 +160,9 @@ struct AchievementsView: View {
         }
         .buttonStyle(.plain)
     }
- 
+
     // MARK: - Badge Grid
- 
+
     private var badgeGrid: some View {
         LazyVGrid(
             columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
@@ -178,9 +178,9 @@ struct AchievementsView: View {
         .padding(.horizontal, 20)
         .padding(.top, 4)
     }
- 
+
     // MARK: - Load
- 
+
     private func load() async {
         isLoading = true
         do {
@@ -191,44 +191,44 @@ struct AchievementsView: View {
         isLoading = false
     }
 }
- 
+
 // MARK: - BadgeCell
- 
+
 private struct BadgeCell: View {
     let definition: AchievementDefinition
     let unlockedAt: Date?
- 
+
     private var isUnlocked: Bool { unlockedAt != nil }
- 
+
     private var formattedDate: String {
         guard let date = unlockedAt else { return "" }
         let f = DateFormatter()
         f.dateFormat = "MMM d"
         return f.string(from: date)
     }
- 
+
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(isUnlocked
-                          ? definition.tierColor.opacity(0.18)
+                          ? definition.tier.ringColor.opacity(0.18)
                           : Color.brandCream.opacity(0.04))
                     .frame(width: 62, height: 62)
- 
+
                 Circle()
                     .stroke(isUnlocked
-                            ? definition.tierColor.opacity(0.5)
+                            ? definition.tier.ringColor.opacity(0.5)
                             : Color.brandCream.opacity(0.1),
                             lineWidth: isUnlocked ? 2 : 1)
                     .frame(width: 62, height: 62)
- 
-                Image(systemName: definition.icon)
+
+                Image(systemName: definition.category.icon)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(isUnlocked
-                                     ? definition.tierColor
+                                     ? definition.tier.ringColor
                                      : Color.brandCream.opacity(0.18))
- 
+
                 // lock overlay
                 if !isUnlocked {
                     Image(systemName: "lock.fill")
@@ -236,27 +236,27 @@ private struct BadgeCell: View {
                         .foregroundColor(Color.brandCream.opacity(0.25))
                         .offset(x: 18, y: 18)
                 }
- 
+
                 // tier crown for gold
-                if isUnlocked && definition.tier == 3 {
+                if isUnlocked && definition.tier == .gold {
                     Image(systemName: "crown.fill")
                         .font(.system(size: 11))
                         .foregroundColor(.yellow)
                         .offset(x: 18, y: -18)
                 }
             }
- 
+
             VStack(spacing: 3) {
                 Text(definition.title)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(isUnlocked ? .brandCream : Color.brandCream.opacity(0.3))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
- 
+
                 if isUnlocked {
                     Text(formattedDate)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(definition.tierColor.opacity(0.8))
+                        .foregroundColor(definition.tier.ringColor.opacity(0.8))
                 } else {
                     Text(definition.description)
                         .font(.system(size: 9))
@@ -272,21 +272,21 @@ private struct BadgeCell: View {
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(isUnlocked
-                      ? definition.tierColor.opacity(0.06)
+                      ? definition.tier.ringColor.opacity(0.06)
                       : Color.brandCream.opacity(0.02))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(isUnlocked
-                        ? definition.tierColor.opacity(0.2)
+                        ? definition.tier.ringColor.opacity(0.2)
                         : Color.brandCream.opacity(0.06),
                         lineWidth: 0.5)
         )
     }
 }
- 
+
 // MARK: - Preview
- 
+
 #Preview {
     AchievementsView()
         .environment(AppState())

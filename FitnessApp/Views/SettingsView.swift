@@ -82,6 +82,10 @@ struct SettingsView: View {
     @State private var showCalorieSheet: Bool = false
     @State private var showTargetWeightSheet: Bool = false
     @State private var showMacroSheet: Bool = false
+    
+    //MARK: achievement
+    @State private var showAchievements: Bool = false
+    @State private var unlockedAchievements: [UnlockedAchievement] = []
 
     // MARK: Section icon colors
     private let profileIconColor = Color.brandLime
@@ -89,6 +93,7 @@ struct SettingsView: View {
     private let displayIconColor = Color(hex: "A082FF")
     private let notificationsIconColor = Color(hex: "50D2B4")
     private let accountIconColor = Color.brandOrange
+    private let achievementsIconColor = Color(hex: "FFB800")
 
     // MARK: Helpers
 
@@ -170,6 +175,7 @@ struct SettingsView: View {
                         targetsSection
                         displaySection
                         notificationsSection
+                        achievementsSection
                         accountSection
                         footerText
                         Spacer(minLength: 110)
@@ -222,6 +228,11 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showTargetWeightSheet) {
             TargetWeightSheet(draft: $draft, hasChanges: $hasChanges)
+        }
+        .sheet(isPresented: $showAchievements, onDismiss: {
+            Task { await loadAchievements() }
+        }) {
+            AchievementsView().environment(appState)
         }
         .sheet(isPresented: $showMacroSheet) {
             MacroTargetsSheet(
@@ -908,6 +919,27 @@ struct SettingsView: View {
             }
             NotificationManager.shared.syncNotifications(for: appState.currentUser)
             refreshNotificationStatus()
+        }
+    }
+    private var achievementsSection: some View {
+        sectionBlock(label: "ACHIEVEMENTS") {
+            settingsRow(
+                icon: "trophy.fill",
+                iconColor: achievementsIconColor,
+                label: "My Badges",
+                subtitle: "\(unlockedAchievements.count) / 41 earned",
+                action: {
+                    Task { await loadAchievements() }
+                    showAchievements = true
+                }
+            )
+        }
+    }
+    @MainActor
+    private func loadAchievements() async {
+        guard let userId = appState.currentUser?.id, !userId.isEmpty else { return }
+        if let fetched = try? await AchievementService.shared.fetchUnlocked(userId: userId) {
+            unlockedAchievements = fetched
         }
     }
 

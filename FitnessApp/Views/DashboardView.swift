@@ -171,6 +171,64 @@ struct DashboardView: View {
 
         nutritionManager.configure(userId: uid, user: appState.currentUser)
         nutritionManager.reloadBurnedCalories()
+        
+        // Achievement engine
+        let completedAll = allExercises.filter { $0.isCompleted }
+        let totalBurned = completedAll.reduce(0) { $0 + $1.caloriesBurned }
+        let cal = Calendar.current
+        let hasEarlyBird = completedAll.contains { cal.component(.hour, from: $0.date) < 7 }
+        let hasNightOwl = completedAll.contains { cal.component(.hour, from: $0.date) >= 21 }
+        let hasLunch = completedAll.contains {
+            let h = cal.component(.hour, from: $0.date)
+            return h >= 12 && h < 14
+        }
+        let hasDouble = Dictionary(grouping: completedAll) {
+            cal.startOfDay(for: $0.date)
+        }.values.contains { $0.count >= 2 }
+        let longestMins = completedAll.compactMap { $0.duration }.max() ?? 0
+        let hasZeroCal = completedAll.contains { $0.caloriesBurned == 0 }
+        let hasSame5 = Dictionary(grouping: completedAll, by: { $0.name }).values.contains { $0.count >= 5 }
+        let sortedDates = completedAll.map { cal.startOfDay(for: $0.date) }.sorted()
+        let hadBreak = zip(sortedDates, sortedDates.dropFirst()).contains {
+            (cal.dateComponents([.day], from: $0, to: $1).day ?? 0) >= 7
+        }
+        let daysFromMon = (cal.component(.weekday, from: Date()) + 5) % 7
+        let monday = cal.date(byAdding: .day, value: -daysFromMon, to: cal.startOfDay(for: Date())) ?? Date()
+        let thisWeek = completedAll.filter { $0.date >= monday }
+        let categoriesThisWeek = Set(thisWeek.map { $0.category.rawValue })
+        let satCount = thisWeek.filter { cal.component(.weekday, from: $0.date) == 7 }.count
+        let sunCount = thisWeek.filter { cal.component(.weekday, from: $0.date) == 1 }.count
+
+        let weekendCount = (satCount > 0 ? 1 : 0) + (sunCount > 0 ? 1 : 0)
+        let cardioCount = completedAll.filter { $0.category == .cardio }.count
+        let coreCount = completedAll.filter { $0.category == .core }.count
+        let strengthCount = completedAll.filter { $0.category == .strength }.count
+
+        Task {
+            await AchievementService.shared.evaluateAndUnlock(
+                userId: uid,
+                workoutStreak: workoutStreak,
+                totalWorkouts: completedAll.count,
+                totalCaloriesBurned: totalBurned,
+                waterGoalDaysHit: waterConsumed >= waterGoal ? 1 : 0,
+                weightEntries: [],
+                targetWeightLbs: appState.currentUser?.targetWeightLbs,
+                hasEarlyBirdWorkout: hasEarlyBird,
+                hasNightOwlWorkout: hasNightOwl,
+                hasLunchBreakWorkout: hasLunch,
+                hadBreakBeforeReturn: hadBreak,
+                hasZeroCalWorkout: hasZeroCal,
+                hasSameWorkout5Times: hasSame5,
+                hasDoubleSessionDay: hasDouble,
+                longestWorkoutMinutes: longestMins,
+                categoriesThisWeek: categoriesThisWeek,
+                weekendWorkoutsThisWeek: weekendCount,
+                cardioWorkouts: cardioCount,
+                coreWorkouts: coreCount,
+                strengthWorkouts: strengthCount,
+                hasLogged30DaysAny: workoutStreak >= 30
+            )
+        }
     }
 
     private var greetingHeader: some View {
