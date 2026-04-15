@@ -8,8 +8,26 @@ typealias AppUserProfile = Profile
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let profile: AppUserProfile
-    let onSave: (AppUserProfile) -> Void
+    // Make profile optional to support guest/placeholder mode
+    let profile: AppUserProfile?
+    // onSave is optional; in guest mode we may not save
+    let onSave: ((AppUserProfile) -> Void)?
+
+    init(profile: AppUserProfile?, onSave: ((AppUserProfile) -> Void)?) {
+        self.profile = profile
+        self.onSave = onSave
+        // Pre-populate state synchronously to avoid waiting on onAppear
+        let p: AppUserProfile = profile ?? AppUserProfile(
+            id: UUID().uuidString,
+            displayName: "Guest",
+            email: "",
+            bio: "",
+            profileImageData: nil
+        )
+        _displayName = State(initialValue: p.displayName.isEmpty ? "Guest" : p.displayName)
+        _bio = State(initialValue: p.bio)
+        _imageData = State(initialValue: p.profileImageData)
+    }
 
     @State private var displayName: String = ""
     @State private var bio: String = ""
@@ -17,13 +35,29 @@ struct EditProfileView: View {
     @State private var photosItem: PhotosPickerItem? = nil
     private let bioCharacterLimit = 150
 
+    // Derived placeholder values for guest/empty state
+    private var resolvedProfile: AppUserProfile {
+        if let profile { return profile }
+        // Provide a minimal placeholder profile for guests
+        return AppUserProfile(
+            id: UUID().uuidString,
+            displayName: "Guest",
+            email: "",
+            bio: "",
+            profileImageData: nil
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Profile Photo") {
                     HStack(spacing: 16) {
-                        ProfileAvatar(imageData: imageData ?? profile.profileImageData, initials: profile.initials)
-                            .frame(width: 64, height: 64)
+                        ProfileAvatar(
+                            imageData: imageData ?? resolvedProfile.profileImageData,
+                            initials: resolvedProfile.initials
+                        )
+                        .frame(width: 64, height: 64)
                         PhotosPicker(selection: $photosItem, matching: .images) {
                             Label("Choose Photo", systemImage: "photo.on.rectangle")
                         }
@@ -39,8 +73,8 @@ struct EditProfileView: View {
                 }
 
                 Section("Email") {
-                    // Read-only per requirements unless there's a separate account flow
-                    Text(profile.email).foregroundColor(.secondary)
+                    Text(resolvedProfile.email.isEmpty ? "No email" : resolvedProfile.email)
+                        .foregroundColor(.secondary)
                 }
 
                 Section("Bio") {
@@ -65,25 +99,18 @@ struct EditProfileView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(onSave == nil || displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
-        .onAppear { populate() }
-    }
-
-    private func populate() {
-        displayName = profile.displayName
-        bio         = profile.bio
-        imageData   = profile.profileImageData
     }
 
     private func save() {
-        var updated = profile
-        updated.displayName     = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.bio             = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var updated = profile ?? Optional(resolvedProfile) else { return }
+        updated.displayName      = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.bio              = bio.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.profileImageData = imageData
-        onSave(updated)
+        if let onSave { onSave(updated) }
         dismiss()
     }
 
@@ -95,5 +122,8 @@ struct EditProfileView: View {
 }
 
 #Preview {
-    EditProfileView(profile: AppUserProfile.mock) { _ in }
+    Group {
+        EditProfileView(profile: AppUserProfile.mock, onSave: { _ in })
+        EditProfileView(profile: nil, onSave: nil)
+    }
 }

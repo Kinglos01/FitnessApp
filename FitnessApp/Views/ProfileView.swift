@@ -44,8 +44,19 @@ struct ProfileView: View {
                     editButton
                     AchievementsSection(achievements: local.achievements)
                 } else {
-                    ProgressView()
-                        .padding(.top, 40)
+                    // Guest placeholder content instead of a spinner
+                    let guest = LocalProfile(
+                        id: UUID().uuidString,
+                        displayName: "Guest",
+                        email: "",
+                        bio: "",
+                        profileImageData: nil,
+                        achievements: []
+                    )
+
+                    profileHeroCard(profile: guest)
+                    editButton
+                    AchievementsSection(achievements: [])
                 }
 
                 Spacer(minLength: 60)
@@ -60,6 +71,10 @@ struct ProfileView: View {
                     store.update(updated)
                 }
                 .environment(appState)
+            } else {
+                // Guest mode: show editable UI with placeholders; Save disabled
+                EditProfileView(profile: nil, onSave: nil)
+                    .environment(appState)
             }
         }
         .sheet(isPresented: $showSettings) {
