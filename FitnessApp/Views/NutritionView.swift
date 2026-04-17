@@ -42,7 +42,6 @@ struct NutritionView: View {
     @State private var errorMessage: String?
     @State private var showingQuickAddSheet = false
     @State private var selectedMealType: NutritionMealType = .snack
-    @State private var showingActivityPicker = false
 
     private let quickFoods: [QuickFoodTemplate] = [
         QuickFoodTemplate(name: "Protein Shake",    calories: 160, protein: 25, carbs: 8,  fat: 3,  mealType: .drink),
@@ -55,18 +54,25 @@ struct NutritionView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
-                    summaryCard
-                    activityAndGoalSection
-                    searchBar
-                    quickAddSection
-                    if !foods.isEmpty { resultsSection }
-                    loggedFoodsSection
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 18) {
+                        summaryCard
+                        activityAndGoalSection
+                        searchBar
+                        quickAddSection
+                        if !foods.isEmpty { resultsSection }
+                        loggedFoodsSection
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("Nutrition")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingQuickAddSheet) {
                 QuickAddFoodSheet(selectedMealType: selectedMealType) { food, mealType in
                     nutritionManager.logFood(food, mealType: mealType)
@@ -95,14 +101,14 @@ struct NutritionView: View {
     // MARK: - Summary Card
     private var summaryCard: some View {
         VStack(spacing: 16) {
-            // Header row
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's Nutrition")
                         .font(.title2).fontWeight(.bold)
+                        .foregroundColor(.brandCream)
                     if let tdee = nutritionManager.userTDEE {
                         Text("Base target: \(tdee + nutritionManager.goal.calorieDelta) kcal · \(nutritionManager.goal.rawValue)")
-                            .font(.caption).foregroundColor(.secondary)
+                            .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                     }
                 }
                 Spacer()
@@ -111,11 +117,10 @@ struct NutritionView: View {
                     .foregroundColor(nutritionManager.goal.color)
             }
 
-            // Calorie ring
             HStack(spacing: 24) {
                 ZStack {
                     Circle()
-                        .stroke(Color.gray.opacity(0.15), lineWidth: 14)
+                        .stroke(Color.brandCream.opacity(0.1), lineWidth: 14)
                         .frame(width: 110, height: 110)
                     Circle()
                         .trim(from: 0, to: min(nutritionManager.totalCalories / Double(nutritionManager.calorieTarget), 1.0))
@@ -126,70 +131,70 @@ struct NutritionView: View {
                     VStack(spacing: 2) {
                         Text("\(Int(nutritionManager.totalCalories))")
                             .font(.title2).fontWeight(.bold)
-                        Text("eaten").font(.caption2).foregroundColor(.gray)
+                            .foregroundColor(.brandCream)
+                        Text("eaten").font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    calorieStatRow(label: "Base target",  value: "\(nutritionManager.calorieTarget) kcal", color: .primary)
+                    calorieStatRow(label: "Base target",  value: "\(nutritionManager.calorieTarget) kcal", color: .brandCream)
                     if nutritionManager.caloriesBurnedToday > 0 {
-                        calorieStatRow(label: "Burned today", value: "+ \(nutritionManager.caloriesBurnedToday) kcal", color: .green)
-                        Divider()
+                        calorieStatRow(label: "Burned today", value: "+ \(nutritionManager.caloriesBurnedToday) kcal", color: Color(red: 0.25, green: 0.72, blue: 0.55))
+                        Divider().background(Color.brandCream.opacity(0.12))
                         calorieStatRow(
                             label: "Available today",
                             value: "\(nutritionManager.calorieTarget + nutritionManager.caloriesBurnedToday) kcal",
-                            color: .primary
+                            color: .brandCream
                         )
                     }
                     calorieStatRow(
                         label: "Remaining",
                         value: "\(max(nutritionManager.remainingCalories, 0)) kcal",
-                        color: nutritionManager.remainingCalories < 0 ? .red : .green
+                        color: nutritionManager.remainingCalories < 0 ? .brandOrange : Color(red: 0.25, green: 0.72, blue: 0.55)
                     )
                 }
                 Spacer()
             }
 
-            // Burned calories banner (only shown if workouts logged)
             if nutritionManager.caloriesBurnedToday > 0 {
                 HStack(spacing: 8) {
-                    Image(systemName: "flame.fill").foregroundColor(.orange).font(.caption)
+                    Image(systemName: "flame.fill").foregroundColor(.brandOrange).font(.caption)
                     Text("You burned \(nutritionManager.caloriesBurnedToday) kcal from today's workouts — added to your budget")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(Color.brandCream.opacity(0.6))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(Color.orange.opacity(0.08))
+                .background(Color.brandOrange.opacity(0.08))
                 .cornerRadius(10)
             }
 
-            Divider()
+            Divider().background(Color.brandCream.opacity(0.12))
 
-            // Macro progress bars
             VStack(spacing: 10) {
                 macroBar(label: "Protein", current: nutritionManager.totalProtein,
-                         target: Double(nutritionManager.proteinTarget), color: .blue)
+                         target: Double(nutritionManager.proteinTarget), color: .brandBlue)
                 macroBar(label: "Carbs",   current: nutritionManager.totalCarbs,
-                         target: Double(nutritionManager.carbTarget),    color: .green)
+                         target: Double(nutritionManager.carbTarget),    color: Color(red: 0.25, green: 0.72, blue: 0.55))
                 macroBar(label: "Fat",     current: nutritionManager.totalFat,
-                         target: Double(nutritionManager.fatTarget),     color: .orange)
+                         target: Double(nutritionManager.fatTarget),     color: .brandOrange)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6)))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(20)
     }
 
     // MARK: - Goal Picker
     private var activityAndGoalSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Goal").font(.headline)
+            Text("Goal").font(.headline).foregroundColor(.brandCream)
             Text("To permanently change your nutrition goals, go to settings.")
                 .font(.caption)
-                .foregroundColor(Color(.systemGray))
+                .foregroundColor(Color.brandCream.opacity(0.4))
                 .padding(.top, 4)
                 .padding(.bottom, 2)
-            
-            
+
             HStack(spacing: 10) {
                 ForEach(NutritionGoal.allCases, id: \.self) { g in
                     Button { nutritionManager.setGoal(g) } label: {
@@ -201,43 +206,49 @@ struct NutritionView: View {
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color(.systemGray6))
+                                .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color.brandCream.opacity(0.06))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14)
-                                .stroke(nutritionManager.goal == g ? g.color : Color.clear, lineWidth: 1.5)
+                                .stroke(nutritionManager.goal == g ? g.color : Color.brandCream.opacity(0.12), lineWidth: 1.5)
                         )
-                        .foregroundColor(nutritionManager.goal == g ? g.color : .primary)
+                        .foregroundColor(nutritionManager.goal == g ? g.color : Color.brandCream.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 20).fill(Color(.systemGray6)))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(20)
     }
 
     // MARK: - Search
     private var searchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Search USDA Foods").font(.headline)
+            Text("Search USDA Foods").font(.headline).foregroundColor(.brandCream)
             HStack {
-                Image(systemName: "magnifyingglass").foregroundColor(.gray)
-                TextField("Search food...", text: $searchText)
+                Image(systemName: "magnifyingglass").foregroundColor(Color.brandCream.opacity(0.4))
+                TextField("", text: $searchText)
+                    .placeholder(when: searchText.isEmpty) {
+                        Text("Search food...").foregroundColor(Color.brandCream.opacity(0.3))
+                    }
+                    .foregroundColor(.brandCream)
                     .textInputAutocapitalization(.never)
                     .onSubmit { Task { await search() } }
-                if isLoading { ProgressView().scaleEffect(0.9) }
+                if isLoading { ProgressView().tint(.brandLime).scaleEffect(0.9) }
                 if !searchText.isEmpty {
                     Button { searchText = ""; foods = [] } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                        Image(systemName: "xmark.circle.fill").foregroundColor(Color.brandCream.opacity(0.4))
                     }
                 }
             }
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(Color.brandCream.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
             .cornerRadius(12)
 
-            // Meal type selector for search results
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(NutritionMealType.allCases, id: \.self) { type in
@@ -247,9 +258,9 @@ struct NutritionView: View {
                                 .padding(.horizontal, 12).padding(.vertical, 6)
                                 .background(
                                     Capsule().fill(selectedMealType == type
-                                                   ? Color.orange.opacity(0.2) : Color(.systemGray5))
+                                                   ? Color.brandLime.opacity(0.2) : Color.brandCream.opacity(0.06))
                                 )
-                                .foregroundColor(selectedMealType == type ? .orange : .primary)
+                                .foregroundColor(selectedMealType == type ? .brandLime : Color.brandCream.opacity(0.6))
                         }
                         .buttonStyle(.plain)
                     }
@@ -262,10 +273,11 @@ struct NutritionView: View {
     private var quickAddSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Quick Add").font(.headline)
+                Text("Quick Add").font(.headline).foregroundColor(.brandCream)
                 Spacer()
                 Button("Custom") { showingQuickAddSheet = true }
                     .font(.subheadline).fontWeight(.semibold)
+                    .foregroundColor(.brandLime)
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -275,18 +287,20 @@ struct NutritionView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 Label(item.mealType.rawValue, systemImage: item.mealType.icon)
-                                    .font(.caption2).foregroundColor(.secondary)
+                                    .font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
                                 Text(item.name).font(.subheadline).fontWeight(.semibold).lineLimit(1)
-                                Text("\(Int(item.calories)) kcal").font(.caption).foregroundColor(.secondary)
+                                    .foregroundColor(.brandCream)
+                                Text("\(Int(item.calories)) kcal").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                                 HStack(spacing: 6) {
-                                    Text("P:\(Int(item.protein))g").font(.caption2).foregroundColor(.blue)
-                                    Text("C:\(Int(item.carbs))g").font(.caption2).foregroundColor(.green)
-                                    Text("F:\(Int(item.fat))g").font(.caption2).foregroundColor(.orange)
+                                    Text("P:\(Int(item.protein))g").font(.caption2).foregroundColor(.brandBlue)
+                                    Text("C:\(Int(item.carbs))g").font(.caption2).foregroundColor(Color(red: 0.25, green: 0.72, blue: 0.55))
+                                    Text("F:\(Int(item.fat))g").font(.caption2).foregroundColor(.brandOrange)
                                 }
                             }
                             .frame(width: 140, alignment: .leading)
                             .padding()
-                            .background(Color(.systemGray6))
+                            .background(Color.brandCream.opacity(0.06))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
                             .cornerRadius(14)
                         }
                         .buttonStyle(.plain)
@@ -299,7 +313,7 @@ struct NutritionView: View {
     // MARK: - Search Results
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Search Results").font(.headline)
+            Text("Search Results").font(.headline).foregroundColor(.brandCream)
             LazyVStack(spacing: 10) {
                 ForEach(foods) { food in
                     FoodRowView(food: food) {
@@ -312,30 +326,31 @@ struct NutritionView: View {
         }
     }
 
-    // MARK: - Logged Foods (grouped by meal type)
+    // MARK: - Logged Foods
     private var loggedFoodsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Logged Today").font(.headline)
+                Text("Logged Today").font(.headline).foregroundColor(.brandCream)
                 Spacer()
                 if !nutritionManager.loggedEntries.isEmpty {
                     Button("Clear All") { nutritionManager.clearAll() }
-                        .font(.subheadline).foregroundColor(.red)
+                        .font(.subheadline).foregroundColor(.brandOrange)
                 }
             }
 
             if nutritionManager.loggedEntries.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "fork.knife.circle")
-                        .font(.system(size: 42)).foregroundColor(.gray.opacity(0.4))
-                    Text("No foods logged yet").foregroundColor(.gray)
+                        .font(.system(size: 42)).foregroundColor(Color.brandCream.opacity(0.2))
+                    Text("No foods logged yet").foregroundColor(Color.brandCream.opacity(0.5))
                     Text("Search above or use quick add")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.caption).foregroundColor(Color.brandCream.opacity(0.35))
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 30)
-                .background(Color(.systemGray6)).cornerRadius(16)
+                .background(Color.brandCream.opacity(0.06))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                .cornerRadius(16)
             } else {
-                // Group by meal type
                 ForEach(NutritionMealType.allCases, id: \.self) { mealType in
                     let entries = nutritionManager.loggedEntries.filter { $0.mealType == mealType }
                     if !entries.isEmpty {
@@ -349,11 +364,11 @@ struct NutritionView: View {
     private func mealSection(mealType: NutritionMealType, entries: [LoggedFoodEntry]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: mealType.icon).foregroundColor(.orange).font(.subheadline)
-                Text(mealType.rawValue).font(.subheadline).fontWeight(.bold)
+                Image(systemName: mealType.icon).foregroundColor(.brandLime).font(.subheadline)
+                Text(mealType.rawValue).font(.subheadline).fontWeight(.bold).foregroundColor(.brandCream)
                 Spacer()
                 let total = entries.reduce(0.0) { $0 + $1.foodItem.calories }
-                Text("\(Int(total)) kcal").font(.caption).foregroundColor(.secondary)
+                Text("\(Int(total)) kcal").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             }
             ForEach(entries) { entry in
                 LoggedFoodCard(food: entry.foodItem) {
@@ -364,7 +379,8 @@ struct NutritionView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
     }
 
@@ -391,10 +407,9 @@ struct NutritionView: View {
         )
     }
 
-    // MARK: - Sub-views
     private func calorieStatRow(label: String, value: String, color: Color) -> some View {
         HStack {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             Spacer()
             Text(value).font(.caption).fontWeight(.semibold).foregroundColor(color)
         }
@@ -403,16 +418,15 @@ struct NutritionView: View {
     private func macroBar(label: String, current: Double, target: Double, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(label).font(.caption).foregroundColor(.secondary)
+                Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 Spacer()
-                Text("\(Int(current))g / \(Int(target))g").font(.caption).fontWeight(.semibold)
+                Text("\(Int(current))g / \(Int(target))g").font(.caption).fontWeight(.semibold).foregroundColor(.brandCream)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4).fill(Color.gray.opacity(0.15))
-                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.brandCream.opacity(0.1)).frame(height: 6)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(current > target ? Color.red : color)
+                        .fill(current > target ? Color.brandOrange : color)
                         .frame(width: geo.size.width * min(target > 0 ? current / target : 0, 1.0), height: 6)
                         .animation(.easeOut(duration: 0.4), value: current)
                 }
@@ -431,20 +445,22 @@ struct FoodRowView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(food.description).font(.subheadline).fontWeight(.semibold).lineLimit(2)
+                    .foregroundColor(.brandCream)
                 HStack(spacing: 10) {
-                    MacroLabel(value: food.calories, label: "kcal", color: .orange)
-                    MacroLabel(value: food.protein,  label: "P",    color: .blue)
-                    MacroLabel(value: food.carbs,    label: "C",    color: .green)
-                    MacroLabel(value: food.fat,      label: "F",    color: .red)
+                    MacroLabel(value: food.calories, label: "kcal", color: .brandOrange)
+                    MacroLabel(value: food.protein,  label: "P",    color: .brandBlue)
+                    MacroLabel(value: food.carbs,    label: "C",    color: Color(red: 0.25, green: 0.72, blue: 0.55))
+                    MacroLabel(value: food.fat,      label: "F",    color: .brandOrange)
                 }
             }
             Spacer()
             Button(action: onAdd) {
-                Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.orange)
+                Image(systemName: "plus.circle.fill").font(.title2).foregroundColor(.brandLime)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(14)
     }
 }
@@ -457,20 +473,21 @@ struct LoggedFoodCard: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(food.description).font(.subheadline).fontWeight(.semibold).lineLimit(2)
+                    .foregroundColor(.brandCream)
                 HStack(spacing: 10) {
-                    MacroLabel(value: food.calories, label: "kcal", color: .orange)
-                    MacroLabel(value: food.protein,  label: "P",    color: .blue)
-                    MacroLabel(value: food.carbs,    label: "C",    color: .green)
-                    MacroLabel(value: food.fat,      label: "F",    color: .red)
+                    MacroLabel(value: food.calories, label: "kcal", color: .brandOrange)
+                    MacroLabel(value: food.protein,  label: "P",    color: .brandBlue)
+                    MacroLabel(value: food.carbs,    label: "C",    color: Color(red: 0.25, green: 0.72, blue: 0.55))
+                    MacroLabel(value: food.fat,      label: "F",    color: .brandOrange)
                 }
             }
             Spacer()
             Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash.circle.fill").font(.title3).foregroundColor(.red)
+                Image(systemName: "trash.circle.fill").font(.title3).foregroundColor(.brandOrange)
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color.brandCream.opacity(0.04))
         .cornerRadius(12)
     }
 }
@@ -506,25 +523,34 @@ struct QuickAddFoodSheet: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                Section("Food") {
-                    TextField("Food name", text: $name)
-                    Picker("Meal Type", selection: $mealType) {
-                        ForEach(NutritionMealType.allCases, id: \.self) { type in
-                            Label(type.rawValue, systemImage: type.icon).tag(type)
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                Form {
+                    Section("Food") {
+                        TextField("Food name", text: $name)
+                        Picker("Meal Type", selection: $mealType) {
+                            ForEach(NutritionMealType.allCases, id: \.self) { type in
+                                Label(type.rawValue, systemImage: type.icon).tag(type)
+                            }
                         }
                     }
+                    Section("Nutrition") {
+                        TextField("Calories",    text: $calories).keyboardType(.numberPad)
+                        TextField("Protein (g)", text: $protein).keyboardType(.decimalPad)
+                        TextField("Carbs (g)",   text: $carbs).keyboardType(.decimalPad)
+                        TextField("Fat (g)",     text: $fat).keyboardType(.decimalPad)
+                    }
                 }
-                Section("Nutrition") {
-                    TextField("Calories",    text: $calories).keyboardType(.numberPad)
-                    TextField("Protein (g)", text: $protein).keyboardType(.decimalPad)
-                    TextField("Carbs (g)",   text: $carbs).keyboardType(.decimalPad)
-                    TextField("Fat (g)",     text: $fat).keyboardType(.decimalPad)
-                }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Custom Food")
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.foregroundColor(Color.brandCream.opacity(0.6))
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -542,9 +568,20 @@ struct QuickAddFoodSheet: View {
                         onSave(food, mealType)
                         dismiss()
                     }
+                    .foregroundColor(.brandLime)
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Placeholder extension
+extension View {
+    func placeholder<Content: View>(when shouldShow: Bool, @ViewBuilder placeholder: () -> Content) -> some View {
+        ZStack(alignment: .leading) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
         }
     }
 }

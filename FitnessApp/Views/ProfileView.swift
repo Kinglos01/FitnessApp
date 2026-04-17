@@ -1,7 +1,5 @@
 import SwiftUI
 
-// Temporary local model to satisfy view dependencies if a shared model isn't present.
-// If you already have a global `Profile` model, remove this and import that module instead.
 private struct LocalProfile: Identifiable, Equatable {
     var id: String = UUID().uuidString
     var displayName: String
@@ -17,13 +15,14 @@ struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("showEmailOnProfile") private var showEmailOnProfile: Bool = true
     private var store: ProfileStore { appState.profileStore }
-    
+
     @State private var showEdit = false
     @State private var showSettings = false
+    @State private var showAchievements = false
+    @State private var unlockedAchievements: [UnlockedAchievement] = []
+    @State private var isLoadingAchievements = false
 
     private var userId: String { appState.currentUser?.id ?? "" }
-    private var userName: String { appState.currentUser?.name ?? "" }
-    private var userEmail: String { appState.currentUser?.email ?? "" }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -42,10 +41,9 @@ struct ProfileView: View {
 
                     profileHeroCard(profile: local)
                     editButton
-                    AchievementsSection(achievements: local.achievements)
+                    achievementsCard
                 } else {
-                    ProgressView()
-                        .padding(.top, 40)
+                    ProgressView().tint(.brandLime).padding(.top, 40)
                 }
 
                 Spacer(minLength: 60)
@@ -63,45 +61,39 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
-                .environment(appState)
+            SettingsView().environment(appState)
+        }
+        .sheet(isPresented: $showAchievements) {
+            AchievementsView().environment(appState)
         }
         .onAppear {
             appState.syncProfileStoreFromCurrentUser()
+            Task { await loadAchievements() }
         }
         .onChange(of: appState.currentUser?.id) { _, _ in
             appState.syncProfileStoreFromCurrentUser()
+            Task { await loadAchievements() }
         }
         .background(Color.brandNavy.ignoresSafeArea())
     }
 
+    // MARK: - Top Bar
+
     private var topBar: some View {
         HStack {
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 ZStack {
-                    Circle()
-                        .fill(Color.brandCream.opacity(0.06))
-                        .frame(width: 42, height: 42)
-
+                    Circle().fill(Color.brandCream.opacity(0.06)).frame(width: 42, height: 42)
                     Image(systemName: "chevron.left")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.brandCream)
                 }
             }
             .buttonStyle(.plain)
-
             Spacer()
-
-            Button {
-                showSettings = true
-            } label: {
+            Button { showSettings = true } label: {
                 ZStack {
-                    Circle()
-                        .fill(Color.brandCream.opacity(0.06))
-                        .frame(width: 42, height: 42)
-
+                    Circle().fill(Color.brandCream.opacity(0.06)).frame(width: 42, height: 42)
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.brandCream)
@@ -111,7 +103,9 @@ struct ProfileView: View {
         }
         .padding(.top, 4)
     }
-    
+
+    // MARK: - Hero Card
+
     @ViewBuilder
     private func profileHeroCard(profile: LocalProfile) -> some View {
         HStack(alignment: .center, spacing: 18) {
@@ -163,24 +157,16 @@ struct ProfileView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.brandCream.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.brandCream.opacity(0.07), lineWidth: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.brandCream.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.brandCream.opacity(0.07), lineWidth: 1))
     }
-    
-    private var editButton: some View {
-        Button {
-            showEdit = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "pencil.circle.fill")
-                    .foregroundColor(.brandNavy)
 
+    // MARK: - Edit Button
+
+    private var editButton: some View {
+        Button { showEdit = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "pencil.circle.fill").foregroundColor(.brandNavy)
                 Text("Edit Profile")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
             }
@@ -192,94 +178,121 @@ struct ProfileView: View {
         }
         .buttonStyle(.plain)
     }
-}
 
-// MARK: - Header
+    // MARK: - Achievements Card
 
-private struct ProfileHeaderView: View {
-    let profile: LocalProfile
+    private var achievementsCard: some View {
+        Button { showAchievements = true } label: {
+            VStack(alignment: .leading, spacing: 14) {
+                achievementsHeader
+                if unlockedAchievements.isEmpty && !isLoadingAchievements {
+                    achievementsEmpty
+                } else {
+                    achievementsPreview
+                }
+            }
+            .padding(16)
+            .background(Color.brandCream.opacity(0.05))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.08), lineWidth: 1))
+            .cornerRadius(16)
+        }
+        .buttonStyle(.plain)
+    }
 
-    var body: some View {
-        VStack(spacing: 12) {
-            ProfileAvatar(imageData: profile.profileImageData, initials: profile.initials)
-                .frame(width: 100, height: 100)
-                .padding(.top, 8)
-
-            Text(profile.displayName)
-                .font(.system(size: 22, weight: .black, design: .rounded))
-            Text(profile.email)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            if !profile.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(profile.bio)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
+    private var achievementsHeader: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "FFB800"))
+                Text("Achievements")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.brandCream)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                if isLoadingAchievements {
+                    ProgressView().tint(.brandLime).scaleEffect(0.7)
+                } else {
+                    Text("\(unlockedAchievements.count) / 41")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.brandLime)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.brandCream.opacity(0.3))
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
+    }
+
+    private var achievementsEmpty: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "trophy")
+                .foregroundColor(Color.brandCream.opacity(0.3))
+            Text("No achievements unlocked yet — keep going!")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(Color.brandCream.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var achievementsPreview: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(unlockedAchievements.prefix(3))) { achievement in
+                AchievementPreviewRow(achievement: achievement)
+            }
+            if unlockedAchievements.count > 3 {
+                Text("+ \(unlockedAchievements.count - 3) more — tap to view all")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color.brandLime.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+            }
+        }
+    }
+
+    // MARK: - Load Achievements
+
+    @MainActor
+    private func loadAchievements() async {
+        guard !userId.isEmpty else { return }
+        isLoadingAchievements = true
+        if let fetched = try? await AchievementService.shared.fetchUnlocked(userId: userId) {
+            unlockedAchievements = fetched
+        }
+        isLoadingAchievements = false
     }
 }
 
-// MARK: - Achievements
+// MARK: - Achievement Preview Row
 
-private struct AchievementsSection: View {
-    let achievements: [String]
+private struct AchievementPreviewRow: View {
+    let achievement: UnlockedAchievement
+
+    private var definition: AchievementDefinition? {
+        AchievementDefinition.all.first { $0.id == achievement.id }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Achievements", systemImage: "trophy.fill")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(definition?.tier.ringColor.opacity(0.18) ?? Color.brandCream.opacity(0.06))
+                    .frame(width: 36, height: 36)
+                Image(systemName: definition?.category.icon ?? "trophy.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(definition?.tier.ringColor ?? .brandLime)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(definition?.title ?? "Achievement")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(.brandCream)
-                Spacer()
+                Text(definition?.description ?? "")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.brandCream.opacity(0.45))
+                    .lineLimit(1)
             }
-
-            if achievements.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "trophy")
-                        .foregroundColor(Color.brandCream.opacity(0.45))
-
-                    Text("No achievements yet")
-                        .foregroundColor(Color.brandCream.opacity(0.55))
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color.brandCream.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.brandCream.opacity(0.06), lineWidth: 1)
-                )
-                .cornerRadius(12)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(achievements, id: \.self) { title in
-                        HStack(spacing: 10) {
-                            Image(systemName: "star.circle.fill")
-                                .foregroundColor(.brandLime)
-
-                            Text(title)
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .foregroundColor(.brandCream)
-
-                            Spacer()
-                        }
-                        .padding(12)
-                        .background(Color.brandCream.opacity(0.05))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.brandCream.opacity(0.06), lineWidth: 1)
-                        )
-                        .cornerRadius(12)
-                    }
-                }
-            }
+            Spacer()
         }
     }
 }
