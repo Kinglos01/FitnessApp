@@ -58,6 +58,10 @@ struct ProfileView: View {
                     store.update(updated)
                 }
                 .environment(appState)
+            } else {
+                // Guest mode: show editable UI with placeholders; Save disabled
+                EditProfileView(profile: nil, onSave: nil)
+                    .environment(appState)
             }
         }
         .sheet(isPresented: $showSettings) {
