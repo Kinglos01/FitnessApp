@@ -1074,7 +1074,7 @@ struct AdminAddWorkoutSheet: View {
             caloriesBurned: Int(calories) ?? 0,
             notes:          notes,
             date:           date,
-            isCompleted:    isCompleted
+            completedDates: existing?.completedDates ?? []
         )
         onSave(entry)
         dismiss()

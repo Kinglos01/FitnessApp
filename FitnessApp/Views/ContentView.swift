@@ -32,6 +32,7 @@ struct BrandTextField: View {
         ZStack(alignment: .leading) {
             if text.isEmpty {
                 Text(placeholder)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Color.brandCream.opacity(0.35))
                     .padding(.horizontal, 16)
             }
@@ -41,20 +42,21 @@ struct BrandTextField: View {
                 } else {
                     TextField("", text: $text)
                         .keyboardType(keyboardType)
-                        .autocapitalization(.none)
+                        .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
             }
+            .font(.system(size: 15, weight: .semibold))
             .padding(.horizontal, 16)
             .foregroundColor(.brandCream)
         }
         .frame(height: 52)
-        .background(Color.brandCream.opacity(0.07))
+        .background(Color.brandCream.opacity(0.08))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.brandCream.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.brandCream.opacity(0.24), lineWidth: 1)
         )
-        .cornerRadius(12)
+        .cornerRadius(10)
     }
 }
 
@@ -108,57 +110,67 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showingSignUp)
+        .overlay(alignment: .bottom) {
+            Text("SimplyFit\u{2122} 2026")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color.brandCream.opacity(0.35))
+                .padding(.bottom, 10)
+        }
     }
 }
 
 // MARK: - Diagonal Slash Header
 private struct SlashHeader: View {
-    let iconName: String
     let title: String
     let subtitle: String
     var appeared: Bool
+    // Restore running figure icon with a sensible default
+    var iconName: String = "figure.run.circle.fill"
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             GeometryReader { geo in
                 Path { path in
-                    let w = geo.size.width + 60
+                    let w = geo.size.width + 20
                     let h = geo.size.height
-                    path.move(to: CGPoint(x: -30, y: 0))
+                    // Cleaner, slightly less aggressive diagonal
+                    path.move(to: CGPoint(x: -10, y: 0))
                     path.addLine(to: CGPoint(x: w, y: 0))
-                    path.addLine(to: CGPoint(x: w, y: h * 0.72))
-                    path.addLine(to: CGPoint(x: -30, y: h))
+                    path.addLine(to: CGPoint(x: w, y: h * 0.78))
+                    path.addLine(to: CGPoint(x: -10, y: h))
                     path.closeSubpath()
                 }
                 .fill(Color.brandLime)
             }
 
             VStack(alignment: .leading, spacing: 6) {
+                // Restored SF Symbol icon
                 Image(systemName: iconName)
                     .font(.system(size: 52, weight: .bold))
                     .foregroundColor(.brandNavy)
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 12)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.05), value: appeared)
+                    .offset(y: appeared ? 0 : 10)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.05), value: appeared)
 
                 Text(title)
-                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .font(.system(size: 32, weight: .heavy))
                     .foregroundColor(.brandNavy)
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 10)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
+                    .offset(y: appeared ? 0 : 8)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.12), value: appeared)
 
                 Text(subtitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.brandNavy.opacity(0.65))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.brandNavy.opacity(0.7))
                     .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 8)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.18), value: appeared)
+                    .offset(y: appeared ? 0 : 6)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(0.18), value: appeared)
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 24)
+            // Shift title/subtitle block slightly upward for better alignment
+            .padding(.bottom, 50)
         }
-        .frame(height: 220)
+        .frame(height: 240)
         .clipped()
     }
 }
@@ -182,7 +194,6 @@ struct SignUpView: View {
 
             VStack(spacing: 0) {
                 SlashHeader(
-                    iconName: "figure.run.circle.fill",
                     title: "Create Account",
                     subtitle: "Start your fitness journey today",
                     appeared: appeared
@@ -222,7 +233,7 @@ struct SignUpView: View {
                                     ProgressView().tint(.brandNavy)
                                 } else {
                                     Text("Create Account")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .heavy))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
@@ -232,7 +243,7 @@ struct SignUpView: View {
                         .background(createPressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
                         .cornerRadius(14)
                         .scaleEffect(createPressed ? 0.97 : 1.0)
-                        .animation(.easeInOut(duration: 0.12), value: createPressed)
+                        .animation(.spring(response: 0.28, dampingFraction: 0.82, blendDuration: 0.1), value: createPressed)
                         .disabled(isLoading)
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.3), value: appeared)
@@ -250,9 +261,9 @@ struct SignUpView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.36), value: appeared)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.top, 32)
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+                    .padding(.bottom, 28)
                 }
             }
         }
@@ -322,7 +333,6 @@ struct LoginView: View {
 
             VStack(spacing: 0) {
                 SlashHeader(
-                    iconName: "figure.run.circle.fill",
                     title: "Welcome Back",
                     subtitle: "Sign in to continue",
                     appeared: appeared
@@ -361,7 +371,7 @@ struct LoginView: View {
                                     ProgressView().tint(.brandNavy)
                                 } else {
                                     Text("Sign In")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .heavy))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
@@ -371,37 +381,10 @@ struct LoginView: View {
                         .background(signInPressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
                         .cornerRadius(14)
                         .scaleEffect(signInPressed ? 0.97 : 1.0)
-                        .animation(.easeInOut(duration: 0.12), value: signInPressed)
+                        .animation(.spring(response: 0.28, dampingFraction: 0.82, blendDuration: 0.1), value: signInPressed)
                         .disabled(isLoading)
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.3), value: appeared)
-
-                        HStack {
-                            Rectangle().frame(height: 1).foregroundColor(Color.brandCream.opacity(0.1))
-                            Text("or").font(.caption).foregroundColor(Color.brandCream.opacity(0.3))
-                            Rectangle().frame(height: 1).foregroundColor(Color.brandCream.opacity(0.1))
-                        }
-                        .opacity(appeared ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.4).delay(0.34), value: appeared)
-
-                        Button {
-                            appState.isLoggedIn = true
-                            appState.hasCompletedOnboarding = true
-                        } label: {
-                            Text("Continue as Guest")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(Color.brandCream.opacity(0.7))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .frame(height: 50)
-                        .background(Color.brandCream.opacity(0.07))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.brandCream.opacity(0.15), lineWidth: 1)
-                        )
-                        .cornerRadius(14)
-                        .opacity(appeared ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.4).delay(0.38), value: appeared)
 
                         HStack(spacing: 4) {
                             Text("Don't have an account?")
@@ -416,9 +399,9 @@ struct LoginView: View {
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.42), value: appeared)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.top, 32)
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+                    .padding(.bottom, 28)
                 }
             }
         }

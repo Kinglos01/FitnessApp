@@ -1,10 +1,7 @@
 //
-//  workoutService.swift
+//  WorkoutService.swift
 //  FitnessApp
 //
-//  Created by Carlos Berio on 4/8/26.
-//
-
 
 import Foundation
 import Supabase
@@ -24,6 +21,8 @@ struct WorkoutRow: Codable, Identifiable {
     var notes: String
     var date: Date
     var is_completed: Bool
+    var completed_dates: [String]   // "yyyy-MM-dd" strings
+    var is_temporary: Bool          // one-off vs permanent
 }
 
 struct WorkoutInsert: Codable {
@@ -39,6 +38,8 @@ struct WorkoutInsert: Codable {
     let notes: String
     let date: Date
     let is_completed: Bool
+    let completed_dates: [String]
+    let is_temporary: Bool
 }
 
 // MARK: - WorkoutService
@@ -47,8 +48,15 @@ final class WorkoutService {
     static let shared = WorkoutService()
     private init() {}
 
-    // MARK: - Upsert single workout
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    // MARK: - Upsert
     func upsertWorkout(_ entry: ActivityEntry, userId: String) async throws {
+        let dateStrings = entry.completedDates.map { dateFormatter.string(from: $0) }
         let row = WorkoutInsert(
             id:              entry.id,
             user_id:         userId,
@@ -61,7 +69,9 @@ final class WorkoutService {
             calories_burned: entry.caloriesBurned,
             notes:           entry.notes,
             date:            entry.date,
-            is_completed:    entry.isCompleted
+            is_completed:    !entry.completedDates.isEmpty,
+            completed_dates: dateStrings,
+            is_temporary:    entry.isTemporary
         )
         try await supabase
             .from("workouts")
@@ -69,7 +79,7 @@ final class WorkoutService {
             .execute()
     }
 
-    // MARK: - Delete workout
+    // MARK: - Delete
     func deleteWorkout(id: UUID) async throws {
         try await supabase
             .from("workouts")
@@ -78,7 +88,7 @@ final class WorkoutService {
             .execute()
     }
 
-    // MARK: - Fetch all workouts for user
+    // MARK: - Fetch all
     func fetchWorkouts(userId: String) async throws -> [ActivityEntry] {
         let rows: [WorkoutRow] = try await supabase
             .from("workouts")
@@ -90,6 +100,7 @@ final class WorkoutService {
 
         return rows.compactMap { row in
             guard let category = ExerciseCategory(rawValue: row.category) else { return nil }
+            let completedDates = row.completed_dates.compactMap { dateFormatter.date(from: $0) }
             return ActivityEntry(
                 id:             row.id,
                 name:           row.name,
@@ -101,12 +112,13 @@ final class WorkoutService {
                 caloriesBurned: row.calories_burned,
                 notes:          row.notes,
                 date:           row.date,
-                isCompleted:    row.is_completed
+                completedDates: completedDates,
+                isTemporary:    row.is_temporary
             )
         }
     }
 
-    // MARK: - Fetch workouts for date range (for calendar / admin)
+    // MARK: - Fetch date range
     func fetchWorkouts(userId: String, from startDate: Date, to endDate: Date) async throws -> [ActivityEntry] {
         let rows: [WorkoutRow] = try await supabase
             .from("workouts")
@@ -120,6 +132,7 @@ final class WorkoutService {
 
         return rows.compactMap { row in
             guard let category = ExerciseCategory(rawValue: row.category) else { return nil }
+            let completedDates = row.completed_dates.compactMap { dateFormatter.date(from: $0) }
             return ActivityEntry(
                 id:             row.id,
                 name:           row.name,
@@ -131,22 +144,21 @@ final class WorkoutService {
                 caloriesBurned: row.calories_burned,
                 notes:          row.notes,
                 date:           row.date,
-                isCompleted:    row.is_completed
+                completedDates: completedDates,
+                isTemporary:    row.is_temporary
             )
         }
     }
 
-    // MARK: - Admin: fetch any user's workouts
+    // MARK: - Admin
     func fetchWorkouts(forAdminUserId targetUserId: String) async throws -> [ActivityEntry] {
         return try await fetchWorkouts(userId: targetUserId)
     }
 
-    // MARK: - Admin: upsert workout for any user
     func upsertWorkout(_ entry: ActivityEntry, forAdminUserId targetUserId: String) async throws {
         try await upsertWorkout(entry, userId: targetUserId)
     }
 
-    // MARK: - Admin: delete workout for any user
     func deleteWorkout(id: UUID, forAdminUserId: String) async throws {
         try await deleteWorkout(id: id)
     }
