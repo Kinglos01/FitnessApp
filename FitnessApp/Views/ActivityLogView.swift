@@ -341,7 +341,7 @@ struct ActivityLogView: View {
 
     private var dateNavigationBar: some View {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        _ = cal.startOfDay(for: Date())
         let isToday = cal.isDateInToday(vm.selectedDate)
         let isYesterday = cal.isDateInYesterday(vm.selectedDate)
 
