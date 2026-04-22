@@ -5,13 +5,6 @@
 //  Created by Nelson Mojica on 2/19/26.
 //
 
-//
-//  MainTabView.swift
-//  FitnessApp
-//
-//  Created by Nelson Mojica on 2/19/26.
-//
-
 import SwiftUI
 
 struct MainTabView: View {
@@ -20,50 +13,43 @@ struct MainTabView: View {
     @State private var selectedTab = 0
     @Environment(AppState.self) var appState
 
+    private let tabs: [(label: String, icon: String)] = [
+        ("Dashboard", "house.fill"),
+        ("Nutrition",  "fork.knife"),
+        ("Activity",   "figure.run"),
+        ("Social",     "person.2.fill"),
+        ("Calendar",   "calendar")
+    ]
+
     var body: some View {
         TabView(selection: $selectedTab) {
-
             DashboardView()
                 .id(appState.currentUser?.id ?? "")
                 .tag(0)
-                .tabItem {
-                    Label("Dashboard", systemImage: "house.fill")
-                }
 
             NutritionView()
                 .tag(1)
-                .tabItem {
-                    Label("Nutrition", systemImage: "fork.knife")
-                }
 
             ActivityLogView(userId: appState.currentUser?.id ?? "")
                 .id(appState.currentUser?.id ?? "")
                 .tag(2)
-                .tabItem {
-                    Label("Activity", systemImage: "figure.run")
-                }
 
             SocialView()
                 .tag(3)
-                .tabItem {
-                    Label("Social", systemImage: "person.2.fill")
-                }
 
             CalendarView()
                 .id(appState.currentUser?.id ?? "")
                 .tag(4)
-                .tabItem {
-                    Label("Calendar", systemImage: "calendar")
-                }
         }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .background(Color.brandNavy)
+        .preferredColorScheme(.dark)
         .gesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .local)
                 .onEnded { value in
                     let horizontalAmount = value.translation.width
-                    let verticalAmount = value.translation.height
-
+                    let verticalAmount   = value.translation.height
                     guard abs(horizontalAmount) > abs(verticalAmount) else { return }
-
                     withAnimation(.easeInOut(duration: 0.25)) {
                         if horizontalAmount < 0 {
                             selectedTab = min(selectedTab + 1, 4)
@@ -74,6 +60,78 @@ struct MainTabView: View {
                 }
         )
         .environment(nutritionManager)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            customTabBar
+        }
+        .toolbarBackground(Color.brandNavy, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .onAppear {
+            let navAppearance = UINavigationBarAppearance()
+            navAppearance.configureWithOpaqueBackground()
+            navAppearance.backgroundColor = UIColor(Color.brandNavy)
+            navAppearance.titleTextAttributes = [.foregroundColor: UIColor(Color.brandCream)]
+            navAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor(Color.brandCream)]
+            navAppearance.shadowColor = .clear
+            UINavigationBar.appearance().standardAppearance = navAppearance
+            UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
+            UINavigationBar.appearance().compactAppearance = navAppearance
+            UINavigationBar.appearance().barTintColor = UIColor(Color.brandNavy)
+            UINavigationBar.appearance().tintColor = UIColor(Color.brandLime)
+        }
+    }
+
+    // MARK: - Custom Tab Bar
+
+    private var customTabBar: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.brandCream.opacity(0.1))
+                .frame(height: 0.5)
+
+            HStack(spacing: 0) {
+                ForEach(0..<tabs.count, id: \.self) { index in
+                    tabButton(index: index)
+                }
+            }
+            .padding(.top, 10)
+            .padding(.bottom, 28)
+            .background(Color.brandNavy)
+        }
+        .background(Color.brandNavy)
+    }
+
+    private func tabButton(index: Int) -> some View {
+        let tab      = tabs[index]
+        let isActive = selectedTab == index
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedTab = index
+            }
+        } label: {
+            VStack(spacing: 5) {
+                ZStack(alignment: .top) {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 20, weight: isActive ? .semibold : .regular))
+                        .foregroundColor(isActive ? .brandLime : Color.brandCream.opacity(0.4))
+                        .frame(height: 24)
+
+                    if isActive {
+                        Circle()
+                            .fill(Color.brandLime)
+                            .frame(width: 4, height: 4)
+                            .offset(y: -6)
+                    }
+                }
+
+                Text(tab.label)
+                    .font(.system(size: 10, weight: isActive ? .semibold : .regular, design: .rounded))
+                    .foregroundColor(isActive ? .brandLime : Color.brandCream.opacity(0.4))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 }
 

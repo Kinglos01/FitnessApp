@@ -190,7 +190,7 @@ struct WeightTrackerSheet: View {
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemGroupedBackground))
+                    .background(Color(.systemBackground))
             }
         }
         .onAppear {
@@ -266,6 +266,7 @@ private struct WeightTrackerContent: View {
     var body: some View {
         NavigationView {
             ZStack {
+                Color(.systemBackground).ignoresSafeArea()
                 if confettiCount > 0 {
                     ConfettiView()
                         .ignoresSafeArea()
@@ -287,9 +288,10 @@ private struct WeightTrackerContent: View {
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle("Weight Tracker")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
@@ -298,6 +300,7 @@ private struct WeightTrackerContent: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     private var userCard: some View {

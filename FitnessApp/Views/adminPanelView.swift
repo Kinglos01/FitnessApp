@@ -916,7 +916,7 @@ struct AdminAddWorkoutSheet: View {
     var existing: ActivityEntry? = nil
     let onSave: (ActivityEntry) -> Void
     @Environment(\.dismiss) var dismiss
-
+    
     @State private var name: String = ""
     @State private var category: ExerciseCategory = .strength
     @State private var sets: Int = 3
@@ -927,7 +927,7 @@ struct AdminAddWorkoutSheet: View {
     @State private var notes: String = ""
     @State private var date: Date = Date()
     @State private var isCompleted: Bool = false
-
+    
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
@@ -948,7 +948,7 @@ struct AdminAddWorkoutSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
                 .padding(.bottom, 16)
-
+                
                 ScrollView {
                     VStack(spacing: 16) {
                         // Date picker
@@ -963,7 +963,7 @@ struct AdminAddWorkoutSheet: View {
                                 .colorScheme(.dark)
                                 .frame(height: 100).clipped()
                         }
-
+                        
                         // Category
                         VStack(alignment: .leading, spacing: 8) {
                             Text("CATEGORY")
@@ -985,10 +985,10 @@ struct AdminAddWorkoutSheet: View {
                                 }
                             }
                         }
-
+                        
                         // Name
                         adminTextField(label: "WORKOUT NAME", text: $name, placeholder: "e.g. Bench Press")
-
+                        
                         // Stats
                         if category.usesDuration {
                             adminTextField(label: "DURATION (mins)", text: $duration, placeholder: "e.g. 30", keyboard: .numberPad)
@@ -1006,10 +1006,10 @@ struct AdminAddWorkoutSheet: View {
                                 }
                             }
                         }
-
+                        
                         adminTextField(label: "CALORIES BURNED", text: $calories, placeholder: "e.g. 300", keyboard: .numberPad)
                         adminTextField(label: "NOTES", text: $notes, placeholder: "Optional")
-
+                        
                         // Completed toggle
                         HStack {
                             Text("MARK AS COMPLETED")
@@ -1028,7 +1028,7 @@ struct AdminAddWorkoutSheet: View {
         }
         .onAppear { populate() }
     }
-
+    
     private func adminTextField(label: String, text: Binding<String>, placeholder: String, keyboard: UIKeyboardType = .default) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
@@ -1047,7 +1047,7 @@ struct AdminAddWorkoutSheet: View {
                 .cornerRadius(10)
         }
     }
-
+    
     private func populate() {
         guard let e = existing else { return }
         name      = e.name
@@ -1061,7 +1061,7 @@ struct AdminAddWorkoutSheet: View {
         date      = e.date
         isCompleted = e.isCompleted
     }
-
+    
     private func save() {
         let entry = ActivityEntry(
             id:             existing?.id ?? UUID(),
@@ -1078,16 +1078,5 @@ struct AdminAddWorkoutSheet: View {
         )
         onSave(entry)
         dismiss()
-    }
-}
-
-// MARK: - View Extension for Placeholder
-
-extension View {
-    func placeholder<Content: View>(when shouldShow: Bool, @ViewBuilder placeholder: () -> Content) -> some View {
-        ZStack(alignment: .leading) {
-            placeholder().opacity(shouldShow ? 1 : 0)
-            self
-        }
     }
 }

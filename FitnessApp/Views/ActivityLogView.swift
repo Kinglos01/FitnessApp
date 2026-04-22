@@ -101,8 +101,7 @@ final class ActivityLogViewModel: ObservableObject {
     @Published var selectedDate: Date = Calendar.current.startOfDay(for: Date())
 
     var selectedDateString: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         return f.string(from: selectedDate)
     }
 
@@ -110,8 +109,7 @@ final class ActivityLogViewModel: ObservableObject {
     private var storageKey: String { "savedExercises_\(userId)" }
 
     private var todayString: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
     }
 
@@ -205,7 +203,8 @@ final class ActivityLogViewModel: ObservableObject {
         if let idx = exercises.firstIndex(where: { $0.id == entry.id }) {
             let newValue = !exercises[idx].isCompleted
             exercises[idx].isCompleted = newValue
-            if newValue { exercises[idx].date = Date() }
+            // REMOVE this line — it stamps today's date and breaks history:
+            // if newValue { exercises[idx].date = Date() }
             let updated = exercises[idx]
             saveToCache()
             Task { try? await WorkoutService.shared.upsertWorkout(updated, userId: userId) }
@@ -281,28 +280,32 @@ struct ActivityLogView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
-                    dateNavigationBar
-                    statsStrip
-                    searchBar
-                    categorySection
-                    favoritesSection
-                    exerciseList
-                    Spacer(minLength: 120)
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 18) {
+                        dateNavigationBar
+                        statsStrip
+                        searchBar
+                        categorySection
+                        favoritesSection
+                        exerciseList
+                        Spacer(minLength: 120)
+                    }
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
             }
             .navigationTitle("Activity Log")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showAIAssistant = true } label: {
-                        VStack(spacing: 2) {
-                            ZStack {
-                                Circle().fill(Color.orange).frame(width: 38, height: 38)
-                                RobotIcon()
-                            }
-                            Text("Ask AI").font(.system(size: 9, weight: .bold)).foregroundColor(.orange)
+                        ZStack {
+                            Circle().fill(Color.brandOrange).frame(width: 32, height: 32)
+                            RobotIcon().frame(width: 20, height: 20)
                         }
                     }
                 }
@@ -330,19 +333,16 @@ struct ActivityLogView: View {
             }
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.6)) {
-                animateStats = true
-            }
+            withAnimation(.easeOut(duration: 0.6)) { animateStats = true }
         }
         .sheet(isPresented: $showAIAssistant) {
-            AIAssistantSheet()
+            AIAssistantSheet().environment(appState)
         }
     }
 
     private var dateNavigationBar: some View {
         let cal = Calendar.current
-        _ = cal.startOfDay(for: Date())
-        let isToday = cal.isDateInToday(vm.selectedDate)
+        let isToday     = cal.isDateInToday(vm.selectedDate)
         let isYesterday = cal.isDateInYesterday(vm.selectedDate)
 
         return HStack {
@@ -353,21 +353,17 @@ struct ActivityLogView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color.brandCream.opacity(0.6))
                     .frame(width: 36, height: 36)
             }
-
             Spacer()
-
             Text(isToday ? "Today" : isYesterday ? "Yesterday" : {
-                let f = DateFormatter()
-                f.dateFormat = "MMM d, yyyy"
+                let f = DateFormatter(); f.dateFormat = "MMM d, yyyy"
                 return f.string(from: vm.selectedDate)
             }())
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundColor(.brandCream)
             Spacer()
-
             Button {
                 if let next = cal.date(byAdding: .day, value: 1, to: vm.selectedDate) {
                     withAnimation(.easeInOut(duration: 0.2)) { vm.selectedDate = next }
@@ -375,7 +371,7 @@ struct ActivityLogView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isToday ? .clear : .gray)
+                    .foregroundColor(isToday ? .clear : Color.brandCream.opacity(0.6))
                     .frame(width: 36, height: 36)
             }
             .disabled(isToday)
@@ -385,26 +381,35 @@ struct ActivityLogView: View {
 
     private var statsStrip: some View {
         HStack(spacing: 12) {
-            StatCard(value: "\(vm.totalWorkoutsForDay)", label: "Workouts", icon: "checkmark.circle.fill", color: .green,  animate: animateStats)
-            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories",  icon: "flame.fill",            color: .orange, animate: animateStats)
-            StatCard(value: "\(vm.currentStreak)",      label: "Streak",    icon: "bolt.fill",             color: .blue,   animate: animateStats)
+            StatCard(value: "\(vm.totalWorkoutsForDay)", label: "Workouts", icon: "checkmark.circle.fill", color: Color(red: 0.25, green: 0.72, blue: 0.55), animate: animateStats)
+            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories",  icon: "flame.fill",            color: .brandOrange, animate: animateStats)
+            StatCard(value: "\(vm.currentStreak)",       label: "Streak",    icon: "bolt.fill",             color: .brandLime,   animate: animateStats)
         }
         .padding(.horizontal)
     }
 
     private var searchBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundColor(.gray)
-            TextField("Search workouts or notes", text: $vm.searchText)
-                .textInputAutocapitalization(.words)
+            Image(systemName: "magnifyingglass").foregroundColor(Color.brandCream.opacity(0.4))
+            ZStack(alignment: .leading) {
+                if vm.searchText.isEmpty {
+                    Text("Search workouts or notes")
+                        .foregroundColor(Color.brandCream.opacity(0.3))
+                        .allowsHitTesting(false)
+                }
+                TextField("", text: $vm.searchText)
+                    .foregroundColor(.brandCream)
+                    .textInputAutocapitalization(.words)
+            }
             if !vm.searchText.isEmpty {
                 Button { vm.searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                    Image(systemName: "xmark.circle.fill").foregroundColor(Color.brandCream.opacity(0.4))
                 }
             }
         }
         .padding(12)
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.07))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
         .cornerRadius(14)
         .padding(.horizontal)
     }
@@ -412,7 +417,7 @@ struct ActivityLogView: View {
     private var categorySection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                FilterChip(label: "All", icon: "square.grid.2x2.fill", color: .blue, isSelected: vm.selectedFilter == nil) {
+                FilterChip(label: "All", icon: "square.grid.2x2.fill", color: .brandLime, isSelected: vm.selectedFilter == nil) {
                     withAnimation { vm.selectedFilter = nil }
                 }
                 ForEach(ExerciseCategory.allCases, id: \.self) { cat in
@@ -429,7 +434,7 @@ struct ActivityLogView: View {
         Group {
             if !vm.recentFavorites.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Quick Add").font(.headline).padding(.horizontal)
+                    Text("Quick Add").font(.headline).foregroundColor(.brandCream).padding(.horizontal)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
                             ForEach(vm.recentFavorites, id: \.self) { name in
@@ -438,13 +443,14 @@ struct ActivityLogView: View {
                                     vm.showingAddSheet = true
                                 } label: {
                                     HStack(spacing: 6) {
-                                        Image(systemName: "sparkles")
-                                        Text(name).lineLimit(1)
+                                        Image(systemName: "sparkles").foregroundColor(.brandLime)
+                                        Text(name).lineLimit(1).foregroundColor(.brandCream)
                                     }
                                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.primary)
                                     .padding(.horizontal, 14).padding(.vertical, 10)
-                                    .background(Color(.systemGray6)).cornerRadius(12)
+                                    .background(Color.brandCream.opacity(0.06))
+                                    .overlay(Capsule().stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                                    .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -459,7 +465,7 @@ struct ActivityLogView: View {
     private var exerciseList: some View {
         LazyVStack(spacing: 12) {
             if vm.isLoading && vm.exercises.isEmpty {
-                ProgressView().padding(.top, 40)
+                ProgressView().tint(.brandLime).padding(.top, 40)
             } else if vm.filteredExercises.isEmpty {
                 emptyState
             } else {
@@ -487,11 +493,13 @@ struct ActivityLogView: View {
     private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 52)).foregroundColor(.gray.opacity(0.3))
+                .font(.system(size: 52)).foregroundColor(Color.brandCream.opacity(0.15))
             Text("No workouts yet")
-                .font(.system(size: 18, weight: .semibold, design: .rounded)).foregroundColor(.gray)
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .foregroundColor(Color.brandCream.opacity(0.5))
             Text("Tap the button below and log something for today.")
-                .font(.system(size: 14)).foregroundColor(.gray.opacity(0.7))
+                .font(.system(size: 14))
+                .foregroundColor(Color.brandCream.opacity(0.35))
         }
         .frame(maxWidth: .infinity).padding(.vertical, 60)
     }
@@ -506,11 +514,11 @@ struct ActivityLogView: View {
                 Text("Log Workout")
             }
             .font(.system(size: 16, weight: .bold, design: .rounded))
-            .foregroundColor(.white)
+            .foregroundColor(.brandNavy)
             .padding(.horizontal, 28).padding(.vertical, 16)
-            .background(Color.blue)
+            .background(Color.brandLime)
             .clipShape(Capsule())
-            .shadow(color: Color.blue.opacity(0.35), radius: 10, x: 0, y: 4)
+            .shadow(color: Color.brandLime.opacity(0.3), radius: 10, x: 0, y: 4)
         }
         .padding(.bottom, 30)
     }
@@ -530,15 +538,20 @@ struct StatCard: View {
             Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundColor(color)
             Text(value)
                 .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundColor(.primary)
+                .foregroundColor(.brandCream)
                 .scaleEffect(animate ? 1.0 : 0.5)
                 .opacity(animate ? 1.0 : 0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.6), value: animate)
-            Text(label).font(.system(size: 11, weight: .medium)).foregroundColor(.gray).textCase(.uppercase)
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color.brandCream.opacity(0.5))
+                .textCase(.uppercase)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(16)
     }
 }
 
@@ -557,9 +570,9 @@ struct FilterChip: View {
                 Image(systemName: icon).font(.system(size: 12, weight: .semibold))
                 Text(label).font(.system(size: 13, weight: .semibold, design: .rounded))
             }
-            .foregroundColor(isSelected ? .white : .primary)
+            .foregroundColor(isSelected ? .brandNavy : Color.brandCream.opacity(0.7))
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(Capsule().fill(isSelected ? color : Color(.systemGray5)))
+            .background(Capsule().fill(isSelected ? color : Color.brandCream.opacity(0.08)))
         }
         .buttonStyle(.plain)
     }
@@ -594,11 +607,11 @@ struct ExerciseRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
                     .font(.subheadline).fontWeight(.bold)
-                    .foregroundColor(exercise.isCompleted ? .gray : .primary)
+                    .foregroundColor(exercise.isCompleted ? Color.brandCream.opacity(0.4) : .brandCream)
                     .strikethrough(exercise.isCompleted)
-                Text(subtitleText).font(.caption).foregroundColor(.gray)
+                Text(subtitleText).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 if !exercise.notes.isEmpty {
-                    Text(exercise.notes).font(.caption2).foregroundColor(.gray.opacity(0.75)).lineLimit(1)
+                    Text(exercise.notes).font(.caption2).foregroundColor(Color.brandCream.opacity(0.35)).lineLimit(1)
                 }
             }
             Spacer()
@@ -612,15 +625,17 @@ struct ExerciseRow: View {
                 Button { onToggleComplete() } label: {
                     Text(exercise.isCompleted ? "Done" : "Mark Done")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(exercise.isCompleted ? .white : exercise.category.color)
+                        .foregroundColor(exercise.isCompleted ? .brandNavy : exercise.category.color)
                         .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(Capsule().fill(exercise.isCompleted ? exercise.category.color : exercise.category.color.opacity(0.12)))
+                        .background(Capsule().fill(exercise.isCompleted ? exercise.category.color : exercise.category.color.opacity(0.15)))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(exercise.isCompleted ? Color(.systemGray6).opacity(0.6) : Color(.systemGray6)))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(16)
     }
 }
 
@@ -649,26 +664,36 @@ struct AddExerciseSheet: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 18) {
-                    categoryPickerSection
-                    suggestedExercisesSection
-                    detailsSection
-                    notesSection
-                    saveButton
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 18) {
+                        categoryPickerSection
+                        suggestedExercisesSection
+                        detailsSection
+                        notesSection
+                        saveButton
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle(isEditing ? "Edit Workout" : "Log Workout")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }.foregroundColor(Color.brandCream.opacity(0.6))
+                }
                 if isEditing {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(role: .destructive) {
                             if let e = editingExercise { vm.deleteEntry(e) }
                             dismiss()
-                        } label: { Image(systemName: "trash") }
+                        } label: {
+                            Image(systemName: "trash").foregroundColor(.brandOrange)
+                        }
                     }
                 }
             }
@@ -689,7 +714,10 @@ struct AddExerciseSheet: View {
 
     private var categoryPickerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Category").font(.caption).foregroundColor(.gray).textCase(.uppercase)
+            Text("Category")
+                .font(.caption).fontWeight(.bold)
+                .foregroundColor(Color.brandCream.opacity(0.5))
+                .textCase(.uppercase).tracking(1.2)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ExerciseCategory.allCases, id: \.self) { cat in
@@ -702,7 +730,7 @@ struct AddExerciseSheet: View {
                                 Text(cat.rawValue)
                             }
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(category == cat ? .white : cat.color)
+                            .foregroundColor(category == cat ? .brandNavy : cat.color)
                             .padding(.horizontal, 12).padding(.vertical, 8)
                             .background(Capsule().fill(category == cat ? cat.color : cat.color.opacity(0.12)))
                         }
@@ -715,19 +743,33 @@ struct AddExerciseSheet: View {
 
     private var suggestedExercisesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Workout Name").font(.caption).foregroundColor(.gray).textCase(.uppercase)
-            TextField("Enter workout name", text: $name)
-                .padding(12).background(Color(.systemGray6)).cornerRadius(12)
-            Text("Quick picks").font(.subheadline).fontWeight(.semibold)
+            Text("Workout Name")
+                .font(.caption).fontWeight(.bold)
+                .foregroundColor(Color.brandCream.opacity(0.5))
+                .textCase(.uppercase).tracking(1.2)
+            ZStack(alignment: .leading) {
+                if name.isEmpty {
+                    Text("Enter workout name").foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
+                }
+                TextField("", text: $name)
+                    .foregroundColor(.brandCream).padding(12)
+            }
+            .background(Color.brandCream.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+            .cornerRadius(12)
+
+            Text("Quick picks").font(.subheadline).fontWeight(.semibold).foregroundColor(.brandCream)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], spacing: 10) {
                 ForEach(category.suggestedExercises, id: \.self) { suggestion in
                     Button { name = suggestion } label: {
                         Text(suggestion)
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(.primary)
+                            .foregroundColor(.brandCream)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10).padding(.horizontal, 10)
-                            .background(Color(.systemGray6)).cornerRadius(12)
+                            .background(Color.brandCream.opacity(0.06))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                            .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
                 }
@@ -737,31 +779,37 @@ struct AddExerciseSheet: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Details").font(.caption).foregroundColor(.gray).textCase(.uppercase)
-
+            Text("Details")
+                .font(.caption).fontWeight(.bold)
+                .foregroundColor(Color.brandCream.opacity(0.5))
+                .textCase(.uppercase).tracking(1.2)
             if category.usesDuration {
-                detailField(title: "Duration (minutes)", text: $duration, keyboard: .numberPad)
+                brandDetailField(title: "Duration (minutes)", text: $duration, keyboard: .numberPad)
             } else {
-                Stepper("Sets: \(sets)", value: $sets, in: 1...20)
-                Stepper("Reps: \(reps)", value: $reps, in: 1...100)
-                detailField(title: "Weight (lbs)", text: $weight, keyboard: .decimalPad)
+                Stepper("Sets: \(sets)", value: $sets, in: 1...20).foregroundColor(.brandCream)
+                Stepper("Reps: \(reps)", value: $reps, in: 1...100).foregroundColor(.brandCream)
+                brandDetailField(title: "Weight (lbs)", text: $weight, keyboard: .decimalPad)
             }
-
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Calories Burned").font(.caption).foregroundColor(.gray)
-                    TextField("e.g. 300", text: $calories)
-                        .keyboardType(.numberPad)
-                        .padding(10)
-                        .background(Color.white.opacity(0.7))
-                        .cornerRadius(10)
+                    Text("Calories Burned").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                    ZStack(alignment: .leading) {
+                        if calories.isEmpty {
+                            Text("e.g. 300").foregroundColor(Color.brandCream.opacity(0.3)).padding(10)
+                        }
+                        TextField("", text: $calories)
+                            .foregroundColor(.brandCream).keyboardType(.numberPad).padding(10)
+                    }
+                    .background(Color.brandCream.opacity(0.07))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+                    .cornerRadius(10)
                 }
                 Button { showCalcSheet = true } label: {
                     VStack(spacing: 4) {
                         Image(systemName: "flame.fill").font(.system(size: 14, weight: .semibold))
                         Text("Calc").font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(.brandNavy)
                     .frame(width: 52, height: 40)
                     .background(category.color)
                     .cornerRadius(10)
@@ -769,14 +817,28 @@ struct AddExerciseSheet: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding().background(Color(.systemGray6)).cornerRadius(14)
+        .padding()
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(14)
     }
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Notes").font(.caption).foregroundColor(.gray).textCase(.uppercase)
-            TextField("Add a quick note...", text: $notes, axis: .vertical)
-                .lineLimit(3...5).padding(12).background(Color(.systemGray6)).cornerRadius(12)
+            Text("Notes")
+                .font(.caption).fontWeight(.bold)
+                .foregroundColor(Color.brandCream.opacity(0.5))
+                .textCase(.uppercase).tracking(1.2)
+            ZStack(alignment: .topLeading) {
+                if notes.isEmpty {
+                    Text("Add a quick note...").foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
+                }
+                TextField("", text: $notes, axis: .vertical)
+                    .foregroundColor(.brandCream).lineLimit(3...5).padding(12)
+            }
+            .background(Color.brandCream.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+            .cornerRadius(12)
         }
     }
 
@@ -784,19 +846,21 @@ struct AddExerciseSheet: View {
         Button { saveExercise() } label: {
             Text(isEditing ? "Save Changes" : "Add Workout")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.brandNavy)
                 .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(category.color).cornerRadius(14)
+                .background(Color.brandLime).cornerRadius(14)
         }
         .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    private func detailField(title: String, text: Binding<String>, keyboard: UIKeyboardType) -> some View {
+    private func brandDetailField(title: String, text: Binding<String>, keyboard: UIKeyboardType) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption).foregroundColor(.gray)
-            TextField(title, text: text)
-                .keyboardType(keyboard).padding(10)
-                .background(Color.white.opacity(0.7)).cornerRadius(10)
+            Text(title).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+            TextField("", text: text)
+                .foregroundColor(.brandCream).keyboardType(keyboard).padding(10)
+                .background(Color.brandCream.opacity(0.07))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+                .cornerRadius(10)
         }
     }
 
@@ -841,7 +905,6 @@ struct CalorieCalculatorSheet: View {
     let onResult: (Int, Int?) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    // Display weight in user's preferred unit
     private var displayWeight: String {
         isImperial
             ? String(format: "%.1f lbs", userWeightKg * 2.20462)
@@ -850,50 +913,56 @@ struct CalorieCalculatorSheet: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // User weight banner
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.fill").foregroundColor(.secondary)
-                        Text("Your weight: \(displayWeight)")
-                            .font(.caption).foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(12)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 20) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.fill").foregroundColor(Color.brandCream.opacity(0.5))
+                            Text("Your weight: \(displayWeight)")
+                                .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(Color.brandCream.opacity(0.06))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                        .cornerRadius(10)
 
-                    switch category {
-                    case .strength:
-                        StrengthCalculator(userWeightKg: userWeightKg, isImperial: isImperial) { cals, dur in
-                            onResult(cals, dur); dismiss()
+                        switch category {
+                        case .strength:
+                            StrengthCalculator(userWeightKg: userWeightKg, isImperial: isImperial) { cals, dur in
+                                onResult(cals, dur); dismiss()
+                            }
+                        case .cardio:
+                            CardioCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
+                                onResult(cals, dur); dismiss()
+                            }
+                        case .sports:
+                            SportsCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
+                                onResult(cals, dur); dismiss()
+                            }
+                        case .flexibility:
+                            FlexibilityCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
+                                onResult(cals, dur); dismiss()
+                            }
+                        case .outdoor:
+                            OutdoorCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
+                                onResult(cals, dur); dismiss()
+                            }
                         }
-                    case .cardio:
-                        CardioCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
-                        }
-                    case .sports:
-                        SportsCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
-                        }
-                    case .flexibility:
-                        FlexibilityCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
-                        }
-                    case .outdoor:
-                        OutdoorCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in
-                            onResult(cals, dur); dismiss()
-                        }
+                        Spacer(minLength: 40)
                     }
-                    Spacer(minLength: 40)
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("Calorie Calculator")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { dismiss() }.foregroundColor(Color.brandCream.opacity(0.6))
                 }
             }
         }
@@ -910,23 +979,24 @@ private struct CalcStepper: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             HStack {
                 Button {
                     if value - step >= range.lowerBound { value -= step }
                 } label: {
                     Image(systemName: "minus.circle.fill")
-                        .font(.system(size: 28)).foregroundColor(Color(.systemGray3))
+                        .font(.system(size: 28)).foregroundColor(Color.brandCream.opacity(0.3))
                 }
                 Spacer()
                 Text("\(value)")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.brandCream)
                 Spacer()
                 Button {
                     if value + step <= range.upperBound { value += step }
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 28)).foregroundColor(.blue)
+                        .font(.system(size: 28)).foregroundColor(.brandLime)
                 }
             }
             .padding(.horizontal, 8)
@@ -942,13 +1012,17 @@ private struct CalcTextField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption).foregroundColor(.secondary)
-            TextField(placeholder, text: $text)
-                .keyboardType(keyboard)
-                .padding(12)
-                .background(Color(.systemBackground))
-                .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray4), lineWidth: 0.5))
+            Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+            ZStack(alignment: .leading) {
+                if text.isEmpty {
+                    Text(placeholder).foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
+                }
+                TextField("", text: $text)
+                    .foregroundColor(.brandCream).keyboardType(keyboard).padding(12)
+            }
+            .background(Color.brandCream.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+            .cornerRadius(10)
         }
     }
 }
@@ -964,31 +1038,28 @@ private struct FormulaInfoButton: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: expanded ? "info.circle.fill" : "info.circle")
-                        .font(.system(size: 13))
-                        .foregroundColor(.blue)
+                        .font(.system(size: 13)).foregroundColor(.brandBlue)
                     Text("How we calculate this")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .font(.system(size: 12, weight: .semibold)).foregroundColor(.brandBlue)
                     Spacer()
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 11)).foregroundColor(Color.brandCream.opacity(0.4))
                 }
             }
             .buttonStyle(.plain)
-
             if expanded {
                 Text(formula)
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.brandCream.opacity(0.6))
                     .padding(12)
-                    .background(Color.blue.opacity(0.05))
+                    .background(Color.brandBlue.opacity(0.08))
                     .cornerRadius(10)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(12)
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(10)
     }
 }
@@ -998,18 +1069,16 @@ private struct ResultBanner: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Estimated Burn").font(.caption).foregroundColor(.secondary)
+                Text("Estimated Burn").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 Text("\(calories) kcal")
                     .font(.system(size: 28, weight: .black, design: .rounded))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.brandLime)
             }
             Spacer()
-            Image(systemName: "flame.fill")
-                .font(.system(size: 32))
-                .foregroundColor(.orange.opacity(0.3))
+            Image(systemName: "flame.fill").font(.system(size: 32)).foregroundColor(Color.brandLime.opacity(0.3))
         }
         .padding()
-        .background(Color.orange.opacity(0.08))
+        .background(Color.brandLime.opacity(0.08))
         .cornerRadius(12)
     }
 }
@@ -1020,18 +1089,15 @@ private struct UseResultButton: View {
     let onResult: (Int, Int?) -> Void
 
     var body: some View {
-        Button {
-            onResult(calories, duration)
-        } label: {
+        Button { onResult(calories, duration) } label: {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
-                Text("Use This Result")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Text("Use This Result").font(.system(size: 15, weight: .bold, design: .rounded))
             }
-            .foregroundColor(.white)
+            .foregroundColor(.brandNavy)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.green)
+            .background(Color.brandLime)
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
@@ -1044,13 +1110,12 @@ private struct CalculateButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "flame.fill")
-                Text("Calculate Calories")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Text("Calculate Calories").font(.system(size: 15, weight: .bold, design: .rounded))
             }
-            .foregroundColor(.white)
+            .foregroundColor(.brandNavy)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.orange)
+            .background(Color.brandOrange)
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
@@ -1058,7 +1123,7 @@ private struct CalculateButton: View {
 }
 
 // MARK: - Strength Calculator
-// Formula: (MET × weight_kg × duration_hrs) + (sets × reps × weight_kg × 0.075)
+// Calories = (sets × reps × lift_kg × 0.075) + (MET 6.0 × body_kg × duration_hrs)
 
 private struct StrengthCalculator: View {
     let userWeightKg: Double
@@ -1068,20 +1133,19 @@ private struct StrengthCalculator: View {
     @State private var sets: Int = 3
     @State private var reps: Int = 10
     @State private var liftWeightText: String = "135"
+    @State private var durationText: String = "45"
     @State private var result: Int? = nil
 
     private var weightUnit: String { isImperial ? "lbs" : "kg" }
-
-    // Convert lift weight to kg for calculation
     private var liftWeightKg: Double {
         let val = Double(liftWeightText) ?? 0
         return isImperial ? val * 0.453592 : val
     }
+    private var durationMins: Int { Int(durationText) ?? 45 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Strength Training").font(.headline)
-
+            Text("Strength Training").font(.headline).foregroundColor(.brandCream)
             CalcStepper(label: "Sets", value: $sets, range: 1...20)
             CalcStepper(label: "Reps per set", value: $reps, range: 1...30)
             CalcTextField(
@@ -1089,36 +1153,38 @@ private struct StrengthCalculator: View {
                 placeholder: isImperial ? "e.g. 135" : "e.g. 60",
                 text: $liftWeightText
             )
-
-            FormulaInfoButton(formula:
-                "Calories = (sets × reps × lift_weight_kg × 0.075) + (MET 6.0 × body_weight_kg × estimated_duration_hrs)\n\n" +
-                "• Each rep burns approx 0.075 kcal per kg of weight lifted\n" +
-                "• A base MET of 6.0 accounts for the overall metabolic cost of a weight session\n" +
-                "• Duration is estimated as sets × reps × 3 seconds rest factor"
+            CalcTextField(
+                label: "Session duration (minutes)",
+                placeholder: "e.g. 45",
+                text: $durationText,
+                keyboard: .numberPad
             )
-
+            FormulaInfoButton(formula:
+                "Calories = (sets × reps × lift_weight_kg × 0.075) + (MET 6.0 × body_weight_kg × duration_hrs)\n\n" +
+                "• Per-rep energy: ~0.075 kcal per kg of weight lifted per rep\n" +
+                "• MET 6.0 accounts for overall session metabolic cost\n" +
+                "• Both rep volume and session duration contribute to total burn"
+            )
             CalculateButton {
-                // Per-rep energy: each rep burns ~0.075 kcal per kg lifted
                 let repCals = Double(sets * reps) * liftWeightKg * 0.075
-                // MET-based session cost: MET 6.0, estimate ~45 sec per set including rest
-                let estimatedDurationHrs = Double(sets) * 0.75 / 60.0
-                let metCals = 6.0 * userWeightKg * estimatedDurationHrs
+                let durationHrs = Double(durationMins) / 60.0
+                let metCals = 6.0 * userWeightKg * durationHrs
                 result = max(1, Int(repCals + metCals))
             }
-
             if let r = result {
                 ResultBanner(calories: r)
-                UseResultButton(calories: r, duration: nil, onResult: onResult)
+                UseResultButton(calories: r, duration: durationMins, onResult: onResult)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
     }
 }
 
 // MARK: - Cardio Calculator
-// Formula: Calories = MET × weight_kg × (distance / speed)
+// Calories = MET × body_kg × (distance / speed)
 
 private struct CardioCalculator: View {
     let userWeightKg: Double
@@ -1127,31 +1193,10 @@ private struct CardioCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum CardioType: String, CaseIterable {
-        case walking   = "Walking"
-        case running   = "Running"
-        case sprinting = "Sprinting"
-
-        var met: Double {
-            switch self {
-            case .walking:   return 3.5
-            case .running:   return 9.8
-            case .sprinting: return 14.0
-            }
-        }
-        var defaultSpeedMph: Double {
-            switch self {
-            case .walking:   return 3.0
-            case .running:   return 6.0
-            case .sprinting: return 12.0
-            }
-        }
-        var icon: String {
-            switch self {
-            case .walking:   return "figure.walk"
-            case .running:   return "figure.run"
-            case .sprinting: return "figure.run"
-            }
-        }
+        case walking = "Walking", running = "Running", sprinting = "Sprinting"
+        var met: Double { switch self { case .walking: return 3.5; case .running: return 9.8; case .sprinting: return 14.0 } }
+        var defaultSpeedMph: Double { switch self { case .walking: return 3.0; case .running: return 6.0; case .sprinting: return 12.0 } }
+        var icon: String { switch self { case .walking: return "figure.walk"; default: return "figure.run" } }
     }
 
     @State private var selectedType: CardioType = .running
@@ -1160,20 +1205,18 @@ private struct CardioCalculator: View {
     @State private var calculatedDuration: Int? = nil
 
     private var distanceUnit: String { isImperial ? "miles" : "km" }
-
     private var distanceInMiles: Double {
         let val = Double(distanceText) ?? 0
         return isImperial ? val : val * 0.621371
     }
-
     private var estimatedMins: Int {
-        Int((distanceInMiles / selectedType.defaultSpeedMph) * 60)
+        guard selectedType.defaultSpeedMph > 0 else { return 0 }
+        return Int((distanceInMiles / selectedType.defaultSpeedMph) * 60)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Cardio").font(.headline)
-
+            Text("Cardio").font(.headline).foregroundColor(.brandCream)
             HStack(spacing: 8) {
                 ForEach(CardioType.allCases, id: \.self) { type in
                     Button { selectedType = type; result = nil } label: {
@@ -1181,65 +1224,51 @@ private struct CardioCalculator: View {
                             Image(systemName: type.icon).font(.system(size: 16))
                             Text(type.rawValue).font(.system(size: 11, weight: .semibold))
                         }
-                        .foregroundColor(selectedType == type ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .foregroundColor(selectedType == type ? .brandNavy : Color.brandCream.opacity(0.7))
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: 10).fill(
-                            selectedType == type ? Color(red: 0.25, green: 0.72, blue: 0.55) : Color(.systemGray5)
+                            selectedType == type ? Color.brandLime : Color.brandCream.opacity(0.08)
                         ))
                     }
                     .buttonStyle(.plain)
                 }
             }
-
-            CalcTextField(
-                label: "Distance (\(distanceUnit))",
-                placeholder: isImperial ? "e.g. 3.0" : "e.g. 5.0",
-                text: $distanceText
-            )
-
+            CalcTextField(label: "Distance (\(distanceUnit))", placeholder: isImperial ? "e.g. 3.0" : "e.g. 5.0", text: $distanceText)
             HStack(spacing: 6) {
-                Image(systemName: "clock").foregroundColor(.secondary).font(.caption)
+                Image(systemName: "clock").foregroundColor(Color.brandCream.opacity(0.4)).font(.caption)
                 Text("Estimated time: ~\(estimatedMins) min at \(String(format: "%.0f", selectedType.defaultSpeedMph)) mph")
-                    .font(.caption).foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             }
-
             FormulaInfoButton(formula:
-                "Calories = MET × body_weight_kg × duration_hours\n\n" +
-                "• Walking MET: 3.5\n" +
-                "• Running MET: 9.8\n" +
-                "• Sprinting MET: 14.0\n\n" +
-                "MET (Metabolic Equivalent of Task) represents energy cost relative to rest. Duration is estimated from distance ÷ typical pace."
+                "Calories = MET × body_weight_kg × duration_hours\n\n• Walking MET: 3.5\n• Running MET: 9.8\n• Sprinting MET: 14.0\n\nDuration is estimated from distance ÷ typical pace."
             )
-
             CalculateButton {
                 let hours = distanceInMiles / selectedType.defaultSpeedMph
                 result = max(1, Int(selectedType.met * userWeightKg * hours))
                 calculatedDuration = Int(hours * 60)
             }
-
             if let r = result {
                 ResultBanner(calories: r)
                 if let d = calculatedDuration {
-                    Text("Estimated duration: \(d) min")
-                        .font(.caption).foregroundColor(.secondary)
+                    Text("Estimated duration: \(d) min").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 }
                 UseResultButton(calories: r, duration: calculatedDuration, onResult: onResult)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("walk")        { selectedType = .walking }
+            if workoutName.lowercased().contains("walk") { selectedType = .walking }
             else if workoutName.lowercased().contains("sprint") { selectedType = .sprinting }
-            else                                                 { selectedType = .running }
+            else { selectedType = .running }
         }
     }
 }
 
 // MARK: - Sports Calculator
-// Formula: Calories = MET × weight_kg × duration_hrs
+// Calories = MET × body_kg × duration_hrs
 
 private struct SportsCalculator: View {
     let userWeightKg: Double
@@ -1248,39 +1277,19 @@ private struct SportsCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum SportType: String, CaseIterable {
-        case football     = "Football"
-        case basketball   = "Basketball"
-        case soccer       = "Soccer"
-        case rockClimbing = "Rock Climbing"
-
-        var met: Double {
-            switch self {
-            case .football:     return 8.0
-            case .basketball:   return 8.0
-            case .soccer:       return 10.0
-            case .rockClimbing: return 7.5
-            }
-        }
-        var icon: String {
-            switch self {
-            case .football:     return "sportscourt.fill"
-            case .basketball:   return "basketball.fill"
-            case .soccer:       return "soccerball"
-            case .rockClimbing: return "mountain.2.fill"
-            }
-        }
+        case football = "Football", basketball = "Basketball", soccer = "Soccer", rockClimbing = "Rock Climbing"
+        var met: Double { switch self { case .football: return 8.0; case .basketball: return 8.0; case .soccer: return 10.0; case .rockClimbing: return 7.5 } }
+        var icon: String { switch self { case .football: return "sportscourt.fill"; case .basketball: return "basketball.fill"; case .soccer: return "soccerball"; case .rockClimbing: return "mountain.2.fill" } }
     }
 
     @State private var selectedSport: SportType = .basketball
     @State private var durationText: String = "60"
     @State private var result: Int? = nil
-
     private var durationMins: Int { Int(durationText) ?? 60 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Sports").font(.headline)
-
+            Text("Sports").font(.headline).foregroundColor(.brandCream)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(SportType.allCases, id: \.self) { sport in
                     Button { selectedSport = sport; result = nil } label: {
@@ -1288,56 +1297,42 @@ private struct SportsCalculator: View {
                             Image(systemName: sport.icon).font(.system(size: 13))
                             Text(sport.rawValue).font(.system(size: 12, weight: .semibold))
                         }
-                        .foregroundColor(selectedSport == sport ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .foregroundColor(selectedSport == sport ? .brandNavy : Color.brandCream.opacity(0.7))
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: 10).fill(
-                            selectedSport == sport ? Color(red: 0.65, green: 0.35, blue: 0.95) : Color(.systemGray5)
+                            selectedSport == sport ? Color.brandLime : Color.brandCream.opacity(0.08)
                         ))
                     }
                     .buttonStyle(.plain)
                 }
             }
-
-            CalcTextField(
-                label: "Duration (minutes)",
-                placeholder: "e.g. 60",
-                text: $durationText,
-                keyboard: .numberPad
-            )
-
+            CalcTextField(label: "Duration (minutes)", placeholder: "e.g. 60", text: $durationText, keyboard: .numberPad)
             FormulaInfoButton(formula:
-                "Calories = MET × body_weight_kg × (duration_mins ÷ 60)\n\n" +
-                "• Football MET: 8.0\n" +
-                "• Basketball MET: 8.0\n" +
-                "• Soccer MET: 10.0\n" +
-                "• Rock Climbing MET: 7.5\n\n" +
-                "MET values sourced from the Compendium of Physical Activities (Ainsworth et al.)."
+                "Calories = MET × body_weight_kg × (duration_mins ÷ 60)\n\n• Football MET: 8.0\n• Basketball MET: 8.0\n• Soccer MET: 10.0\n• Rock Climbing MET: 7.5"
             )
-
             CalculateButton {
                 result = max(1, Int(selectedSport.met * userWeightKg * Double(durationMins) / 60.0))
             }
-
             if let r = result {
                 ResultBanner(calories: r)
                 UseResultButton(calories: r, duration: durationMins, onResult: onResult)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .onAppear {
-            if workoutName.lowercased().contains("football")        { selectedSport = .football }
+            if workoutName.lowercased().contains("football") { selectedSport = .football }
             else if workoutName.lowercased().contains("basketball") { selectedSport = .basketball }
-            else if workoutName.lowercased().contains("soccer")     { selectedSport = .soccer }
-            else if workoutName.lowercased().contains("climb")      { selectedSport = .rockClimbing }
+            else if workoutName.lowercased().contains("soccer") { selectedSport = .soccer }
+            else if workoutName.lowercased().contains("climb") { selectedSport = .rockClimbing }
         }
     }
 }
 
 // MARK: - Flexibility Calculator
-// Formula: Calories = MET × intensity_multiplier × weight_kg × duration_hrs
+// Calories = MET × intensity × body_kg × duration_hrs
 
 private struct FlexibilityCalculator: View {
     let userWeightKg: Double
@@ -1346,32 +1341,15 @@ private struct FlexibilityCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum FlexType: String, CaseIterable {
-        case yoga    = "Yoga"
-        case pilates = "Pilates"
-
-        var met: Double {
-            switch self {
-            case .yoga:    return 3.0
-            case .pilates: return 3.5
-            }
-        }
-        var icon: String {
-            switch self {
-            case .yoga:    return "figure.mind.and.body"
-            case .pilates: return "figure.cooldown"
-            }
-        }
-        var description: String {
-            switch self {
-            case .yoga:    return "Hatha, Vinyasa or restorative"
-            case .pilates: return "Mat or reformer Pilates"
-            }
-        }
+        case yoga = "Yoga", pilates = "Pilates"
+        var met: Double { switch self { case .yoga: return 3.0; case .pilates: return 3.5 } }
+        var icon: String { switch self { case .yoga: return "figure.mind.and.body"; case .pilates: return "figure.cooldown" } }
+        var description: String { switch self { case .yoga: return "Hatha, Vinyasa or restorative"; case .pilates: return "Mat or reformer Pilates" } }
     }
 
     @State private var selectedType: FlexType = .yoga
     @State private var durationText: String = "60"
-    @State private var intensityIndex: Int = 1 // 0=Light, 1=Moderate, 2=Intense
+    @State private var intensityIndex: Int = 1
     @State private var result: Int? = nil
 
     private let intensityLabels = ["Light", "Moderate", "Intense"]
@@ -1380,68 +1358,47 @@ private struct FlexibilityCalculator: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Flexibility").font(.headline)
-
+            Text("Flexibility").font(.headline).foregroundColor(.brandCream)
             HStack(spacing: 8) {
                 ForEach(FlexType.allCases, id: \.self) { type in
                     Button { selectedType = type; result = nil } label: {
                         VStack(spacing: 6) {
                             Image(systemName: type.icon).font(.system(size: 20))
                             Text(type.rawValue).font(.system(size: 12, weight: .semibold))
-                            Text(type.description)
-                                .font(.system(size: 9))
-                                .multilineTextAlignment(.center)
-                                .foregroundColor(selectedType == type ? .white.opacity(0.8) : .secondary)
+                            Text(type.description).font(.system(size: 9)).multilineTextAlignment(.center)
+                                .foregroundColor(selectedType == type ? Color.brandNavy.opacity(0.7) : Color.brandCream.opacity(0.4))
                         }
-                        .foregroundColor(selectedType == type ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .foregroundColor(selectedType == type ? .brandNavy : Color.brandCream.opacity(0.7))
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 12).fill(
-                            selectedType == type ? Color(red: 0.40, green: 0.60, blue: 0.95) : Color(.systemGray5)
+                            selectedType == type ? Color.brandLime : Color.brandCream.opacity(0.08)
                         ))
                     }
                     .buttonStyle(.plain)
                 }
             }
-
-            CalcTextField(
-                label: "Duration (minutes)",
-                placeholder: "e.g. 60",
-                text: $durationText,
-                keyboard: .numberPad
-            )
-
+            CalcTextField(label: "Duration (minutes)", placeholder: "e.g. 60", text: $durationText, keyboard: .numberPad)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Intensity").font(.caption).foregroundColor(.secondary)
+                Text("Intensity").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 Picker("Intensity", selection: $intensityIndex) {
-                    ForEach(0..<intensityLabels.count, id: \.self) { i in
-                        Text(intensityLabels[i]).tag(i)
-                    }
+                    ForEach(0..<intensityLabels.count, id: \.self) { i in Text(intensityLabels[i]).tag(i) }
                 }
                 .pickerStyle(.segmented)
             }
-
             FormulaInfoButton(formula:
-                "Calories = MET × intensity_multiplier × body_weight_kg × (duration_mins ÷ 60)\n\n" +
-                "• Yoga MET: 3.0 | Pilates MET: 3.5\n" +
-                "• Light intensity: ×0.85\n" +
-                "• Moderate intensity: ×1.0\n" +
-                "• Intense intensity: ×1.2\n\n" +
-                "Intensity accounts for faster flows, harder poses, or more challenging sequences."
+                "Calories = MET × intensity_multiplier × body_weight_kg × (duration_mins ÷ 60)\n\n• Yoga MET: 3.0 | Pilates MET: 3.5\n• Light: ×0.85 | Moderate: ×1.0 | Intense: ×1.2"
             )
-
             CalculateButton {
-                let mult = intensityMultipliers[intensityIndex]
-                result = max(1, Int(selectedType.met * mult * userWeightKg * Double(durationMins) / 60.0))
+                result = max(1, Int(selectedType.met * intensityMultipliers[intensityIndex] * userWeightKg * Double(durationMins) / 60.0))
             }
-
             if let r = result {
                 ResultBanner(calories: r)
                 UseResultButton(calories: r, duration: durationMins, onResult: onResult)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .onAppear {
             if workoutName.lowercased().contains("pilates") { selectedType = .pilates }
@@ -1451,7 +1408,7 @@ private struct FlexibilityCalculator: View {
 }
 
 // MARK: - Outdoor Calculator
-// Formula: Calories = (MET × weight_kg × duration_hrs) + elevation_bonus
+// Calories = (MET × body_kg × duration_hrs) + elevation_bonus
 
 private struct OutdoorCalculator: View {
     let userWeightKg: Double
@@ -1460,27 +1417,10 @@ private struct OutdoorCalculator: View {
     let onResult: (Int, Int?) -> Void
 
     enum HikeType: String, CaseIterable {
-        case uphill   = "Uphill"
-        case downhill = "Downhill"
-
-        var met: Double {
-            switch self {
-            case .uphill:   return 8.0
-            case .downhill: return 5.3
-            }
-        }
-        var icon: String {
-            switch self {
-            case .uphill:   return "arrow.up.right"
-            case .downhill: return "arrow.down.right"
-            }
-        }
-        var description: String {
-            switch self {
-            case .uphill:   return "Ascending, elevation gain"
-            case .downhill: return "Descending, less effort"
-            }
-        }
+        case uphill = "Uphill", downhill = "Downhill"
+        var met: Double { switch self { case .uphill: return 8.0; case .downhill: return 5.3 } }
+        var icon: String { switch self { case .uphill: return "arrow.up.right"; case .downhill: return "arrow.down.right" } }
+        var description: String { switch self { case .uphill: return "Ascending, elevation gain"; case .downhill: return "Descending, less effort" } }
     }
 
     @State private var selectedType: HikeType = .uphill
@@ -1492,8 +1432,6 @@ private struct OutdoorCalculator: View {
     private var distanceUnit: String { isImperial ? "miles" : "km" }
     private var elevationUnit: String { isImperial ? "ft" : "m" }
     private var durationMins: Int { Int(durationText) ?? 90 }
-
-    // Convert elevation to feet for formula
     private var elevationFt: Double {
         let val = Double(elevationText) ?? 0
         return isImperial ? val : val * 3.28084
@@ -1501,76 +1439,47 @@ private struct OutdoorCalculator: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Outdoor").font(.headline)
-
+            Text("Outdoor").font(.headline).foregroundColor(.brandCream)
             HStack(spacing: 8) {
                 ForEach(HikeType.allCases, id: \.self) { type in
                     Button { selectedType = type; result = nil } label: {
                         VStack(spacing: 6) {
                             Image(systemName: type.icon).font(.system(size: 18))
                             Text(type.rawValue).font(.system(size: 13, weight: .semibold))
-                            Text(type.description)
-                                .font(.system(size: 9))
-                                .multilineTextAlignment(.center)
-                                .foregroundColor(selectedType == type ? .white.opacity(0.8) : .secondary)
+                            Text(type.description).font(.system(size: 9)).multilineTextAlignment(.center)
+                                .foregroundColor(selectedType == type ? Color.brandNavy.opacity(0.7) : Color.brandCream.opacity(0.4))
                         }
-                        .foregroundColor(selectedType == type ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .foregroundColor(selectedType == type ? .brandNavy : Color.brandCream.opacity(0.7))
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 12).fill(
-                            selectedType == type ? Color(red: 0.95, green: 0.78, blue: 0.22) : Color(.systemGray5)
+                            selectedType == type ? Color.brandLime : Color.brandCream.opacity(0.08)
                         ))
                     }
                     .buttonStyle(.plain)
                 }
             }
-
-            CalcTextField(
-                label: "Distance (\(distanceUnit))",
-                placeholder: isImperial ? "e.g. 3.0" : "e.g. 5.0",
-                text: $distanceText
-            )
-
-            CalcTextField(
-                label: "Duration (minutes)",
-                placeholder: "e.g. 90",
-                text: $durationText,
-                keyboard: .numberPad
-            )
-
+            CalcTextField(label: "Distance (\(distanceUnit))", placeholder: isImperial ? "e.g. 3.0" : "e.g. 5.0", text: $distanceText)
+            CalcTextField(label: "Duration (minutes)", placeholder: "e.g. 90", text: $durationText, keyboard: .numberPad)
             if selectedType == .uphill {
-                CalcTextField(
-                    label: "Elevation gain (\(elevationUnit))",
-                    placeholder: isImperial ? "e.g. 500" : "e.g. 150",
-                    text: $elevationText,
-                    keyboard: .numberPad
-                )
+                CalcTextField(label: "Elevation gain (\(elevationUnit))", placeholder: isImperial ? "e.g. 500" : "e.g. 150", text: $elevationText, keyboard: .numberPad)
             }
-
             FormulaInfoButton(formula:
-                "Calories = (MET × body_weight_kg × duration_hrs) + elevation_bonus\n\n" +
-                "• Uphill MET: 8.0\n" +
-                "• Downhill MET: 5.3\n\n" +
-                "Elevation bonus (uphill only):\n" +
-                "= (elevation_ft ÷ 100) × (body_weight_lbs ÷ 100) × 0.35\n\n" +
-                "The elevation bonus accounts for the extra energy cost of gaining altitude, approximately 0.35 kcal per 100 ft of gain per 100 lbs of body weight."
+                "Calories = (MET × body_weight_kg × duration_hrs) + elevation_bonus\n\n• Uphill MET: 8.0 | Downhill MET: 5.3\n\nElevation bonus = (elev_ft ÷ 100) × (body_lbs ÷ 100) × 0.35"
             )
-
             CalculateButton {
-                let baseCals  = selectedType.met * userWeightKg * Double(durationMins) / 60.0
+                let baseCals = selectedType.met * userWeightKg * Double(durationMins) / 60.0
                 let elevBonus = selectedType == .uphill
-                    ? (elevationFt / 100.0) * ((userWeightKg * 2.20462) / 100.0) * 0.35
-                    : 0
+                    ? (elevationFt / 100.0) * ((userWeightKg * 2.20462) / 100.0) * 0.35 : 0
                 result = max(1, Int(baseCals + elevBonus))
             }
-
             if let r = result {
                 ResultBanner(calories: r)
                 UseResultButton(calories: r, duration: durationMins, onResult: onResult)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .onAppear {
             if workoutName.lowercased().contains("down") { selectedType = .downhill }
@@ -1586,13 +1495,13 @@ struct RobotIcon: View {
         Canvas { ctx, size in
             let s = size.width / 64
             ctx.fill(Path(roundedRect: CGRect(x: 7*s, y: 6*s, width: 50*s, height: 3*s), cornerRadius: 1.5*s), with: .color(.white))
-            ctx.fill(Path(roundedRect: CGRect(x: 4*s,    y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
-            ctx.fill(Path(roundedRect: CGRect(x: 1*s,    y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: 4*s, y: 3.5*s, width: 3.5*s, height: 8*s), cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 1*s, y: 3*s, width: 3*s, height: 9*s), cornerRadius: s), with: .color(.white.opacity(0.8)))
             ctx.fill(Path(roundedRect: CGRect(x: -1.5*s, y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
-            ctx.fill(Path(roundedRect: CGRect(x: 56.5*s, y: 3.5*s, width: 3.5*s, height: 8*s),  cornerRadius: s), with: .color(.white.opacity(0.95)))
-            ctx.fill(Path(roundedRect: CGRect(x: 60*s,   y: 3*s,   width: 3*s,   height: 9*s),  cornerRadius: s), with: .color(.white.opacity(0.8)))
-            ctx.fill(Path(roundedRect: CGRect(x: 63*s,   y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
-            ctx.fill(Path(roundedRect: CGRect(x: 9*s,  y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
+            ctx.fill(Path(roundedRect: CGRect(x: 56.5*s, y: 3.5*s, width: 3.5*s, height: 8*s), cornerRadius: s), with: .color(.white.opacity(0.95)))
+            ctx.fill(Path(roundedRect: CGRect(x: 60*s, y: 3*s, width: 3*s, height: 9*s), cornerRadius: s), with: .color(.white.opacity(0.8)))
+            ctx.fill(Path(roundedRect: CGRect(x: 63*s, y: 2.5*s, width: 2.5*s, height: 10*s), cornerRadius: s), with: .color(.white.opacity(0.65)))
+            ctx.fill(Path(roundedRect: CGRect(x: 9*s, y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
             ctx.fill(Path(roundedRect: CGRect(x: 50*s, y: 5*s, width: 5*s, height: 5*s), cornerRadius: 1.5*s), with: .color(.white))
             var leftArm = Path(); leftArm.move(to: CGPoint(x: 15*s, y: 42*s))
             leftArm.addQuadCurve(to: CGPoint(x: 12*s, y: 9*s), control: CGPoint(x: 11*s, y: 27*s))
@@ -1621,94 +1530,368 @@ struct RobotIcon: View {
     }
 }
 
+
 // MARK: - AI Assistant Sheet
 
 struct AIAssistantSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) var appState
-    @State private var messageText = ""
+    @StateObject private var vm = AIAssistantViewModel()
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .bottom, spacing: 8) {
-                            ZStack {
-                                Circle().fill(Color.orange).frame(width: 32, height: 32)
-                                Canvas { ctx, size in
-                                    let s = size.width / 64
-                                    ctx.fill(Path(roundedRect: CGRect(x: 12*s, y: 14*s, width: 40*s, height: 30*s), cornerRadius: 6*s), with: .color(.white.opacity(0.97)))
-                                    ctx.fill(Path(roundedRect: CGRect(x: 18*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
-                                    ctx.fill(Path(roundedRect: CGRect(x: 38*s, y: 20*s, width: 8*s, height: 5*s), cornerRadius: 2*s), with: .color(.orange))
-                                    var smile = Path(); smile.move(to: CGPoint(x: 20*s, y: 30*s))
-                                    smile.addQuadCurve(to: CGPoint(x: 44*s, y: 30*s), control: CGPoint(x: 32*s, y: 38*s))
-                                    ctx.stroke(smile, with: .color(.orange), style: StrokeStyle(lineWidth: 2.5*s, lineCap: .round))
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    // MARK: - Messages
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                ForEach(vm.messages) { msg in
+                                    AIMessageBubble(message: msg)
+                                        .id(msg.id)
+                                
                                 }
-                                .frame(width: 20, height: 20)
+                                if vm.isLoading {
+                                    TypingIndicator()
+                                        .id("typing")
+                                }
                             }
-                            Text("Hey \(appState.currentUser?.name.components(separatedBy: " ").first ?? "there")! Ask me anything about your workouts.")
-                                .font(.system(size: 13))
-                                .padding(10)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(14)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    }
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(["Show my progress", "Rest day tips", "Calories burned?", "Best exercises"], id: \.self) { chip in
-                            Text(chip)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.orange)
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .background(Color.orange.opacity(0.1))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 0.5))
+                        .onChange(of: vm.messages.count) { _, _ in
+                            withAnimation {
+                                proxy.scrollTo(vm.messages.last?.id ?? "typing", anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: vm.isLoading) { _, _ in
+                            withAnimation {
+                                proxy.scrollTo("typing", anchor: .bottom)
+                            }
                         }
                     }
-                    .padding(.horizontal).padding(.vertical, 8)
-                }
-                Divider()
-                HStack(spacing: 10) {
-                    TextField("Ask about your workouts...", text: $messageText)
-                        .font(.system(size: 14)).padding(10)
-                        .background(Color(.systemGray6)).cornerRadius(20)
-                    Button { messageText = "" } label: {
-                        ZStack {
-                            Circle().fill(Color.orange).frame(width: 34, height: 34)
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+
+                    // MARK: - Suggestion Chips
+                    if vm.messages.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(vm.suggestions, id: \.self) { chip in
+                                    Button {
+                                        vm.send(chip, context: buildContext())
+                                    } label: {
+                                        Text(chip)
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(.brandLime)
+                                            .padding(.horizontal, 12).padding(.vertical, 6)
+                                            .background(Color.brandLime.opacity(0.1))
+                                            .clipShape(Capsule())
+                                            .overlay(Capsule().stroke(Color.brandLime.opacity(0.3), lineWidth: 0.5))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 8)
                         }
                     }
+
+                    Divider().background(Color.brandCream.opacity(0.12))
+
+                    // MARK: - Input Bar
+                    HStack(spacing: 10) {
+                        ZStack(alignment: .leading) {
+                            if vm.inputText.isEmpty {
+                                Text("Ask about your fitness...")
+                                    .foregroundColor(Color.brandCream.opacity(0.3))
+                                    .font(.system(size: 14))
+                                    .padding(.leading, 12)
+                            }
+                            TextField("", text: $vm.inputText, axis: .vertical)
+                                .foregroundColor(.brandCream)
+                                .font(.system(size: 14))
+                                .lineLimit(1...4)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                        }
+                        .background(Color.brandCream.opacity(0.07))
+                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
+                        .cornerRadius(20)
+
+                        Button {
+                            let text = vm.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !text.isEmpty else { return }
+                            vm.send(text, context: buildContext())
+                        } label: {
+                            ZStack {
+                                Circle().fill(vm.isLoading ? Color.brandCream.opacity(0.2) : Color.brandLime).frame(width: 36, height: 36)
+                                Image(systemName: "paperplane.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.brandNavy)
+                            }
+                        }
+                        .disabled(vm.isLoading || vm.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 10)
                 }
-                .padding(.horizontal).padding(.vertical, 10)
             }
             .navigationBarHidden(true)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 12) {
                     ZStack {
-                        Circle().fill(Color.orange).frame(width: 44, height: 44)
+                        Circle().fill(Color.brandOrange).frame(width: 44, height: 44)
                         RobotIcon().frame(width: 28, height: 28)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("AI Fitness Assistant").font(.system(size: 16, weight: .bold)).foregroundColor(.primary)
-                        Text("Powered by your workout data").font(.system(size: 12)).foregroundColor(.secondary)
+                        Text("AI Fitness Coach").font(.system(size: 16, weight: .bold)).foregroundColor(.brandCream)
+                        Text("Powered by Claude").font(.system(size: 12)).foregroundColor(Color.brandCream.opacity(0.5))
                     }
                     Spacer()
-                    Button("Done") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundColor(.orange)
+                    Button("Done") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundColor(.brandLime)
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                .overlay(Divider(), alignment: .bottom)
+                .background(Color.brandNavy)
+                .overlay(Divider().background(Color.brandCream.opacity(0.12)), alignment: .bottom)
             }
         }
+        .onAppear {
+            vm.sendWelcome(userName: (appState.currentUser?.name ?? "").components(separatedBy: " ").first ?? "there")
+        }
+    }
+
+    private func buildContext() -> String {
+        let user = appState.currentUser
+        let storageKey = "savedExercises_\(user?.id ?? "")"
+        var exercises: [ActivityEntry] = []
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
+            exercises = decoded
+        }
+        let completed = exercises.filter { $0.isCompleted }
+        let totalCalsBurned = completed.reduce(0) { $0 + $1.caloriesBurned }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        var streak = 0
+        var checkDate = today
+        while exercises.contains(where: { $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate }) {
+            streak += 1
+            checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+        }
+        let recentWorkouts = completed.sorted { $0.date > $1.date }.prefix(5).map {
+            "\($0.name) (\($0.category.rawValue), \($0.caloriesBurned) kcal)"
+        }.joined(separator: ", ")
+
+        return """
+        User profile:
+        - Name: \(user?.name ?? "Unknown")
+        - Goal: \(user?.primaryGoal ?? "Unknown")
+        - Activity level: \(user?.activityLevel ?? "Unknown")
+        - Calorie goal: \(user?.calorieGoal ?? 0) kcal/day
+        - Current weight: \(Int(user?.weight ?? 0)) lbs
+        - Target weight: \(Int(user?.targetWeightLbs ?? 0)) lbs
+
+        Fitness stats:
+        - Current streak: \(streak) days
+        - Total workouts completed: \(completed.count)
+        - Total calories burned: \(totalCalsBurned) kcal
+        - Recent workouts: \(recentWorkouts.isEmpty ? "None yet" : recentWorkouts)
+        """
     }
 }
 
-#Preview {
-    ActivityLogView(userId: "preview")
-        .environment(AppState())
+// MARK: - Message Model
+
+struct AIMessage: Identifiable {
+    let id = UUID().uuidString
+    let role: String // "user" or "assistant"
+    let content: String
 }
+
+// MARK: - ViewModel
+
+@MainActor
+class AIAssistantViewModel: ObservableObject {
+    @Published var messages: [AIMessage] = []
+    @Published var inputText: String = ""
+    @Published var isLoading: Bool = false
+    
+    let suggestions = [
+        "How do I improve my streak?",
+        "What should I eat today?",
+        "Best exercises for weight loss?",
+        "How many rest days do I need?",
+        "Tips to hit my calorie goal"
+    ]
+    
+    private let apiKey = ""
+    private let systemPrompt = """
+    You are a knowledgeable, friendly fitness coach built into a fitness tracking app.
+    You help users with workout advice, nutrition guidance, recovery tips, and motivation.
+    Keep responses concise and practical — ideally 2-4 sentences unless more detail is needed.
+    Always be encouraging and positive. Use the user's fitness data provided in context to give personalized advice.
+    Only answer fitness, health, nutrition, and wellness related questions.
+    If asked about something unrelated, politely redirect to fitness topics.
+    """
+    
+    func sendWelcome(userName: String) {
+        let welcome = AIMessage(
+            role: "assistant",
+            content: "Hey \(userName)! 💪 I'm your AI fitness coach. Ask me anything about your workouts, nutrition, recovery, or how to reach your goals."
+        )
+        messages.append(welcome)
+    }
+    
+    func send(_ text: String, context: String) {
+        let userMsg = AIMessage(role: "user", content: text)
+        messages.append(userMsg)
+        inputText = ""
+        isLoading = true
+        
+        Task {
+            do {
+                let reply = try await callClaude(userText: text, context: context)
+                messages.append(AIMessage(role: "assistant", content: reply))
+            } catch {
+                messages.append(AIMessage(role: "assistant", content: "Sorry, I couldn't connect right now. Please try again."))
+                print("AI error: \(error)")
+            }
+            isLoading = false
+        }
+    }
+    
+    private func callClaude(userText: String, context: String) async throws -> String {
+        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        
+        var apiMessages: [[String: String]] = []
+        
+        // Always inject context as first exchange
+        apiMessages.append(["role": "user", "content": "Here is my fitness data:\n\(context)"])
+        apiMessages.append(["role": "assistant", "content": "Got it! I have your fitness data loaded. How can I help you today?"])
+        
+        // Add all messages except the welcome message (index 0)
+        for msg in messages.dropFirst() {
+            apiMessages.append(["role": msg.role, "content": msg.content])
+        }
+        
+        let body: [String: Any] = [
+            "model": "claude-sonnet-4-5",
+            "max_tokens": 1024,
+            "system": systemPrompt,
+            "messages": apiMessages
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Print full response for debugging
+        if let httpResponse = response as? HTTPURLResponse {
+            print("🤖 HTTP Status: \(httpResponse.statusCode)")
+        }
+        if let rawString = String(data: data, encoding: .utf8) {
+            print("🤖 Raw response: \(rawString)")
+        }
+        
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        
+        // Check for API error
+        if let error = json?["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            print("🤖 API Error: \(message)")
+            return "Error: \(message)"
+        }
+        
+        let content = (json?["content"] as? [[String: Any]])?.first?["text"] as? String
+        return content ?? "I couldn't generate a response. Please try again."
+    }
+}
+    // MARK: - Message Bubble
+    
+    struct AIMessageBubble: View {
+        let message: AIMessage
+        
+        private var isUser: Bool { message.role == "user" }
+        
+        var body: some View {
+            HStack(alignment: .bottom, spacing: 8) {
+                if isUser { Spacer(minLength: 48) }
+                
+                if !isUser {
+                    ZStack {
+                        Circle().fill(Color.brandOrange).frame(width: 28, height: 28)
+                        RobotIcon().frame(width: 18, height: 18)
+                    }
+                }
+                
+                Text(message.content)
+                    .font(.system(size: 14))
+                    .foregroundColor(isUser ? .brandNavy : .brandCream)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(isUser ? Color.brandLime : Color.brandCream.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(isUser ? Color.clear : Color.brandCream.opacity(0.12), lineWidth: 1)
+                    )
+                    .cornerRadius(18)
+                    .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+                
+                if isUser {
+                    ZStack {
+                        Circle().fill(Color.brandLime.opacity(0.2)).frame(width: 28, height: 28)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(.brandLime)
+                    }
+                }
+                if !isUser { Spacer(minLength: 48) }
+            }
+        }
+    }
+    
+    // MARK: - Typing Indicator
+    
+    struct TypingIndicator: View {
+        @State private var animate = false
+        
+        var body: some View {
+            HStack(alignment: .bottom, spacing: 8) {
+                ZStack {
+                    Circle().fill(Color.brandOrange).frame(width: 28, height: 28)
+                    RobotIcon().frame(width: 18, height: 18)
+                }
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .fill(Color.brandCream.opacity(0.5))
+                            .frame(width: 7, height: 7)
+                            .offset(y: animate ? -4 : 0)
+                            .animation(
+                                .easeInOut(duration: 0.5)
+                                .repeatForever()
+                                .delay(Double(i) * 0.15),
+                                value: animate
+                            )
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 14)
+                .background(Color.brandCream.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                .cornerRadius(18)
+                Spacer(minLength: 48)
+            }
+            .onAppear { animate = true }
+        }
+    }
+    
+    
+    #Preview {
+        ActivityLogView(userId: "preview")
+            .environment(AppState())
+    }
+
