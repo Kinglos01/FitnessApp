@@ -44,7 +44,7 @@ struct FoodNutrient: Codable {
 class NutritionService {
     var results: [FoodItem] = []
 
-    private let apiKey = "HdRfDu2ymMMFIg8hAhEPB2WHWnFNdKx9QzAQNBLV"
+    private let apiKey = "jlo70WgRLc1hM2DgZiBg4IuSKHb7G4I5o1NVMOat"
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
 
     func searchFoods(query: String) async throws -> [FoodItem] {

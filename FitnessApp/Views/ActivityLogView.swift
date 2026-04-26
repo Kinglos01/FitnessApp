@@ -281,21 +281,9 @@ final class ActivityLogViewModel: ObservableObject {
         let today = Calendar.current.startOfDay(for: Date())
         let burned = exercises.filter { $0.isCompleted(on: today) }.reduce(0) { $0 + $1.caloriesBurned }
         let count  = exercises.filter { $0.isCompleted(on: today) }.count
-        let waterKey      = "waterConsumed_\(userId)_\(todayString)"
-        let waterConsumed = UserDefaults.standard.integer(forKey: waterKey)
-        let waterGoal     = UserDefaults.standard.integer(forKey: "waterGoal")
-        let nutritionKey  = "nutritionLog_\(userId)_\(todayString)"
-        var caloriesEaten: Double = 0
-        if let data    = UserDefaults.standard.data(forKey: nutritionKey),
-           let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data) {
-            caloriesEaten = entries.reduce(0) { $0 + $1.foodItem.calories }
-        }
         Task {
             try? await DailyLogService.shared.upsertLog(
                 userId: userId,
-                waterConsumed: waterConsumed,
-                waterGoal: waterGoal == 0 ? 8 : waterGoal,
-                caloriesEaten: caloriesEaten,
                 caloriesBurned: burned,
                 workoutsCompleted: count
             )

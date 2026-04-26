@@ -169,103 +169,112 @@ struct SettingsView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            ZStack(alignment: .bottom) {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        profileCard
-                        profileSection
-                        targetsSection
-                        displaySection
-                        notificationsSection
-                        accountSection
-                        if appState.currentUser?.isAdmin == true {
-                            adminSection
-                        }
-                        footerText
-                        Spacer(minLength: 110)
+        if let user = appState.currentUser {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    profileCard
+                    profileSection
+                    targetsSection
+                    displaySection
+                    notificationsSection
+                    accountSection
+                    if user.isAdmin {
+                        adminSection
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 40)
+                    if hasChanges {
+                        Button(action: { saveChanges() }) {
+                            Text("Save Changes")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.brandNavy)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.brandLime)
+                                .cornerRadius(14)
+                        }
+                        .padding(.top, 10)
+                    }
+                    Spacer(minLength: 110)
                 }
-                stickyFooter
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 40)
             }
-        }
-        .background(Color.brandNavy.ignoresSafeArea())
-        .onAppear {
-            appState.syncProfileStoreFromCurrentUser()
-            loadDraftFromCurrentUser()
-            refreshNotificationStatus()
-        }
-        .onChange(of: mealReminders) { _, _ in syncNotificationSettings() }
-        .onChange(of: workoutReminder) { _, _ in syncNotificationSettings() }
-        .onChange(of: streakReminder) { _, _ in syncNotificationSettings() }
-        .onChange(of: mealReminderHour) { _, _ in syncNotificationSettings() }
-        .onChange(of: workoutReminderHour) { _, _ in syncNotificationSettings() }
-        .onChange(of: streakReminderHour) { _, _ in syncNotificationSettings() }
-        .sheet(isPresented: $showEditWeight) {
-            EditWeightSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showEditHeight) {
-            EditHeightSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showEditDOB) {
-            EditDOBSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showEditGender) {
-            EditGenderSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showCalorieSheet) {
-            CalorieGoalSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showTargetWeightSheet) {
-            TargetWeightSheet(draft: $draft, hasChanges: $hasChanges)
-        }
-        .sheet(isPresented: $showMacroSheet) {
-            MacroTargetsSheet(
-                useCustomMacros: $useCustomMacros,
-                customProtein: $customProtein,
-                customCarbs: $customCarbs,
-                customFat: $customFat,
-                draft: draft
-            )
-        }
-        .sheet(isPresented: $showAdminPanel) {
-            AdminPanelView().environment(appState)
-        }
-        .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
-            Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
-            Button("Maintain Weight") { draft.primaryGoal = "Maintain Weight"; hasChanges = true }
-            Button("Build Muscle") { draft.primaryGoal = "Build Muscle"; hasChanges = true }
-            Button("Improve Endurance") { draft.primaryGoal = "Improve Endurance"; hasChanges = true }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Activity Level", isPresented: $showActivityDialog) {
-            Button("Sedentary") { draft.activityLevel = "Sedentary"; hasChanges = true }
-            Button("Lightly Active") { draft.activityLevel = "Lightly Active"; hasChanges = true }
-            Button("Moderately Active") { draft.activityLevel = "Moderately Active"; hasChanges = true }
-            Button("Very Active") { draft.activityLevel = "Very Active"; hasChanges = true }
-            Button("Athlete") { draft.activityLevel = "Athlete"; hasChanges = true }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Units", isPresented: $showUnitsDialog) {
-            Button("Imperial") { draft.units = "Imperial"; hasChanges = true }
-            Button("Metric") { draft.units = "Metric"; hasChanges = true }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Appearance", isPresented: $showAppearanceDialog) {
-            Button("Dark") { appearance = "Dark" }
-            Button("Light") { appearance = "Light" }
-            Button("System") { appearance = "System" }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Week Starts On", isPresented: $showWeekStartDialog) {
-            Button("Sunday") { weekStart = "Sunday" }
-            Button("Monday") { weekStart = "Monday" }
-            Button("Cancel", role: .cancel) {}
+            .background(Color.brandNavy.ignoresSafeArea())
+            .onAppear {
+                appState.syncProfileStoreFromCurrentUser()
+                loadDraftFromCurrentUser()
+                refreshNotificationStatus()
+            }
+            .onChange(of: mealReminders) { _, _ in syncNotificationSettings() }
+            .onChange(of: workoutReminder) { _, _ in syncNotificationSettings() }
+            .onChange(of: streakReminder) { _, _ in syncNotificationSettings() }
+            .onChange(of: mealReminderHour) { _, _ in syncNotificationSettings() }
+            .onChange(of: workoutReminderHour) { _, _ in syncNotificationSettings() }
+            .onChange(of: streakReminderHour) { _, _ in syncNotificationSettings() }
+            .sheet(isPresented: $showEditWeight) {
+                EditWeightSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showEditHeight) {
+                EditHeightSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showEditDOB) {
+                EditDOBSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showEditGender) {
+                EditGenderSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showCalorieSheet) {
+                CalorieGoalSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showTargetWeightSheet) {
+                TargetWeightSheet(draft: $draft, hasChanges: $hasChanges)
+            }
+            .sheet(isPresented: $showMacroSheet) {
+                MacroTargetsSheet(
+                    useCustomMacros: $useCustomMacros,
+                    customProtein: $customProtein,
+                    customCarbs: $customCarbs,
+                    customFat: $customFat,
+                    draft: draft
+                )
+            }
+            .sheet(isPresented: $showAdminPanel) {
+                AdminPanelView().environment(appState)
+            }
+            .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
+                Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
+                Button("Maintain Weight") { draft.primaryGoal = "Maintain Weight"; hasChanges = true }
+                Button("Build Muscle") { draft.primaryGoal = "Build Muscle"; hasChanges = true }
+                Button("Improve Endurance") { draft.primaryGoal = "Improve Endurance"; hasChanges = true }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Activity Level", isPresented: $showActivityDialog) {
+                Button("Sedentary") { draft.activityLevel = "Sedentary"; hasChanges = true }
+                Button("Lightly Active") { draft.activityLevel = "Lightly Active"; hasChanges = true }
+                Button("Moderately Active") { draft.activityLevel = "Moderately Active"; hasChanges = true }
+                Button("Very Active") { draft.activityLevel = "Very Active"; hasChanges = true }
+                Button("Athlete") { draft.activityLevel = "Athlete"; hasChanges = true }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Units", isPresented: $showUnitsDialog) {
+                Button("Imperial") { draft.units = "Imperial"; hasChanges = true }
+                Button("Metric") { draft.units = "Metric"; hasChanges = true }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Appearance", isPresented: $showAppearanceDialog) {
+                Button("Dark") { appearance = "Dark" }
+                Button("Light") { appearance = "Light" }
+                Button("System") { appearance = "System" }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Week Starts On", isPresented: $showWeekStartDialog) {
+                Button("Sunday") { weekStart = "Sunday" }
+                Button("Monday") { weekStart = "Monday" }
+                Button("Cancel", role: .cancel) {}
+            }
+        } else {
+            ProgressView("Loading...")
         }
     }
 
@@ -735,18 +744,6 @@ struct SettingsView: View {
                     appState.currentUser = user
                 }
 
-                if weightChanged {
-                    let storageKey = "weightLog_\(userId)"
-                    if let data = UserDefaults.standard.data(forKey: storageKey),
-                       var cached = try? JSONDecoder().decode([WeightEntry].self, from: data) {
-                        let newEntry = WeightEntry(date: Date(), weightLbs: Double(draft.weightLbs))
-                        cached.append(newEntry)
-                        if let encoded = try? JSONEncoder().encode(cached) {
-                            UserDefaults.standard.set(encoded, forKey: storageKey)
-                        }
-                    }
-                }
-
                 hasChanges = false
                 NotificationManager.shared.syncNotifications(for: appState.currentUser)
             } catch {
@@ -1148,7 +1145,7 @@ private struct EditDOBSheet: View {
                     dismiss()
                 }
                 Spacer()
-                DatePicker("", selection: $birthDate, in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!, displayedComponents: .date)
+                DatePicker("", selection: $birthDate, in: ...(Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()), displayedComponents: .date)
                     .datePickerStyle(.wheel).labelsHidden().frame(height: 150).clipped()
                     .colorScheme(.dark).background(Color.brandCream.opacity(0.07)).cornerRadius(12).padding(.horizontal, 24)
                 Spacer()

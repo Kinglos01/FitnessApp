@@ -9,7 +9,7 @@ import Charts
 // MARK: - Model
 
 struct WeightEntry: Identifiable, Codable, Equatable {
-    var id        : UUID   = UUID()
+    var id        : UUID = UUID()
     var date      : Date
     var weightLbs : Double
 
@@ -17,6 +17,13 @@ struct WeightEntry: Identifiable, Codable, Equatable {
         let f = DateFormatter()
         f.dateFormat = "MMM d"
         return f.string(from: date)
+    }
+
+    // Exclude id from coding — it doesn't exist in the Supabase response
+    // and is generated locally for Identifiable conformance
+    enum CodingKeys: String, CodingKey {
+        case date
+        case weightLbs
     }
 }
 
@@ -85,16 +92,10 @@ final class WeightTrackerViewModel {
         Calendar.current.dateComponents([.year], from: user.birthDate, to: Date()).year ?? 0
     }
 
-    private var storageKey: String { "weightLog_\(user.id)" }
     var onWeightUpdated: ((Double) -> Void)? = nil
 
     init(user: User) {
         self.user = user
-        load()
-        if entries.isEmpty {
-            entries.append(WeightEntry(date: Date(), weightLbs: user.weightLbs))
-            save()
-        }
     }
 
     func logWeight() {
@@ -106,14 +107,13 @@ final class WeightTrackerViewModel {
         let delta   = r1(abs(rounded - prev))
 
         entries.append(WeightEntry(date: Date(), weightLbs: rounded))
-        save()
         inputText = ""
 
         onWeightUpdated?(rounded)
 
         // ✏️ CHANGED — now calls WeightLogService which writes to profiles, not weight_logs
         Task {
-            try? await WeightLogService.shared.logWeight(userId: user.id, weightLbs: rounded)
+            await WeightLogService.shared.logWeight(userId: user.id, weightLbs: rounded)
         }
 
         if rounded < healthyMinLbs - 10 {
@@ -139,17 +139,10 @@ final class WeightTrackerViewModel {
         }
     }
 
-    func save() {
-        if let data = try? JSONEncoder().encode(entries) {
-            UserDefaults.standard.set(data, forKey: storageKey)
-        }
-    }
-
     func deleteEntry(_ entry: WeightEntry) {
         entries.removeAll { $0.id == entry.id }
-        save()
         Task {
-            try? await WeightLogService.shared.deleteEntry(
+            await WeightLogService.shared.deleteEntry(
                 userId: user.id, date: entry.date, weightLbs: entry.weightLbs
             )
         }
@@ -157,14 +150,6 @@ final class WeightTrackerViewModel {
 
     func mergeRemoteEntries(_ remote: [WeightEntry]) {
         entries = remote.sorted { $0.date < $1.date }
-        save()
-    }
-
-    private func load() {
-        guard let data    = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([WeightEntry].self, from: data)
-        else { return }
-        entries = decoded.sorted { $0.date < $1.date }
     }
 
     private func r1(_ v: Double) -> Double { (v * 10).rounded() / 10 }
@@ -207,11 +192,12 @@ struct WeightTrackerSheet: View {
 
             vm = tracker
 
-            // ✏️ CHANGED — fetches from profiles.weight_history instead of weight_logs table
             Task {
-                if let entries = try? await WeightLogService.shared.fetchEntries(userId: user.id),
-                   !entries.isEmpty {
-                    await MainActor.run {
+                let entries = await WeightLogService.shared.fetchEntries(userId: user.id)
+                await MainActor.run {
+                    if entries.isEmpty {
+                        tracker.mergeRemoteEntries([WeightEntry(date: Date(), weightLbs: user.weightLbs)])
+                    } else {
                         tracker.mergeRemoteEntries(entries)
                     }
                 }

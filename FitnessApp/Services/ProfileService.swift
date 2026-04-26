@@ -25,6 +25,29 @@ struct WeightHistoryEntry: Codable, Identifiable {
         self.date       = date
         self.weight_lbs = weight_lbs
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = UUID()
+        self.weight_lbs = (try? container.decode(Double.self, forKey: .weight_lbs)) ?? 0
+
+        // Handle date as either Date or ISO8601/yyyy-MM-dd string from jsonb
+        if let d = try? container.decode(Date.self, forKey: .date) {
+            self.date = d
+        } else if let s = try? container.decode(String.self, forKey: .date) {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = iso.date(from: s) {
+                self.date = parsed
+            } else {
+                let fallback = DateFormatter()
+                fallback.dateFormat = "yyyy-MM-dd"
+                self.date = fallback.date(from: s) ?? Date()
+            }
+        } else {
+            self.date = Date()
+        }
+    }
 }
 
 // MARK: - ProfileUpdate
@@ -141,12 +164,12 @@ final class ProfileService {
     func fetchWeightHistory(userId: String) async throws -> [WeightHistoryEntry] {
         let response: ProfileResponse = try await supabase
             .from("profiles")
-            .select("weight_history")
+            .select("id, weight_history")
             .eq("id", value: userId)
             .single()
             .execute()
             .value
-        
+
         return (response.weight_history ?? []).sorted { $0.date < $1.date }
     }
 

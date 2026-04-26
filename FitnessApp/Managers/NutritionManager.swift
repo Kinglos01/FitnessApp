@@ -87,6 +87,13 @@ struct LoggedFoodEntry: Identifiable, Codable {
         self.date     = Date()
         self.mealType = mealType
     }
+
+    init(id: UUID, foodItem: FoodItem, date: Date, mealType: NutritionMealType) {
+        self.id       = id
+        self.foodItem = foodItem
+        self.date     = date
+        self.mealType = mealType
+    }
 }
 
 // MARK: - NutritionManager
@@ -98,8 +105,7 @@ class NutritionManager {
     var loggedEntries: [LoggedFoodEntry] = []
     var userTDEE: Int? = nil
 
-    private var userId: String = ""
-    private var logKey: String { "nutritionLog_\(userId)_\(todayString)" }
+    private(set) var userId: String = ""
     private var settingsKey: String { "nutritionSettings_\(userId)" }
 
     private var todayString: String {
@@ -112,7 +118,6 @@ class NutritionManager {
     func configure(userId: String, user: User?) {
         self.userId = userId
         loadSettings()
-        loadTodayLog()
         if let user = user {
             goal     = nutritionGoal(from: user.primaryGoal)
             userTDEE = Int(UserMetricsCalculator.tdee(bmr: user.bmr, activityLevel: user.activityLevel).rounded())
@@ -173,14 +178,20 @@ class NutritionManager {
     func logFood(_ food: FoodItem, mealType: NutritionMealType = .snack) {
         let entry = LoggedFoodEntry(foodItem: food, mealType: mealType)
         loggedEntries.append(entry)
-        saveTodayLog()
         syncDailyLog()
+        let uid = userId
+        Task { try? await FoodLogService.shared.insertLog(userId: uid, entry: entry) }
     }
 
     func removeEntry(at offsets: IndexSet) {
+        let entriesToRemove = offsets.map { loggedEntries[$0] }
         loggedEntries.remove(atOffsets: offsets)
-        saveTodayLog()
         syncDailyLog()
+        Task {
+            for entry in entriesToRemove {
+                try? await FoodLogService.shared.deleteLog(id: entry.id)
+            }
+        }
     }
 
     func removeFood(at offsets: IndexSet) {
@@ -189,8 +200,9 @@ class NutritionManager {
 
     func clearAll() {
         loggedEntries.removeAll()
-        saveTodayLog()
         syncDailyLog()
+        let uid = userId
+        Task { try? await FoodLogService.shared.deleteAllTodayLogs(userId: uid) }
     }
 
     func setGoal(_ goal: NutritionGoal) {
@@ -209,13 +221,8 @@ class NutritionManager {
         Task {
             try? await DailyLogService.shared.upsertLog(
                 userId: userId,
-                waterConsumed: UserDefaults.standard.integer(
-                    forKey: "waterConsumed_\(userId)_\(todayString)"
-                ),
-                waterGoal: UserDefaults.standard.integer(forKey: "waterGoal"),
                 caloriesEaten: calories,
-                caloriesBurned: caloriesBurnedToday,
-                workoutsCompleted: 0
+                caloriesBurned: caloriesBurnedToday
             )
         }
     }
@@ -225,16 +232,38 @@ class NutritionManager {
     func syncDailyLog(userId: String, caloriesBurned: Int, workoutsCompleted: Int) {
         guard !userId.isEmpty else { return }
         let calories = totalCalories
-        let wKey     = "waterConsumed_\(userId)_\(todayString)"
         Task {
             try? await DailyLogService.shared.upsertLog(
                 userId: userId,
-                waterConsumed: UserDefaults.standard.integer(forKey: wKey),
-                waterGoal: UserDefaults.standard.integer(forKey: "waterGoal"),
                 caloriesEaten: calories,
                 caloriesBurned: caloriesBurned,
                 workoutsCompleted: workoutsCompleted
             )
+        }
+    }
+
+    // MARK: - Supabase Food Log
+    @MainActor
+    func loadFromSupabase() async {
+        guard !userId.isEmpty else { return }
+        do {
+            let records = try await FoodLogService.shared.fetchTodayLogs(userId: userId)
+            loggedEntries = records.map { record in
+                let food = FoodItem(
+                    fdcId: 0,
+                    description: record.foodName,
+                    foodNutrients: [
+                        FoodNutrient(nutrientId: 1008, value: record.calories),
+                        FoodNutrient(nutrientId: 1003, value: record.protein),
+                        FoodNutrient(nutrientId: 1005, value: record.carbs),
+                        FoodNutrient(nutrientId: 1004, value: record.fat)
+                    ]
+                )
+                let mealType = NutritionMealType(rawValue: record.mealType) ?? .snack
+                return LoggedFoodEntry(id: record.id, foodItem: food, date: Date(), mealType: mealType)
+            }
+        } catch {
+            print("⚠️ Failed to load food logs from Supabase: \(error)")
         }
     }
 
@@ -249,18 +278,6 @@ class NutritionManager {
               let settings = try? JSONDecoder().decode(NutritionSettings.self, from: data)
         else { return }
         goal = settings.goal
-    }
-
-    private func saveTodayLog() {
-        let data = try? JSONEncoder().encode(loggedEntries)
-        UserDefaults.standard.set(data, forKey: logKey)
-    }
-
-    private func loadTodayLog() {
-        guard let data    = UserDefaults.standard.data(forKey: logKey),
-              let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data)
-        else { loggedEntries = []; return }
-        loggedEntries = entries
     }
 }
 

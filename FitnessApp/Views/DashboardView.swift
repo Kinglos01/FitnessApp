@@ -22,12 +22,6 @@ struct DashboardView: View {
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
-    private var waterKey: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return "waterConsumed_\(userId)_\(f.string(from: Date()))"
-    }
-
     private var activeProfile: Profile? { appState.profileStore.profile }
 
     private var dashboardDisplayName: String {
@@ -158,7 +152,10 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             reloadAll()
         }
-        .task { await refreshLatestWeight() }
+        .task {
+            await nutritionManager.loadFromSupabase()
+            await refreshLatestWeight()
+        }
         .onChange(of: showWeightTracker) { _, isShowing in
             if !isShowing { Task { await refreshLatestWeight() } }
         }
@@ -191,7 +188,7 @@ struct DashboardView: View {
         completedWorkouts = allExercises.filter {
             $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
         }
-        waterConsumed = UserDefaults.standard.integer(forKey: waterKey)
+        Task { await loadTodayLog() }
         nutritionManager.configure(userId: uid, user: appState.currentUser)
         nutritionManager.reloadBurnedCalories()
 
@@ -394,7 +391,6 @@ struct DashboardView: View {
                 Button {
                     if waterConsumed > 0 {
                         waterConsumed -= 1
-                        UserDefaults.standard.set(waterConsumed, forKey: waterKey)
                         syncDailyLog()
                     }
                 } label: {
@@ -410,8 +406,8 @@ struct DashboardView: View {
                 Button {
                     if waterConsumed < waterGoal {
                         waterConsumed += 1
-                        UserDefaults.standard.set(waterConsumed, forKey: waterKey)
                         syncDailyLog()
+                        print("💧 Water incremented to \(waterConsumed), syncing to Supabase")
                     }
                 } label: {
                     Image(systemName: "plus.circle.fill")
@@ -499,7 +495,6 @@ struct DashboardView: View {
                     waterGoal = tempWaterGoal
                     if waterConsumed > waterGoal {
                         waterConsumed = waterGoal
-                        UserDefaults.standard.set(waterConsumed, forKey: waterKey)
                     }
                     syncDailyLog()
                     showWaterGoalEditor = false
@@ -780,22 +775,25 @@ struct DashboardView: View {
 
     private func refreshLatestWeight() async {
         isLoadingWeight = true
-        do {
-            let entries = try await WeightLogService.shared.fetchEntries(userId: userId)
-            weightEntries = entries
-            latestWeight = entries.last?.weightLbs
-        } catch {
-            print("Failed to fetch weight: \(error)")
-        }
+        let entries = await WeightLogService.shared.fetchEntries(userId: userId)
+        weightEntries = entries
+        latestWeight = entries.last?.weightLbs
         isLoadingWeight = false
     }
 
     private func loadWeightEntries() async {
-        do {
-            weightEntries = try await WeightLogService.shared.fetchEntries(userId: userId)
-            latestWeight = weightEntries.last?.weightLbs
-        } catch {
-            print("Failed to load weight entries: \(error)")
+        weightEntries = await WeightLogService.shared.fetchEntries(userId: userId)
+        latestWeight = weightEntries.last?.weightLbs
+    }
+
+    private func loadTodayLog() async {
+        guard !userId.isEmpty else { return }
+        print("🔍 Loading daily log for userId: \(userId)")
+        if let log = try? await DailyLogService.shared.fetchTodayLog(userId: userId) {
+            print("💧 Loaded water from Supabase: \(log.water_consumed)")
+            waterConsumed = log.water_consumed
+        } else {
+            print("💧 No daily log found for today")
         }
     }
 
@@ -807,28 +805,20 @@ struct DashboardView: View {
         }
         let burned = todayWorkouts.reduce(0) { $0 + $1.caloriesBurned }
         let count = todayWorkouts.count
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
-        let todayString = f.string(from: Date())
-        let wKey = "waterConsumed_\(userId)_\(todayString)"
-        let waterAmt = UserDefaults.standard.integer(forKey: wKey)
-        let wGoal = UserDefaults.standard.integer(forKey: "waterGoal")
-        let nutritionKey = "nutritionLog_\(userId)_\(todayString)"
-        var caloriesEaten: Double = 0
-        if let data = UserDefaults.standard.data(forKey: nutritionKey),
-           let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data) {
-            caloriesEaten = entries.reduce(0) { $0 + $1.foodItem.calories }
-        }
+        let caloriesEaten = nutritionManager.totalCalories
+        print("💧 Syncing water=\(waterConsumed) to daily_logs")
         Task {
             try? await DailyLogService.shared.upsertLog(
                 userId: userId,
-                waterConsumed: waterAmt,
-                waterGoal: wGoal == 0 ? 8 : wGoal,
+                waterConsumed: waterConsumed,
+                waterGoal: waterGoal,
                 caloriesEaten: caloriesEaten,
                 caloriesBurned: burned,
                 workoutsCompleted: count
             )
         }
     }
+
 }
 
 // MARK: - MacroCard

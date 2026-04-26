@@ -25,6 +25,10 @@ struct FriendsView: View {
     @State private var isLoading: Bool = true
     @State private var friendToRemove: UserSearchResult? = nil
     @State private var showRemoveAlert: Bool = false
+    @State private var showMyProfile: Bool = false
+    @State private var myBio: String?
+    @State private var mySocialLabel: String?
+    @State private var selectedProfileUserId: UUID? = nil
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -33,6 +37,8 @@ struct FriendsView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
+                yourProfileCard
+
                 searchBar
 
                 if !searchText.isEmpty {
@@ -57,7 +63,56 @@ struct FriendsView: View {
         } message: { friend in
             Text("Are you sure you want to remove \(friend.name ?? "this friend")?")
         }
+        .sheet(isPresented: $showMyProfile) {
+            if let uid = userId {
+                SocialProfileView(userId: uid, isCurrentUser: true)
+                    .environment(appState)
+            }
+        }
+        .sheet(item: $selectedProfileUserId) { profileId in
+            SocialProfileView(userId: profileId, isCurrentUser: profileId == userId)
+                .environment(appState)
+        }
         .onAppear { loadData() }
+    }
+
+    // MARK: - Your Profile Card
+
+    private var yourProfileCard: some View {
+        Button { showMyProfile = true } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.brandLime.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Text(makeInitials(appState.currentUser?.name ?? "?"))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandLime)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(appState.currentUser?.name ?? "Your Profile")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandCream)
+                    Text(mySocialLabel ?? "Set your label")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Color.brandCream.opacity(0.5))
+                    Text(myBio?.components(separatedBy: "\n").first ?? "Add a bio")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundColor(Color.brandCream.opacity(0.4))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color.brandCream.opacity(0.3))
+            }
+            .padding(14)
+            .background(Color.brandNavy)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+            .cornerRadius(14)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Load Data
@@ -69,7 +124,6 @@ struct FriendsView: View {
             do {
                 friends = try await FriendService.shared.fetchFriends(userId: uid)
                 pendingIncoming = try await FriendService.shared.fetchPendingRequests(userId: uid)
-                // Fetch raw friendship rows to look up friendship IDs for removal
                 let allRows: [FriendshipRow] = try await supabase
                     .from("friendships")
                     .select()
@@ -91,6 +145,29 @@ struct FriendsView: View {
                 print("❌ FriendsView load error: \(error)")
             }
             isLoading = false
+            fetchMyProfileMeta()
+        }
+    }
+
+    private func fetchMyProfileMeta() {
+        guard let uid = userId else { return }
+        Task {
+            struct MiniProfile: Codable {
+                let bio: String?
+                let social_label: String?
+            }
+            if let row: MiniProfile = try? await supabase
+                .from("profiles")
+                .select("bio, social_label")
+                .eq("id", value: uid.uuidString)
+                .single()
+                .execute()
+                .value {
+                await MainActor.run {
+                    myBio = row.bio
+                    mySocialLabel = row.social_label
+                }
+            }
         }
     }
 
@@ -220,17 +297,21 @@ struct FriendsView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(friends.enumerated()), id: \.element.id) { index, friend in
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle().fill(Color.green.opacity(0.15)).frame(width: 40, height: 40)
-                            Text(makeInitials(friend.name ?? "?"))
-                                .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.green)
+                    Button { selectedProfileUserId = friend.id } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color.green.opacity(0.15)).frame(width: 40, height: 40)
+                                Text(makeInitials(friend.name ?? "?"))
+                                    .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.green)
+                            }
+                            Text(friend.name ?? "Unknown")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                            Spacer()
                         }
-                        Text(friend.name ?? "Unknown")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
+                        .padding(.horizontal, 14).padding(.vertical, 10)
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .buttonStyle(.plain)
                     .contextMenu {
                         Button(role: .destructive) {
                             friendToRemove = friend
@@ -270,7 +351,16 @@ struct FriendsView: View {
                 let entries = buildLeaderboardEntries()
                 VStack(spacing: 0) {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        LeaderboardEntryRow(rank: index + 1, entry: entry, isCurrentUser: entry.id == userId)
+                        Button {
+                            if entry.id == userId {
+                                showMyProfile = true
+                            } else {
+                                selectedProfileUserId = entry.id
+                            }
+                        } label: {
+                            LeaderboardEntryRow(rank: index + 1, entry: entry, isCurrentUser: entry.id == userId)
+                        }
+                        .buttonStyle(.plain)
                         if index < entries.count - 1 { Divider().padding(.leading, 70) }
                     }
                 }

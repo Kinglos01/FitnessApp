@@ -45,24 +45,27 @@ final class DailyLogService {
         return f
     }()
 
-    // MARK: - Upsert today's log
+    // MARK: - Upsert today's log (partial update)
+    /// Pass only the values you want to change; nil fields keep their existing value.
     func upsertLog(
         userId: String,
         date: Date = Date(),
-        waterConsumed: Int,
-        waterGoal: Int,
-        caloriesEaten: Double,
-        caloriesBurned: Int,
-        workoutsCompleted: Int
+        waterConsumed: Int? = nil,
+        waterGoal: Int? = nil,
+        caloriesEaten: Double? = nil,
+        caloriesBurned: Int? = nil,
+        workoutsCompleted: Int? = nil
     ) async throws {
+        let existing = try? await fetchLog(userId: userId, date: date)
+
         let log = DailyLog(
             user_id: userId,
             date: dateFormatter.string(from: date),
-            water_consumed: waterConsumed,
-            water_goal: waterGoal,
-            calories_eaten: caloriesEaten,
-            calories_burned: caloriesBurned,
-            workouts_completed: workoutsCompleted
+            water_consumed: waterConsumed ?? existing?.water_consumed ?? 0,
+            water_goal: waterGoal ?? existing?.water_goal ?? 8,
+            calories_eaten: caloriesEaten ?? existing?.calories_eaten ?? 0,
+            calories_burned: caloriesBurned ?? existing?.calories_burned ?? 0,
+            workouts_completed: workoutsCompleted ?? existing?.workouts_completed ?? 0
         )
 
         try await supabase
@@ -82,6 +85,11 @@ final class DailyLogService {
             .execute()
             .value
         return response.first
+    }
+
+    // MARK: - Fetch today's log (convenience)
+    func fetchTodayLog(userId: String) async throws -> DailyLogResponse? {
+        return try await fetchLog(userId: userId, date: Date())
     }
 
     // MARK: - Fetch date range (for calendar)
