@@ -237,6 +237,7 @@ struct ChatThreadView: View {
     @State private var messages: [DirectMessageRow] = []
     @State private var messageText: String = ""
     @State private var isLoading: Bool = true
+    @State private var showFriendProfile: Bool = false
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -294,9 +295,21 @@ struct ChatThreadView: View {
             .navigationTitle(friendName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showFriendProfile = true
+                    } label: {
+                        Image(systemName: "person.circle")
+                            .font(.system(size: 18))
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showFriendProfile) {
+                SocialProfileView(userId: friendId, isCurrentUser: false)
+                    .environment(appState)
             }
         }
         .onAppear { loadThread() }

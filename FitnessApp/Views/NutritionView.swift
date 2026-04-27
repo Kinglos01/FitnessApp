@@ -59,7 +59,6 @@ struct NutritionView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
                         summaryCard
-                        activityAndGoalSection
                         searchBar
                         quickAddSection
                         if !foods.isEmpty { resultsSection }
@@ -92,6 +91,9 @@ struct NutritionView: View {
                 userId: appState.currentUser?.id ?? "guest",
                 user: appState.currentUser
             )
+        }
+        .task {
+            await nutritionManager.loadFromSupabase()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             nutritionManager.reloadBurnedCalories()
@@ -185,49 +187,10 @@ struct NutritionView: View {
         .cornerRadius(20)
     }
 
-    // MARK: - Goal Picker
-    private var activityAndGoalSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Goal").font(.headline).foregroundColor(.brandCream)
-            Text("To permanently change your nutrition goals, go to settings.")
-                .font(.caption)
-                .foregroundColor(Color.brandCream.opacity(0.4))
-                .padding(.top, 4)
-                .padding(.bottom, 2)
-
-            HStack(spacing: 10) {
-                ForEach(NutritionGoal.allCases, id: \.self) { g in
-                    Button { nutritionManager.setGoal(g) } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: g.icon).font(.system(size: 18))
-                            Text(g.rawValue).font(.caption).multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(nutritionManager.goal == g ? g.color.opacity(0.18) : Color.brandCream.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(nutritionManager.goal == g ? g.color : Color.brandCream.opacity(0.12), lineWidth: 1.5)
-                        )
-                        .foregroundColor(nutritionManager.goal == g ? g.color : Color.brandCream.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding()
-        .background(Color.brandCream.opacity(0.06))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
-        .cornerRadius(20)
-    }
-
     // MARK: - Search
     private var searchBar: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Search USDA Foods").font(.headline).foregroundColor(.brandCream)
+            Text("Add Food").font(.headline).foregroundColor(.brandCream)
             HStack {
                 Image(systemName: "magnifyingglass").foregroundColor(Color.brandCream.opacity(0.4))
                 TextField("", text: $searchText)

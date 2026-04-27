@@ -2,12 +2,12 @@
 //  NutritionService.swift
 //  FitnessApp
 //
-//  Created by Nelson Mojica on 2/19/26.
-//
 
 import Foundation
 import Observation
+
 // MARK: - Models
+
 struct FoodSearchResponse: Codable {
     let foods: [FoodItem]
 }
@@ -16,9 +16,9 @@ struct FoodItem: Codable, Identifiable {
     let fdcId: Int
     let description: String
     let foodNutrients: [FoodNutrient]
-    
+
     var id: Int { fdcId }
-    
+
     var calories: Double {
         foodNutrients.first(where: { $0.nutrientId == 1008 })?.value ?? 0
     }
@@ -39,19 +39,20 @@ struct FoodNutrient: Codable {
 }
 
 // MARK: - Service
+
 @Observable
 class NutritionService {
     var results: [FoodItem] = []
-    
-    private let apiKey = "HdRfDu2ymMMFIg8hAhEPB2WHWnFNdKx9QzAQNBLV"
+
+    private let apiKey = "jlo70WgRLc1hM2DgZiBg4IuSKHb7G4I5o1NVMOat"
     private let baseURL = "https://api.nal.usda.gov/fdc/v1"
-    
+
     func searchFoods(query: String) async throws -> [FoodItem] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
         let urlString = "\(baseURL)/foods/search?query=\(encoded)&api_key=\(apiKey)&pageSize=20"
-        
+
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
-        
+
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(FoodSearchResponse.self, from: data)
         return response.foods
