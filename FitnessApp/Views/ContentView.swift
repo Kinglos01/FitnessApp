@@ -2,13 +2,13 @@ import SwiftUI
 
 // MARK: - Brand Colors
 extension Color {
-    static let brandNavy      = Color(hex: "000411")
-    static let brandLime      = Color(hex: "DBFE87")
-    static let brandOrange    = Color(hex: "D74E09")
-    static let brandBlue      = Color(hex: "48ACF0")
-    static let brandCream     = Color(hex: "E9EDDE")
+    static var brandNavy:  Color { ThemeManager.shared.current.navy   }
+    static var brandLime:  Color { ThemeManager.shared.current.lime   }
+    static var brandOrange: Color { ThemeManager.shared.current.orange }
+    static var brandBlue:  Color { ThemeManager.shared.current.blue   }
+    static var brandCream: Color { ThemeManager.shared.current.cream  }
 }
-
+ 
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -20,7 +20,6 @@ extension Color {
         self.init(red: r, green: g, blue: b)
     }
 }
-
 // MARK: - Styled Text Field
 struct BrandTextField: View {
     let placeholder: String

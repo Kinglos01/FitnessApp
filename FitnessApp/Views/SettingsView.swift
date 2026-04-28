@@ -29,6 +29,7 @@ struct SettingsView: View {
 
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) var dismiss
+    @Environment(ThemeManager.self) var themeManager
 
     @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
@@ -378,28 +379,88 @@ struct SettingsView: View {
         )
         return "\(macros.protein)g · \(macros.carbs)g · \(macros.fat)g"
     }
-
+    
     // MARK: - Display Section
 
     private var displaySection: some View {
         sectionBlock(label: "DISPLAY") {
             VStack(spacing: 0) {
+                themePickerRow
+                sectionDivider
+                settingsRow(icon: "calendar", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
+                sectionDivider
                 settingsRow(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
-                sectionDivider
-                settingsRow(icon: "moon.fill", iconColor: displayIconColor, label: "Appearance", value: appearance, action: { showAppearanceDialog = true })
-                sectionDivider
-                settingsRow(
-                    icon: "envelope.fill",
-                    iconColor: displayIconColor,
-                    label: "Show Email on Profile",
-                    subtitle: showEmailOnProfile ? "Visible on profile page" : "Hidden on profile page",
-                    showChevron: false,
-                    toggle: $showEmailOnProfile
-                )
-                sectionDivider
-                settingsRow(icon: "calendar.badge.clock", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
             }
         }
+    }
+
+    // MARK: - Theme Section
+    
+    private var themePickerRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color(hex: "A082FF").opacity(0.12))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "paintpalette.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(hex: "A082FF"))
+                }
+                Text("Theme")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.brandCream)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 11)
+     
+            HStack(spacing: 8) {
+                ForEach(AppTheme.allCases, id: \.self) { theme in
+                    themeOption(theme)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+        }
+    }
+     
+    private func themeOption(_ theme: AppTheme) -> some View {
+        let isSelected = themeManager.current == theme
+        return Button {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                themeManager.current = theme
+            }
+        } label: {
+            VStack(spacing: 8) {
+                // Mini preview swatch
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(theme.navy)
+                        .frame(height: 44)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(isSelected ? theme.lime : Color.clear, lineWidth: 2)
+                        )
+     
+                    HStack(spacing: 4) {
+                        Circle().fill(theme.lime).frame(width: 8, height: 8)
+                        Circle().fill(theme.orange).frame(width: 8, height: 8)
+                        Circle().fill(theme.blue).frame(width: 8, height: 8)
+                    }
+                }
+     
+                HStack(spacing: 4) {
+                    Image(systemName: theme.icon)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(theme.displayName)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                }
+                .foregroundColor(isSelected ? .brandLime : Color.brandCream.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Notifications Section

@@ -146,6 +146,8 @@ struct CalendarView: View {
     private let columns         = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
     private let weekDayInitials = ["M", "T", "W", "T", "F", "S", "S"]
 
+    private var today: Date { Calendar.current.startOfDay(for: Date()) }
+
     private var days: [Date] {
         let cal = Calendar.current
         var comps = DateComponents(year: 2026, month: 1, day: 1)
@@ -166,14 +168,25 @@ struct CalendarView: View {
         NavigationView {
             ZStack {
                 Color.brandNavy.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        legend
-                        calendarGrid
-                        Spacer(minLength: 40)
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            legend
+                            calendarGrid
+                            Spacer(minLength: 40)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .onAppear {
+                        loadData()
+                        // Small delay lets the grid render before scrolling
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation {
+                                proxy.scrollTo(today, anchor: .center)
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("Calendar")
@@ -181,7 +194,6 @@ struct CalendarView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color.brandNavy, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .onAppear { loadData() }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 engine.reload()
             }
@@ -200,9 +212,10 @@ struct CalendarView: View {
     }
 
     // MARK: - Legend
+
     private var legend: some View {
         HStack(spacing: 14) {
-            legendItem(color: .brandLime,  label: "Activity")
+            legendItem(color: .brandLime,   label: "Activity")
             legendItem(color: .brandOrange, label: "Nutrition")
             legendItem(color: .brandBlue,   label: "Water")
             Spacer()
@@ -279,6 +292,7 @@ struct CalendarView: View {
                 }
                 ForEach(days, id: \.self) { date in
                     DayCell(snapshot: engine.snapshots[date], date: date)
+                        .id(date)
                         .onTapGesture {
                             if date <= cal.startOfDay(for: Date()),
                                let snap = engine.snapshots[date] {
