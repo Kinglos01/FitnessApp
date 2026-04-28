@@ -17,6 +17,8 @@ struct MessagesView: View {
     @State private var selectedFriendId: UUID? = nil
     @State private var convoToDelete: ConversationPreview? = nil
     @State private var showDeleteAlert: Bool = false
+    @State private var refreshTimer: Timer? = nil
+    @State private var blockedIds: Set<UUID> = []
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -35,6 +37,8 @@ struct MessagesView: View {
                     messageList
                 }
 
+                GroupChatListView()
+
                 newMessageSection
 
                 Spacer(minLength: 40)
@@ -51,18 +55,29 @@ struct MessagesView: View {
         } message: { convo in
             Text("Delete your entire conversation with \(convo.friendName)? This cannot be undone.")
         }
-        .onAppear { loadData() }
+        .refreshable { loadData(showLoading: false) }
+        .onAppear {
+            loadData(showLoading: true)
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in loadData(showLoading: false) }
+        }
+        .onDisappear {
+            refreshTimer?.invalidate()
+            refreshTimer = nil
+        }
     }
 
     // MARK: - Load Data
 
-    private func loadData() {
+    private func loadData(showLoading: Bool = false) {
         guard let uid = userId else { return }
-        isLoading = true
+        if showLoading { isLoading = true }
         Task {
             do {
+                let blocked = try await BlockService.shared.fetchBlockedIds(userId: uid)
+                blockedIds = Set(blocked)
                 friends = try await FriendService.shared.fetchFriends(userId: uid)
                 conversations = try await DirectMessageService.shared.fetchConversationPreviews(userId: uid, friendProfiles: friends)
+                conversations = conversations.filter { !blockedIds.contains($0.id) }
             } catch {
                 print("❌ MessagesView load error: \(error)")
             }
@@ -93,6 +108,12 @@ struct MessagesView: View {
             Text("Direct Messages")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
             Spacer()
+            if !conversations.isEmpty {
+                Text("\(conversations.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.blue).padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.12)).clipShape(Capsule())
+            }
         }.padding(.horizontal, 16)
     }
 
@@ -100,9 +121,9 @@ struct MessagesView: View {
 
     private var emptyState: some View {
         VStack(spacing: 14) {
-            Image(systemName: "bubble.left").font(.system(size: 42)).foregroundColor(.gray.opacity(0.3))
+            Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 48)).foregroundColor(.gray.opacity(0.3))
             Text("No messages yet").font(.system(size: 16, weight: .semibold, design: .rounded)).foregroundColor(.secondary)
-            Text("Start a conversation with a friend below")
+            Text("Start a conversation with a friend")
                 .font(.system(size: 13, design: .rounded)).foregroundColor(.gray)
         }.frame(maxWidth: .infinity).padding(.vertical, 50)
     }
@@ -137,7 +158,7 @@ struct MessagesView: View {
     private var newMessageSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: "plus.bubble.fill").font(.system(size: 13)).foregroundColor(.blue)
+                Image(systemName: "plus.bubble.fill").font(.system(size: 13)).foregroundColor(.brandLime)
                 Text("Start a Conversation").font(.system(size: 15, weight: .bold, design: .rounded))
                 Spacer()
             }.padding(.horizontal, 16)
@@ -150,27 +171,27 @@ struct MessagesView: View {
                     .font(.system(size: 13, design: .rounded)).foregroundColor(.secondary)
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(availableFriends.enumerated()), id: \.element.id) { index, friend in
-                        Button { selectedFriendId = friend.id } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle().fill(Color.blue.opacity(0.15)).frame(width: 36, height: 36)
-                                    Text(makeInitials(friend.name ?? "?"))
-                                        .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundColor(.blue)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(availableFriends) { friend in
+                            Button { selectedFriendId = friend.id } label: {
+                                HStack(spacing: 8) {
+                                    ZStack {
+                                        Circle().fill(Color.brandLime.opacity(0.15)).frame(width: 30, height: 30)
+                                        Text(makeInitials(friend.name ?? "?"))
+                                            .font(.system(size: 11, weight: .bold, design: .rounded)).foregroundColor(.brandLime)
+                                    }
+                                    Text(friend.name ?? "Unknown")
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundColor(.primary)
                                 }
-                                Text(friend.name ?? "Unknown")
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundColor(.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary)
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                        }.buttonStyle(.plain)
-                        if index < availableFriends.count - 1 { Divider().padding(.leading, 60) }
-                    }
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(Color(.systemGray6))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Color.brandLime.opacity(0.3), lineWidth: 1))
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.horizontal, 16)
                 }
-                .background(Color(.systemGray6)).cornerRadius(14).padding(.horizontal, 16)
             }
         }
     }
@@ -187,27 +208,35 @@ struct MessagesView: View {
 struct ConversationRow: View {
     let convo: ConversationPreview
 
+    private var hasUnread: Bool { convo.unreadCount > 0 }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
+            // Unread indicator dot
+            Circle()
+                .fill(hasUnread ? Color.blue : Color.clear)
+                .frame(width: 8, height: 8)
+
             ZStack {
                 Circle().fill(Color.blue.opacity(0.15)).frame(width: 44, height: 44)
                 Text(makeInitials(convo.friendName))
                     .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.blue)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(convo.friendName).font(.system(size: 15, weight: .semibold, design: .rounded))
+                Text(convo.friendName)
+                    .font(.system(size: 15, weight: hasUnread ? .bold : .semibold, design: .rounded))
                 Text(convo.lastMessage).font(.system(size: 13, design: .rounded)).foregroundColor(.secondary).lineLimit(1)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
                 Text(timeAgo(convo.lastMessageDate)).font(.system(size: 12, design: .rounded)).foregroundColor(.gray)
-                if convo.unreadCount > 0 {
+                if hasUnread {
                     Text("\(convo.unreadCount)")
                         .font(.system(size: 11, weight: .bold, design: .rounded)).foregroundColor(.white)
                         .frame(minWidth: 20, minHeight: 20).background(Color.blue).clipShape(Circle())
                 }
             }
-        }.padding(.horizontal, 14).padding(.vertical, 12)
+        }.padding(.horizontal, 14).padding(.vertical, 14)
     }
 
     private func makeInitials(_ name: String) -> String {
