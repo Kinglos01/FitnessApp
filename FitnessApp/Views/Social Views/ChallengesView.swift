@@ -20,8 +20,24 @@ struct ChallengesView: View {
     @State private var creatorNames: [UUID: String] = [:]
     @State private var challengeToDelete: ChallengeRow? = nil
     @State private var showDeleteAlert: Bool = false
+    @State private var refreshTimer: Timer? = nil
+    @State private var blockedIds: Set<UUID> = []
 
     private var userId: UUID? { UUID(uuidString: appState.currentUser?.id ?? "") }
+
+    private var activeChallenges: [ChallengeRow] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
+        return challenges.filter { $0.end_date >= today }
+    }
+
+    private var pastChallenges: [ChallengeRow] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
+        return challenges.filter { $0.end_date < today }
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -30,14 +46,14 @@ struct ChallengesView: View {
 
                 if isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 30)
-                } else if challenges.isEmpty {
+                } else if activeChallenges.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "trophy").font(.system(size: 36)).foregroundColor(.gray.opacity(0.4))
                         Text("No active challenges").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundColor(.secondary)
                         Text("Create one and invite your friends").font(.system(size: 13)).foregroundColor(.gray)
                     }.frame(maxWidth: .infinity).padding(.vertical, 40)
                 } else {
-                    ForEach(challenges) { challenge in
+                    ForEach(activeChallenges) { challenge in
                         ChallengeCardLive(
                             challenge: challenge,
                             progress: myProgress[challenge.id],
@@ -56,6 +72,10 @@ struct ChallengesView: View {
                     }.padding(.horizontal, 16)
                 }
 
+                if !pastChallenges.isEmpty {
+                    pastChallengesSection
+                }
+
                 discoverSection
 
                 createButton
@@ -68,17 +88,27 @@ struct ChallengesView: View {
         } message: { challenge in
             Text("Are you sure you want to delete \"\(challenge.title)\"? This cannot be undone.")
         }
-        .sheet(isPresented: $showCreateSheet, onDismiss: { loadData() }) {
+        .sheet(isPresented: $showCreateSheet, onDismiss: { loadData(showLoading: false) }) {
             CreateChallengeSheet().environment(appState)
         }
-        .onAppear { loadData() }
+        .refreshable { loadData(showLoading: false) }
+        .onAppear {
+            loadData(showLoading: true)
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in loadData(showLoading: false) }
+        }
+        .onDisappear {
+            refreshTimer?.invalidate()
+            refreshTimer = nil
+        }
     }
 
-    private func loadData() {
+    private func loadData(showLoading: Bool = false) {
         guard let uid = userId else { return }
-        isLoading = true
+        if showLoading { isLoading = true }
         Task {
             do {
+                let blocked = try await BlockService.shared.fetchBlockedIds(userId: uid)
+                blockedIds = Set(blocked)
                 challenges = try await ChallengeService.shared.fetchMyChallenges(userId: uid)
                 for challenge in challenges {
                     let progress = try await ChallengeService.shared.fetchMyProgress(challengeId: challenge.id, userId: uid)
@@ -90,7 +120,10 @@ struct ChallengesView: View {
                 // Fetch all challenges and filter out ones the user already joined
                 let allChallenges = try await ChallengeService.shared.fetchAllChallenges()
                 let myIds = Set(challenges.map { $0.id })
-                discoverChallenges = allChallenges.filter { !myIds.contains($0.id) }
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let todayString = dateFormatter.string(from: Date())
+                discoverChallenges = allChallenges.filter { !myIds.contains($0.id) && $0.end_date >= todayString && !blockedIds.contains($0.creator_id) }
 
                 // Fetch participant counts and creator names for discoverable challenges
                 for challenge in discoverChallenges {
@@ -113,6 +146,26 @@ struct ChallengesView: View {
             Text("Active Challenges").font(.system(size: 15, weight: .bold, design: .rounded))
             Spacer()
         }.padding(.horizontal, 16)
+    }
+
+    // MARK: - Past Challenges Section
+
+    private var pastChallengesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath").font(.system(size: 14)).foregroundColor(.gray)
+                Text("Past Challenges").font(.system(size: 15, weight: .bold, design: .rounded))
+                Spacer()
+            }.padding(.horizontal, 16)
+
+            ForEach(pastChallenges) { challenge in
+                ChallengeCardLive(
+                    challenge: challenge,
+                    progress: myProgress[challenge.id],
+                    participantCount: participantCounts[challenge.id] ?? 0
+                )
+            }.padding(.horizontal, 16)
+        }
     }
 
     // MARK: - Discover Section
@@ -208,11 +261,17 @@ struct ChallengeCardLive: View {
             HStack {
                 Text(challenge.title).font(.system(size: 15, weight: .bold, design: .rounded))
                 Spacer()
-                Text("\(daysLeft)d left")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
-                    .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
+                if daysLeft == 0 {
+                    Text("Ended")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(.gray)
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.12)).clipShape(Capsule())
+                } else {
+                    Text("\(daysLeft)d left")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
+                }
             }
-            Text("\(participantCount) participants \u{00B7} \(challenge.goal_type)")
+            Text("\(participantCount) participants \u{00B7} \(formattedGoalType)")
                 .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
 
             VStack(spacing: 4) {
@@ -232,6 +291,11 @@ struct ChallengeCardLive: View {
             }
         }
         .padding(14).background(Color(.systemGray6)).cornerRadius(14)
+        .opacity(daysLeft == 0 ? 0.7 : 1.0)
+    }
+
+    private var formattedGoalType: String {
+        challenge.goal_type.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
     }
 }
 
@@ -259,24 +323,34 @@ struct DiscoverChallengeCard: View {
         }
     }
 
+    private var formattedGoalType: String {
+        challenge.goal_type.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(challenge.title).font(.system(size: 15, weight: .bold, design: .rounded))
                 Spacer()
-                Text("\(daysLeft)d left")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
-                    .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
+                if daysLeft == 0 {
+                    Text("Ended")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(.gray)
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.12)).clipShape(Capsule())
+                } else {
+                    Text("\(daysLeft)d left")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
+                }
             }
             HStack(spacing: 4) {
                 Text("by \(creatorName)").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
                 Text("\u{00B7}").foregroundColor(.secondary)
                 Text("\(participantCount) participants").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
                 Text("\u{00B7}").foregroundColor(.secondary)
-                Text(challenge.goal_type).font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                Text(formattedGoalType).font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
             }
             HStack {
-                Text("Target: \(challenge.target_value) \(challenge.goal_type)")
+                Text("Target: \(challenge.target_value) \(formattedGoalType)")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundColor(challengeColor)
                 Spacer()
                 Button { onJoin() } label: {
@@ -284,8 +358,9 @@ struct DiscoverChallengeCard: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16).padding(.vertical, 7)
-                        .background(challengeColor).clipShape(Capsule())
+                        .background(daysLeft == 0 ? Color.gray : challengeColor).clipShape(Capsule())
                 }
+                .disabled(daysLeft == 0)
             }
         }
         .padding(14).background(Color(.systemGray6)).cornerRadius(14)

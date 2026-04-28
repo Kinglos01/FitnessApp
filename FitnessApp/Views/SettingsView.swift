@@ -80,7 +80,8 @@ struct SettingsView: View {
     @State private var showCalorieSheet: Bool = false
     @State private var showTargetWeightSheet: Bool = false
     @State private var showMacroSheet: Bool = false
-    
+    @State private var showBlockedUsers: Bool = false
+
     //MARK: achievement
    
 
@@ -241,6 +242,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showAdminPanel) {
                 AdminPanelView().environment(appState)
+            }
+            .sheet(isPresented: $showBlockedUsers) {
+                BlockedUsersView().environment(appState)
             }
             .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
                 Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
@@ -443,6 +447,8 @@ struct SettingsView: View {
     private var accountSection: some View {
         sectionBlock(label: "ACCOUNT") {
             VStack(spacing: 0) {
+                settingsRow(icon: "hand.raised.fill", iconColor: accountIconColor, label: "Blocked Users", action: { showBlockedUsers = true })
+                sectionDivider
                 settingsRow(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
                 sectionDivider
                 settingsRow(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
@@ -1208,6 +1214,139 @@ private struct SheetHeader: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
+    }
+}
+
+// MARK: - Blocked Users View
+
+struct BlockedUsersView: View {
+    @Environment(AppState.self) var appState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var blockedUsers: [(id: UUID, name: String)] = []
+    @State private var isLoading: Bool = true
+    @State private var showUnblockAlert: Bool = false
+    @State private var userToUnblock: (id: UUID, name: String)? = nil
+
+    private var userId: UUID? {
+        UUID(uuidString: appState.currentUser?.id ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+
+                if isLoading {
+                    ProgressView().tint(.brandCream)
+                } else if blockedUsers.isEmpty {
+                    VStack(spacing: 14) {
+                        Image(systemName: "hand.raised.slash")
+                            .font(.system(size: 42))
+                            .foregroundColor(.gray.opacity(0.3))
+                        Text("No blocked users")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.secondary)
+                        Text("Users you block will appear here")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                } else {
+                    List {
+                        ForEach(blockedUsers, id: \.id) { user in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle().fill(Color.red.opacity(0.15)).frame(width: 40, height: 40)
+                                    Text(makeInitials(user.name))
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundColor(.red)
+                                }
+                                Text(user.name)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.brandCream)
+                                Spacer()
+                                Button {
+                                    userToUnblock = user
+                                    showUnblockAlert = true
+                                } label: {
+                                    Text("Unblock")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 14).padding(.vertical, 6)
+                                        .background(Color.red.opacity(0.8))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            .listRowBackground(Color.brandCream.opacity(0.04))
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Blocked Users")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(.brandLime)
+                }
+            }
+            .alert("Unblock User", isPresented: $showUnblockAlert) {
+                Button("Unblock", role: .destructive) {
+                    if let user = userToUnblock {
+                        unblock(user)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let user = userToUnblock {
+                    Text("Unblock \(user.name)? They will be able to find you and send friend requests again.")
+                }
+            }
+            .onAppear { loadBlockedUsers() }
+        }
+    }
+
+    private func loadBlockedUsers() {
+        guard let uid = userId else { return }
+        isLoading = true
+        Task {
+            do {
+                let blockedIds = try await BlockService.shared.fetchBlockedIds(userId: uid)
+                var users: [(id: UUID, name: String)] = []
+                for blockedId in blockedIds {
+                    if let profile = try? await ProfileService.shared.fetchProfile(userId: blockedId.uuidString) {
+                        users.append((id: blockedId, name: profile.name))
+                    } else {
+                        users.append((id: blockedId, name: "Unknown User"))
+                    }
+                }
+                blockedUsers = users
+            } catch {
+                print("Failed to load blocked users: \(error)")
+            }
+            isLoading = false
+        }
+    }
+
+    private func unblock(_ user: (id: UUID, name: String)) {
+        guard let uid = userId else { return }
+        Task {
+            do {
+                try await BlockService.shared.unblockUser(blockerId: uid, blockedId: user.id)
+                blockedUsers.removeAll { $0.id == user.id }
+            } catch {
+                print("Unblock error: \(error)")
+            }
+        }
+    }
+
+    private func makeInitials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        let f = parts.first?.prefix(1) ?? ""
+        let l = parts.count > 1 ? parts.last!.prefix(1) : ""
+        return "\(f)\(l)".uppercased()
     }
 }
 

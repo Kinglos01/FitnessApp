@@ -29,6 +29,12 @@ struct FriendsView: View {
     @State private var myBio: String?
     @State private var mySocialLabel: String?
     @State private var selectedProfileUserId: UUID? = nil
+    @State private var refreshTimer: Timer? = nil
+    @State private var blockedIds: Set<UUID> = []
+    @State private var showReportSheet: Bool = false
+    @State private var userToReport: UserSearchResult? = nil
+    @State private var reportReason: String = ""
+    @State private var alreadyReported: Bool = false
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -73,43 +79,74 @@ struct FriendsView: View {
             SocialProfileView(userId: profileId, isCurrentUser: profileId == userId)
                 .environment(appState)
         }
-        .onAppear { loadData() }
+        .sheet(isPresented: $showReportSheet) {
+            ReportUserSheet(
+                user: userToReport,
+                alreadyReported: alreadyReported,
+                onSubmit: { reason in submitReport(reason: reason) }
+            )
+        }
+        .refreshable { loadData(showLoading: false) }
+        .onAppear {
+            loadData(showLoading: true)
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in loadData(showLoading: false) }
+        }
+        .onDisappear {
+            refreshTimer?.invalidate()
+            refreshTimer = nil
+        }
     }
 
     // MARK: - Your Profile Card
 
     private var yourProfileCard: some View {
         Button { showMyProfile = true } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.brandLime.opacity(0.15))
-                        .frame(width: 44, height: 44)
-                    Text(makeInitials(appState.currentUser?.name ?? "?"))
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(.brandLime)
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                LinearGradient(colors: [.brandLime, .green], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 2.5
+                            )
+                            .frame(width: 50, height: 50)
+                        Circle()
+                            .fill(Color.brandLime.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Text(makeInitials(appState.currentUser?.name ?? "?"))
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(.brandLime)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(appState.currentUser?.name ?? "Your Profile")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(.brandCream)
+                        Text(mySocialLabel ?? "Set your label")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(.brandLime)
+                        Text(myBio?.components(separatedBy: "\n").first ?? "Add a bio")
+                            .font(.system(size: 14, design: .rounded))
+                            .foregroundColor(Color.brandCream.opacity(0.5))
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color.brandCream.opacity(0.3))
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(appState.currentUser?.name ?? "Your Profile")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.brandCream)
-                    Text(mySocialLabel ?? "Set your label")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(Color.brandCream.opacity(0.5))
-                    Text(myBio?.components(separatedBy: "\n").first ?? "Add a bio")
-                        .font(.system(size: 12, design: .rounded))
-                        .foregroundColor(Color.brandCream.opacity(0.4))
-                        .lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color.brandCream.opacity(0.3))
+                .padding(14)
+
+                // Bottom accent line
+                LinearGradient(colors: [.brandLime, .green], startPoint: .leading, endPoint: .trailing)
+                    .frame(height: 2)
+                    .clipShape(RoundedRectangle(cornerRadius: 1))
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 4)
             }
-            .padding(14)
             .background(Color.brandNavy)
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
             .cornerRadius(14)
+            .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
@@ -117,12 +154,15 @@ struct FriendsView: View {
 
     // MARK: - Load Data
 
-    private func loadData() {
+    private func loadData(showLoading: Bool = false) {
         guard let uid = userId else { return }
-        isLoading = true
+        if showLoading { isLoading = true }
         Task {
             do {
+                let blocked = try await BlockService.shared.fetchBlockedIds(userId: uid)
+                blockedIds = Set(blocked)
                 friends = try await FriendService.shared.fetchFriends(userId: uid)
+                friends = friends.filter { !blockedIds.contains($0.id) }
                 pendingIncoming = try await FriendService.shared.fetchPendingRequests(userId: uid)
                 let allRows: [FriendshipRow] = try await supabase
                     .from("friendships")
@@ -211,6 +251,11 @@ struct FriendsView: View {
         .padding(12)
         .background(Color(.systemGray6))
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 2)
         .padding(.horizontal, 16)
     }
 
@@ -221,7 +266,7 @@ struct FriendsView: View {
             do {
                 let results = try await FriendService.shared.searchUsers(query: query)
                 let friendIds = Set(friends.map { $0.id })
-                searchResults = results.filter { $0.id != userId && !friendIds.contains($0.id) }
+                searchResults = results.filter { $0.id != userId && !friendIds.contains($0.id) && !blockedIds.contains($0.id) }
             } catch { print("❌ Search error: \(error)") }
             isSearching = false
         }
@@ -248,6 +293,13 @@ struct FriendsView: View {
                     ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, user in
                         SearchResultRow(user: user, alreadySent: pendingSentIds.contains(user.id.uuidString)) {
                             sendRequest(to: user)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                openReportSheet(for: user)
+                            } label: {
+                                Label("Report User", systemImage: "exclamationmark.triangle")
+                            }
                         }
                         if index < searchResults.count - 1 { Divider().padding(.leading, 60) }
                     }
@@ -299,17 +351,24 @@ struct FriendsView: View {
                 ForEach(Array(friends.enumerated()), id: \.element.id) { index, friend in
                     Button { selectedProfileUserId = friend.id } label: {
                         HStack(spacing: 12) {
-                            ZStack {
-                                Circle().fill(Color.green.opacity(0.15)).frame(width: 40, height: 40)
-                                Text(makeInitials(friend.name ?? "?"))
-                                    .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.green)
+                            ZStack(alignment: .bottomTrailing) {
+                                ZStack {
+                                    Circle().fill(Color.green.opacity(0.15)).frame(width: 44, height: 44)
+                                    Text(makeInitials(friend.name ?? "?"))
+                                        .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.green)
+                                }
+                                // Online indicator dot (decorative)
+                                Circle().fill(Color.green)
+                                    .frame(width: 10, height: 10)
+                                    .overlay(Circle().stroke(Color(.systemGray6), lineWidth: 2))
+                                    .offset(x: 1, y: 1)
                             }
                             Text(friend.name ?? "Unknown")
                                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                                 .foregroundColor(.primary)
                             Spacer()
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .padding(.horizontal, 14).padding(.vertical, 14)
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -318,6 +377,16 @@ struct FriendsView: View {
                             showRemoveAlert = true
                         } label: {
                             Label("Remove Friend", systemImage: "person.badge.minus")
+                        }
+                        Button(role: .destructive) {
+                            blockUser(friend)
+                        } label: {
+                            Label("Block User", systemImage: "hand.raised")
+                        }
+                        Button(role: .destructive) {
+                            openReportSheet(for: friend)
+                        } label: {
+                            Label("Report User", systemImage: "exclamationmark.triangle")
                         }
                     }
                     if index < friends.count - 1 { Divider().padding(.leading, 60) }
@@ -364,7 +433,10 @@ struct FriendsView: View {
                         if index < entries.count - 1 { Divider().padding(.leading, 70) }
                     }
                 }
-                .background(Color(.systemGray6)).cornerRadius(14).padding(.horizontal, 16)
+                .background(
+                    LinearGradient(colors: [Color(.systemGray6), Color(.systemGray5).opacity(0.5)], startPoint: .top, endPoint: .bottom)
+                )
+                .cornerRadius(14).padding(.horizontal, 16)
             }
         }
     }
@@ -385,7 +457,8 @@ struct FriendsView: View {
             Color(red: 0.85, green: 0.35, blue: 0.25), .purple, .pink
         ]
         var entries: [LeaderboardEntry] = []
-        for (i, friend) in friends.enumerated() {
+        let filteredFriends = friends.filter { !blockedIds.contains($0.id) }
+        for (i, friend) in filteredFriends.enumerated() {
             let name = friend.name ?? "Unknown"
             entries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, color: colors[i % colors.count]))
         }
@@ -436,6 +509,39 @@ struct FriendsView: View {
         Task {
             do { try await FriendService.shared.declineRequest(friendshipId: request.id); pendingIncoming.removeAll { $0.id == request.id } }
             catch { print("❌ Decline error: \(error)") }
+        }
+    }
+
+    private func openReportSheet(for user: UserSearchResult) {
+        guard let uid = userId else { return }
+        userToReport = user
+        reportReason = ""
+        alreadyReported = false
+        Task {
+            if let reported = try? await ReportService.shared.hasAlreadyReported(reporterId: uid, reportedId: user.id) {
+                alreadyReported = reported
+            }
+            showReportSheet = true
+        }
+    }
+
+    private func submitReport(reason: String) {
+        guard let uid = userId, let target = userToReport else { return }
+        Task {
+            do {
+                try await ReportService.shared.reportUser(reporterId: uid, reportedId: target.id, reason: reason)
+                alreadyReported = true
+            } catch { print("❌ Report error: \(error)") }
+        }
+    }
+
+    private func blockUser(_ friend: UserSearchResult) {
+        guard let uid = userId else { return }
+        Task {
+            do {
+                try await BlockService.shared.blockUser(blockerId: uid, blockedId: friend.id)
+                loadData()
+            } catch { print("❌ Block user error: \(error)") }
         }
     }
 }
@@ -531,9 +637,18 @@ struct LeaderboardEntryRow: View {
     private var rankColor: Color {
         switch rank {
         case 1: return Color(red: 0.85, green: 0.65, blue: 0.13)
-        case 2: return .gray
+        case 2: return Color(red: 0.75, green: 0.75, blue: 0.78)
         case 3: return Color(red: 0.72, green: 0.45, blue: 0.20)
         default: return .secondary
+        }
+    }
+
+    private var rankIcon: String? {
+        switch rank {
+        case 1: return "crown.fill"
+        case 2: return "medal.fill"
+        case 3: return "medal.fill"
+        default: return nil
         }
     }
 
@@ -544,23 +659,159 @@ struct LeaderboardEntryRow: View {
         return .secondary
     }
 
+    private var isFirstPlace: Bool { rank == 1 }
+
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(rank)").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundColor(rankColor).frame(width: 24)
-            ZStack {
-                Circle().fill(entry.color.opacity(0.2)).frame(width: 40, height: 40)
-                Text(entry.initials).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(entry.color)
+            // Rank indicator
+            if let icon = rankIcon {
+                Image(systemName: icon)
+                    .font(.system(size: isFirstPlace ? 18 : 14, weight: .bold))
+                    .foregroundColor(rankColor)
+                    .frame(width: 28)
+            } else {
+                Text("\(rank)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(rankColor)
+                    .frame(width: 28)
             }
+
+            ZStack {
+                Circle().fill(entry.color.opacity(0.2)).frame(width: isFirstPlace ? 46 : 40, height: isFirstPlace ? 46 : 40)
+                Text(entry.initials)
+                    .font(.system(size: isFirstPlace ? 16 : 14, weight: .bold, design: .rounded))
+                    .foregroundColor(entry.color)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
-                Text(isCurrentUser ? "You" : entry.name).font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundColor(isCurrentUser ? .blue : .primary)
-                Text("\(entry.streak)-day streak").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                Text(isCurrentUser ? "You" : entry.name)
+                    .font(.system(size: isFirstPlace ? 16 : 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(isCurrentUser ? .blue : .primary)
+                Text("\(entry.streak)-day streak")
+                    .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
             }
             Spacer()
-            Text("\(entry.streak) \(entry.streak == 1 ? "day" : "days")")
-                .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(streakColor)
-                .padding(.horizontal, 10).padding(.vertical, 5).background(streakColor.opacity(0.12)).clipShape(Capsule())
+            // Streak pill badge
+            HStack(spacing: 4) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("\(entry.streak) \(entry.streak == 1 ? "day" : "days")")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(streakColor)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(streakColor.opacity(0.12))
+            .clipShape(Capsule())
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(isCurrentUser ? Color.blue.opacity(0.05) : Color.clear)
+        .padding(.horizontal, 14).padding(.vertical, isFirstPlace ? 14 : 10)
+        .background(
+            Group {
+                if isFirstPlace {
+                    LinearGradient(
+                        colors: [Color(red: 0.85, green: 0.65, blue: 0.13).opacity(0.1), Color(red: 0.85, green: 0.65, blue: 0.13).opacity(0.02)],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                } else if isCurrentUser {
+                    Color.blue.opacity(0.05)
+                } else {
+                    Color.clear
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Report User Sheet
+
+struct ReportUserSheet: View {
+    let user: UserSearchResult?
+    let alreadyReported: Bool
+    let onSubmit: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedReason: String = "Harassment"
+    @State private var didSubmit: Bool = false
+
+    private let reasons = ["Harassment", "Spam", "Inappropriate Content", "Fake Account", "Other"]
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                if didSubmit {
+                    Spacer()
+                    VStack(spacing: 14) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.green)
+                        Text("Report submitted. Thank you.")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.primary)
+                    }
+                    Spacer()
+                } else if alreadyReported {
+                    Spacer()
+                    VStack(spacing: 14) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.orange)
+                        Text("You've already reported this user")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.primary)
+                    }
+                    Spacer()
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Select a reason")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 16)
+
+                        ForEach(reasons, id: \.self) { reason in
+                            Button {
+                                selectedReason = reason
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: selectedReason == reason ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(selectedReason == reason ? .blue : .secondary)
+                                    Text(reason)
+                                        .font(.system(size: 15, design: .rounded))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 10)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 8)
+
+                    Spacer()
+
+                    Button {
+                        onSubmit(selectedReason)
+                        didSubmit = true
+                    } label: {
+                        Text("Submit Report")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.red)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                }
+            }
+            .navigationTitle("Report \(user?.name ?? "User")")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }

@@ -72,6 +72,8 @@ struct SocialProfileView: View {
     @State private var isLoading: Bool = true
     @State private var errorMessage: String?
     @State private var showEditSheet: Bool = false
+    @State private var unlockedAchievements: [UnlockedAchievement] = []
+    @State private var isLoadingAchievements: Bool = true
 
     // Edit sheet state
     @State private var editBio: String = ""
@@ -79,63 +81,83 @@ struct SocialProfileView: View {
     @State private var isSaving: Bool = false
 
     var body: some View {
-        ZStack {
-            Color.brandNavy.ignoresSafeArea()
+        NavigationView {
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
 
-            if isLoading {
-                ProgressView()
-                    .tint(.brandLime)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let errorMessage {
-                VStack(spacing: 14) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 36))
-                        .foregroundColor(.brandOrange)
-                    Text("Could not load profile")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(.brandCream)
-                    Text(errorMessage)
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundColor(Color.brandCream.opacity(0.5))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        avatarSection
-                        bioSection
-                        statsRow
-
-                        if isCurrentUser {
-                            Button {
-                                editBio = bio ?? ""
-                                editLabel = socialLabel ?? .newbie
-                                showEditSheet = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "pencil")
-                                    Text("Edit Profile")
-                                }
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundColor(.brandNavy)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(Color.brandLime)
-                                .cornerRadius(14)
-                            }
+                if isLoading {
+                    ProgressView()
+                        .tint(.brandLime)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage {
+                    VStack(spacing: 14) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 36))
+                            .foregroundColor(.brandOrange)
+                        Text("Could not load profile")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.brandCream)
+                        Text(errorMessage)
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(Color.brandCream.opacity(0.5))
+                            .multilineTextAlignment(.center)
                             .padding(.horizontal)
-                        }
-
-                        Spacer(minLength: 40)
                     }
-                    .padding(.vertical)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            avatarSection
+                            bioSection
+                            statsRow
+                            achievementsCard
+
+                            if isCurrentUser {
+                                Button {
+                                    editBio = bio ?? ""
+                                    editLabel = socialLabel ?? .newbie
+                                    showEditSheet = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "pencil")
+                                        Text("Edit Profile")
+                                    }
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundColor(.brandNavy)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(Color.brandLime)
+                                    .cornerRadius(14)
+                                }
+                                .padding(.horizontal)
+                            }
+
+                            Spacer(minLength: 40)
+                        }
+                        .padding(.vertical)
+                    }
                 }
             }
-        }
-        .onAppear { fetchProfile() }
-        .sheet(isPresented: $showEditSheet) {
-            editSheet
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { dismiss() } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Back")
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                        }
+                        .foregroundColor(.brandLime)
+                    }
+                }
+            }
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .onAppear { fetchProfile() }
+            .sheet(isPresented: $showEditSheet) {
+                editSheet
+            }
         }
     }
 
@@ -234,6 +256,85 @@ struct SocialProfileView: View {
                 .foregroundColor(Color.brandCream.opacity(0.5))
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Achievements Card
+
+    private var achievementsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "FFB800"))
+                Text("Achievements")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundColor(.brandCream)
+                Spacer()
+                Text("\(unlockedAchievements.count) / \(AchievementDefinition.all.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.brandLime)
+            }
+
+            if isLoadingAchievements {
+                ProgressView()
+                    .tint(.brandLime)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else if unlockedAchievements.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "trophy")
+                        .font(.system(size: 28))
+                        .foregroundColor(.gray.opacity(0.3))
+                    Text("No achievements yet")
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundColor(Color.brandCream.opacity(0.4))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            } else {
+                let resolved = unlockedAchievements.compactMap { unlocked -> (def: AchievementDefinition, unlocked: UnlockedAchievement)? in
+                    guard let def = AchievementDefinition.find(unlocked.id) else { return nil }
+                    return (def, unlocked)
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(resolved.prefix(3), id: \.def.id) { item in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(item.def.tier.ringColor.opacity(0.18))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: item.def.category.icon)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(item.def.tier.ringColor)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.def.title)
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.brandCream)
+                                Text(item.def.description)
+                                    .font(.system(size: 12, design: .rounded))
+                                    .foregroundColor(Color.brandCream.opacity(0.5))
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+
+                if resolved.count > 3 {
+                    Text("+ \(resolved.count - 3) more")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(Color.brandLime.opacity(0.7))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.brandCream.opacity(0.05))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.08), lineWidth: 1))
+        .cornerRadius(16)
+        .padding(.horizontal, 20)
     }
 
     // MARK: - Edit Sheet
@@ -381,13 +482,16 @@ struct SocialProfileView: View {
                     if isCurrentUser {
                         workoutCount = monthCount
                     } else {
-                        // TODO: For non-current users, workout data comes from WorkoutService
-                        // which queries by userId. If RLS restricts access, this may return 0.
-                        // Display the fetched value; it will be 0 if the user lacks read access
-                        // to other users' workouts.
                         workoutCount = monthCount
                     }
                     isLoading = false
+                }
+
+                // Load achievements
+                let fetched = try? await AchievementService.shared.fetchUnlocked(userId: userId.uuidString)
+                await MainActor.run {
+                    unlockedAchievements = fetched ?? []
+                    isLoadingAchievements = false
                 }
             } catch {
                 await MainActor.run {
