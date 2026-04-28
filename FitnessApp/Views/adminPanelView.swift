@@ -260,6 +260,8 @@ struct AdminUserDetailView: View {
     // Daily log editing
     @State private var selectedLog: DailyLogResponse? = nil
     @State private var showEditLog: Bool = false
+    @State private var showCreateLog: Bool = false
+    @State private var newLogDate: Date = Date()
 
     // Workout editing
     @State private var showAddWorkout: Bool = false
@@ -326,6 +328,9 @@ struct AdminUserDetailView: View {
             AdminAddWorkoutSheet(userId: profile.id, existing: workout) { entry in
                 Task { await saveWorkout(entry) }
             }
+        }
+        .sheet(isPresented: $showCreateLog) {
+            createLogSheet
         }
     }
 
@@ -425,14 +430,25 @@ struct AdminUserDetailView: View {
 
     private var dailyLogSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Daily Logs")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Color.brandCream.opacity(0.55))
-                .textCase(.uppercase)
-                .tracking(1.2)
+            HStack {
+                Text("Daily Logs")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Color.brandCream.opacity(0.55))
+                    .textCase(.uppercase)
+                    .tracking(1.2)
+                Spacer()
+                Button {
+                    newLogDate = Date()
+                    showCreateLog = true
+                } label: {
+                    Label("Add Day", systemImage: "plus.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.brandLime)
+                }
+            }
 
             if dailyLogs.isEmpty {
-                emptyState(message: "No daily logs found for this user.")
+                emptyState(message: "No daily logs found. Tap Add Day to create one.")
             } else {
                 VStack(spacing: 8) {
                     ForEach(dailyLogs.sorted { $0.date > $1.date }) { log in
@@ -651,6 +667,67 @@ struct AdminUserDetailView: View {
             await MainActor.run { workouts.removeAll { $0.id == entry.id } }
         } catch {
             await MainActor.run { errorMessage = "Failed to delete workout." }
+        }
+    }
+    
+    private var createLogSheet: some View {
+        ZStack {
+            Color.brandNavy.ignoresSafeArea()
+            VStack(spacing: 24) {
+                HStack {
+                    Button("Cancel") { showCreateLog = false }
+                        .foregroundColor(Color.brandCream.opacity(0.6))
+                    Spacer()
+                    Text("Create Daily Log")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.brandCream)
+                    Spacer()
+                    Button("Create") { Task { await createBlankLog() } }
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.brandLime)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+
+                Text("Select a date to create a blank log you can then edit.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.brandCream.opacity(0.5))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+
+                DatePicker("", selection: $newLogDate, in: ...Date(), displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .colorScheme(.dark)
+                    .frame(height: 150).clipped()
+
+                Spacer()
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func createBlankLog() async {
+        do {
+            try await DailyLogService.shared.upsertLog(
+                userId: profile.id,
+                date: newLogDate,
+                waterConsumed: 0,
+                waterGoal: 8,
+                caloriesEaten: 0,
+                caloriesBurned: 0,
+                workoutsCompleted: 0
+            )
+            if let log = try? await DailyLogService.shared.fetchLog(userId: profile.id, date: newLogDate) {
+                await MainActor.run {
+                    if !dailyLogs.contains(where: { $0.date == log.date }) {
+                        dailyLogs.append(log)
+                    }
+                    showCreateLog = false
+                }
+            }
+        } catch {
+            await MainActor.run { errorMessage = "Failed to create log." }
         }
     }
 }
@@ -1074,7 +1151,7 @@ struct AdminAddWorkoutSheet: View {
             caloriesBurned: Int(calories) ?? 0,
             notes:          notes,
             date:           date,
-            completedDates: existing?.completedDates ?? []
+            completedDates: isCompleted ? (existing?.completedDates ?? [date]) : (existing?.completedDates ?? [])
         )
         onSave(entry)
         dismiss()
