@@ -44,12 +44,12 @@ private struct SocialProfileRow: Codable {
     let name: String?
     let bio: String?
     let social_label: String?
+    let profile_image_url: String?
 }
 
 // MARK: - Supabase update payload
 
 private struct SocialProfileUpdate: Codable {
-    let bio: String?
     let social_label: String?
 }
 
@@ -74,9 +74,9 @@ struct SocialProfileView: View {
     @State private var showEditSheet: Bool = false
     @State private var unlockedAchievements: [UnlockedAchievement] = []
     @State private var isLoadingAchievements: Bool = true
+    @State private var profileImageUrl: String? = nil
 
     // Edit sheet state
-    @State private var editBio: String = ""
     @State private var editLabel: SocialLabel = .newbie
     @State private var isSaving: Bool = false
 
@@ -113,7 +113,6 @@ struct SocialProfileView: View {
 
                             if isCurrentUser {
                                 Button {
-                                    editBio = bio ?? ""
                                     editLabel = socialLabel ?? .newbie
                                     showEditSheet = true
                                 } label: {
@@ -165,13 +164,28 @@ struct SocialProfileView: View {
 
     private var avatarSection: some View {
         VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.brandLime.opacity(0.15))
-                    .frame(width: 80, height: 80)
-                Text(makeInitials(name))
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.brandLime)
+            if let urlString = profileImageUrl, !urlString.isEmpty {
+                AsyncImage(url: URL(string: urlString)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        Text(makeInitials(name))
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.brandLime)
+                    }
+                }
+                .frame(width: 80, height: 80)
+                .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color.brandLime.opacity(0.15))
+                        .frame(width: 80, height: 80)
+                    Text(makeInitials(name))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandLime)
+                }
             }
 
             Text(name)
@@ -383,24 +397,6 @@ struct SocialProfileView: View {
                 }
                 .padding(.horizontal)
 
-                // Bio editor
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Bio")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color.brandCream.opacity(0.5))
-
-                    TextEditor(text: $editBio)
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundColor(.brandCream)
-                        .scrollContentBackground(.hidden)
-                        .padding(10)
-                        .frame(minHeight: 100)
-                        .background(Color.brandCream.opacity(0.06))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-
                 // Save button
                 Button {
                     saveProfile()
@@ -438,7 +434,7 @@ struct SocialProfileView: View {
             do {
                 let row: SocialProfileRow = try await supabase
                     .from("profiles")
-                    .select("id, name, bio, social_label")
+                    .select("id, name, bio, social_label, profile_image_url")
                     .eq("id", value: userId.uuidString)
                     .single()
                     .execute()
@@ -447,6 +443,7 @@ struct SocialProfileView: View {
                 await MainActor.run {
                     name = row.name ?? "Unknown"
                     bio = row.bio
+                    profileImageUrl = row.profile_image_url
                     if let labelStr = row.social_label {
                         socialLabel = SocialLabel(rawValue: labelStr)
                     }
@@ -510,7 +507,6 @@ struct SocialProfileView: View {
         Task {
             do {
                 let update = SocialProfileUpdate(
-                    bio: editBio.isEmpty ? nil : editBio,
                     social_label: editLabel.rawValue
                 )
                 try await supabase
@@ -520,7 +516,6 @@ struct SocialProfileView: View {
                     .execute()
 
                 await MainActor.run {
-                    bio = update.bio
                     socialLabel = editLabel
                     isSaving = false
                     showEditSheet = false

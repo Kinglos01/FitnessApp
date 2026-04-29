@@ -8,6 +8,12 @@
 
 import SwiftUI
 import Supabase
+import UIKit
+
+private struct ProfileImageRow: Codable {
+    let id: String
+    let profile_image_url: String?
+}
 
 // MARK: - FriendsView
 
@@ -35,6 +41,7 @@ struct FriendsView: View {
     @State private var userToReport: UserSearchResult? = nil
     @State private var reportReason: String = ""
     @State private var alreadyReported: Bool = false
+    @State private var friendImageUrls: [UUID: String] = [:]
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -110,12 +117,21 @@ struct FriendsView: View {
                                 lineWidth: 2.5
                             )
                             .frame(width: 50, height: 50)
-                        Circle()
-                            .fill(Color.brandLime.opacity(0.15))
-                            .frame(width: 44, height: 44)
-                        Text(makeInitials(appState.currentUser?.name ?? "?"))
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .foregroundColor(.brandLime)
+                        if let imgData = appState.profileStore.profile?.profileImageData,
+                           let uiImage = UIImage(data: imgData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 44, height: 44)
+                                .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color.brandLime.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Text(makeInitials(appState.currentUser?.name ?? "?"))
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                .foregroundColor(.brandLime)
+                        }
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(appState.currentUser?.name ?? "Your Profile")
@@ -181,6 +197,21 @@ struct FriendsView: View {
                 }
                 let myStreak = try await calculateStreak(userId: uid.uuidString)
                 friendStreaks[uid] = myStreak
+
+                // Fetch profile image URLs for friends
+                for friend in friends {
+                    if let row: ProfileImageRow = try? await supabase
+                        .from("profiles")
+                        .select("id, profile_image_url")
+                        .eq("id", value: friend.id.uuidString)
+                        .single()
+                        .execute()
+                        .value {
+                        if let url = row.profile_image_url {
+                            friendImageUrls[friend.id] = url
+                        }
+                    }
+                }
             } catch {
                 print("❌ FriendsView load error: \(error)")
             }
@@ -352,10 +383,25 @@ struct FriendsView: View {
                     Button { selectedProfileUserId = friend.id } label: {
                         HStack(spacing: 12) {
                             ZStack(alignment: .bottomTrailing) {
-                                ZStack {
-                                    Circle().fill(Color.green.opacity(0.15)).frame(width: 44, height: 44)
-                                    Text(makeInitials(friend.name ?? "?"))
-                                        .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.green)
+                                if let urlString = friendImageUrls[friend.id] {
+                                    AsyncImage(url: URL(string: urlString)) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image.resizable().scaledToFill()
+                                        default:
+                                            Circle().fill(Color.green.opacity(0.15))
+                                            Text(makeInitials(friend.name ?? "?"))
+                                                .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.green)
+                                        }
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(Circle())
+                                } else {
+                                    ZStack {
+                                        Circle().fill(Color.green.opacity(0.15)).frame(width: 44, height: 44)
+                                        Text(makeInitials(friend.name ?? "?"))
+                                            .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.green)
+                                    }
                                 }
                                 // Online indicator dot (decorative)
                                 Circle().fill(Color.green)
@@ -449,6 +495,8 @@ struct FriendsView: View {
         let initials: String
         let streak: Int
         let color: Color
+        let imageUrl: String?
+        let localImageData: Data?
     }
 
     private func buildLeaderboardEntries() -> [LeaderboardEntry] {
@@ -460,11 +508,11 @@ struct FriendsView: View {
         let filteredFriends = friends.filter { !blockedIds.contains($0.id) }
         for (i, friend) in filteredFriends.enumerated() {
             let name = friend.name ?? "Unknown"
-            entries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, color: colors[i % colors.count]))
+            entries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, color: colors[i % colors.count], imageUrl: friendImageUrls[friend.id], localImageData: nil))
         }
         if let uid = userId {
             let myName = appState.currentUser?.name ?? "You"
-            entries.append(LeaderboardEntry(id: uid, name: "You", initials: makeInitials(myName), streak: friendStreaks[uid] ?? 0, color: .blue))
+            entries.append(LeaderboardEntry(id: uid, name: "You", initials: makeInitials(myName), streak: friendStreaks[uid] ?? 0, color: .blue, imageUrl: nil, localImageData: appState.profileStore.profile?.profileImageData))
         }
         return entries.sorted { $0.streak > $1.streak }
     }
@@ -676,11 +724,33 @@ struct LeaderboardEntryRow: View {
                     .frame(width: 28)
             }
 
-            ZStack {
-                Circle().fill(entry.color.opacity(0.2)).frame(width: isFirstPlace ? 46 : 40, height: isFirstPlace ? 46 : 40)
-                Text(entry.initials)
-                    .font(.system(size: isFirstPlace ? 16 : 14, weight: .bold, design: .rounded))
-                    .foregroundColor(entry.color)
+            if let localData = entry.localImageData, let uiImage = UIImage(data: localData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: isFirstPlace ? 46 : 40, height: isFirstPlace ? 46 : 40)
+                    .clipShape(Circle())
+            } else if let urlString = entry.imageUrl {
+                AsyncImage(url: URL(string: urlString)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        Circle().fill(entry.color.opacity(0.2))
+                        Text(entry.initials)
+                            .font(.system(size: isFirstPlace ? 16 : 14, weight: .bold, design: .rounded))
+                            .foregroundColor(entry.color)
+                    }
+                }
+                .frame(width: isFirstPlace ? 46 : 40, height: isFirstPlace ? 46 : 40)
+                .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle().fill(entry.color.opacity(0.2)).frame(width: isFirstPlace ? 46 : 40, height: isFirstPlace ? 46 : 40)
+                    Text(entry.initials)
+                        .font(.system(size: isFirstPlace ? 16 : 14, weight: .bold, design: .rounded))
+                        .foregroundColor(entry.color)
+                }
             }
 
             VStack(alignment: .leading, spacing: 2) {

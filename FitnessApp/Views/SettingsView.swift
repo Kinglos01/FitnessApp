@@ -335,15 +335,15 @@ struct SettingsView: View {
     // MARK: - Profile Section
 
     private var profileSection: some View {
-        sectionBlock(label: "PROFILE") {
+        SectionBlockView(title: "PROFILE") {
             VStack(spacing: 0) {
-                settingsRow(icon: "scalemass.fill", iconColor: profileIconColor, label: "Weight", value: bodyWeightText, action: { showEditWeight = true })
+                SettingsRowView(icon: "scalemass.fill", iconColor: profileIconColor, label: "Weight", value: bodyWeightText, action: { showEditWeight = true })
                 sectionDivider
-                settingsRow(icon: "ruler.fill", iconColor: profileIconColor, label: "Height", value: heightText, action: { showEditHeight = true })
+                SettingsRowView(icon: "ruler.fill", iconColor: profileIconColor, label: "Height", value: heightText, action: { showEditHeight = true })
                 sectionDivider
-                settingsRow(icon: "calendar", iconColor: profileIconColor, label: "Date of Birth", value: formattedDate(draft.birthDate), action: { showEditDOB = true })
+                SettingsRowView(icon: "calendar", iconColor: profileIconColor, label: "Date of Birth", value: formattedDate(draft.birthDate), action: { showEditDOB = true })
                 sectionDivider
-                settingsRow(icon: "person.fill", iconColor: profileIconColor, label: "Gender", value: draft.gender, action: { showEditGender = true })
+                SettingsRowView(icon: "person.fill", iconColor: profileIconColor, label: "Gender", value: draft.gender, action: { showEditGender = true })
             }
         }
     }
@@ -351,23 +351,23 @@ struct SettingsView: View {
     // MARK: - Targets Section
 
     private var targetsSection: some View {
-        sectionBlock(label: "TARGETS") {
+        SectionBlockView(title: "TARGETS") {
             VStack(spacing: 0) {
-                settingsRow(icon: "target", iconColor: targetsIconColor, label: "Primary Goal", value: draft.primaryGoal, action: { showGoalDialog = true })
+                SettingsRowView(icon: "target", iconColor: targetsIconColor, label: "Primary Goal", value: draft.primaryGoal, action: { showGoalDialog = true })
                 sectionDivider
-                settingsRow(icon: "figure.walk", iconColor: targetsIconColor, label: "Activity Level", value: draft.activityLevel, action: { showActivityDialog = true })
+                SettingsRowView(icon: "figure.walk", iconColor: targetsIconColor, label: "Activity Level", value: draft.activityLevel, action: { showActivityDialog = true })
                 sectionDivider
-                settingsRow(icon: "bolt.fill", iconColor: targetsIconColor, label: "Your BMR", subtitle: "Basal Metabolic Rate", value: "\(Int(draftBMR.rounded())) kcal", showChevron: false)
+                SettingsRowView(icon: "bolt.fill", iconColor: targetsIconColor, label: "Your BMR", subtitle: "Basal Metabolic Rate", value: "\(Int(draftBMR.rounded())) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "chart.bar.fill", iconColor: targetsIconColor, label: "Your TDEE", subtitle: "Total Daily Energy Expenditure", value: "\(Int(draftTDEE.rounded())) kcal", showChevron: false)
+                SettingsRowView(icon: "chart.bar.fill", iconColor: targetsIconColor, label: "Your TDEE", subtitle: "Total Daily Energy Expenditure", value: "\(Int(draftTDEE.rounded())) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "sparkles", iconColor: targetsIconColor, label: "Recommended", subtitle: "Based on goal & activity", value: "\(recommendedCalories) kcal", showChevron: false)
+                SettingsRowView(icon: "sparkles", iconColor: targetsIconColor, label: "Recommended", subtitle: "Based on goal & activity", value: "\(recommendedCalories) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "flame.fill", iconColor: targetsIconColor, label: "Daily Calorie Goal", value: "\(draft.calorieGoal) kcal", action: { showCalorieSheet = true })
+                SettingsRowView(icon: "flame.fill", iconColor: targetsIconColor, label: "Daily Calorie Goal", value: "\(draft.calorieGoal) kcal", action: { showCalorieSheet = true })
                 sectionDivider
-                settingsRow(icon: "chart.pie.fill", iconColor: targetsIconColor, label: "Macro Targets", subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat", value: macroTargetSummary, action: { showMacroSheet = true })
+                SettingsRowView(icon: "chart.pie.fill", iconColor: targetsIconColor, label: "Macro Targets", subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat", value: macroTargetSummary, action: { showMacroSheet = true })
                 sectionDivider
-                settingsRow(icon: "scalemass.fill", iconColor: targetsIconColor, label: "Target Weight", value: "\(draft.targetWeightLbs) lbs", action: { showTargetWeightSheet = true })
+                SettingsRowView(icon: "scalemass.fill", iconColor: targetsIconColor, label: "Target Weight", value: "\(draft.targetWeightLbs) lbs", action: { showTargetWeightSheet = true })
             }
         }
     }
@@ -387,13 +387,13 @@ struct SettingsView: View {
     // MARK: - Display Section
 
     private var displaySection: some View {
-        sectionBlock(label: "DISPLAY") {
+        SectionBlockView(title: "DISPLAY") {
             VStack(spacing: 0) {
                 themePickerRow
                 sectionDivider
-                settingsRow(icon: "calendar", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
+                SettingsRowView(icon: "calendar", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
                 sectionDivider
-                settingsRow(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
+                SettingsRowView(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
             }
         }
     }
@@ -470,17 +470,17 @@ struct SettingsView: View {
     // MARK: - Notifications Section
 
     private var notificationsSection: some View {
-        sectionBlock(label: "NOTIFICATIONS") {
+        SectionBlockView(title: "NOTIFICATIONS") {
             VStack(spacing: 0) {
-                settingsRow(icon: "bell.badge.fill", iconColor: notificationsIconColor, label: "Notification Access", subtitle: notificationStatusText, showChevron: false)
+                SettingsRowView(icon: "bell.badge.fill", iconColor: notificationsIconColor, label: "Notification Access", subtitle: notificationStatusText, showChevron: false)
                 sectionDivider
-                settingsRow(icon: "fork.knife", iconColor: notificationsIconColor, label: "Meal Reminders", subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off", showChevron: false, toggle: $mealReminders)
+                SettingsRowView(icon: "fork.knife", iconColor: notificationsIconColor, label: "Meal Reminders", subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off", showChevron: false, toggle: $mealReminders)
                 if mealReminders { hourStepperRow(title: "Meal Reminder Time", hour: $mealReminderHour) }
                 sectionDivider
-                settingsRow(icon: "dumbbell.fill", iconColor: notificationsIconColor, label: "Workout Reminder", subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off", showChevron: false, toggle: $workoutReminder)
+                SettingsRowView(icon: "dumbbell.fill", iconColor: notificationsIconColor, label: "Workout Reminder", subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off", showChevron: false, toggle: $workoutReminder)
                 if workoutReminder { hourStepperRow(title: "Workout Reminder Time", hour: $workoutReminderHour) }
                 sectionDivider
-                settingsRow(icon: "flame.fill", iconColor: notificationsIconColor, label: "Streak Reminder", subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off", showChevron: false, toggle: $streakReminder)
+                SettingsRowView(icon: "flame.fill", iconColor: notificationsIconColor, label: "Streak Reminder", subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off", showChevron: false, toggle: $streakReminder)
                 if streakReminder { hourStepperRow(title: "Streak Reminder Time", hour: $streakReminderHour) }
                 sectionDivider
                 Button {
@@ -506,13 +506,13 @@ struct SettingsView: View {
     // MARK: - Account Section
 
     private var accountSection: some View {
-        sectionBlock(label: "ACCOUNT") {
+        SectionBlockView(title: "ACCOUNT") {
             VStack(spacing: 0) {
-                settingsRow(icon: "hand.raised.fill", iconColor: accountIconColor, label: "Blocked Users", action: { showBlockedUsers = true })
+                SettingsRowView(icon: "hand.raised.fill", iconColor: accountIconColor, label: "Blocked Users", action: { showBlockedUsers = true })
                 sectionDivider
-                settingsRow(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
+                SettingsRowView(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
                 sectionDivider
-                settingsRow(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
+                SettingsRowView(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
             }
         }
     }
@@ -520,7 +520,7 @@ struct SettingsView: View {
     // MARK: - Admin Section
 
     private var adminSection: some View {
-        sectionBlock(label: "ADMIN") {
+        SectionBlockView(title: "ADMIN") {
             Button {
                 showAdminPanel = true
             } label: {
@@ -607,82 +607,11 @@ struct SettingsView: View {
 
     // MARK: - Shared Helpers
 
-    @ViewBuilder
-    private func sectionBlock<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(label)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(Color.brandLime.opacity(0.55))
-                .tracking(1.5)
-            VStack(spacing: 0) {
-                content()
-            }
-            .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.brandCream.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.08), lineWidth: 0.5))
-        }
-    }
-
     private var sectionDivider: some View {
         Rectangle()
             .fill(Color.brandCream.opacity(0.06))
             .frame(height: 0.5)
             .padding(.leading, 52)
-    }
-
-    @ViewBuilder
-    private func settingsRow(
-        icon: String,
-        iconColor: Color,
-        label: String,
-        subtitle: String? = nil,
-        value: String? = nil,
-        labelColor: Color? = nil,
-        showChevron: Bool = true,
-        action: (() -> Void)? = nil,
-        toggle: Binding<Bool>? = nil
-    ) -> some View {
-        let rowContent = HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(iconColor.opacity(0.12))
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(iconColor)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(labelColor ?? .brandCream)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.brandCream.opacity(0.4))
-                }
-            }
-            Spacer()
-            if let value {
-                Text(value)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.brandCream.opacity(0.4))
-            }
-            if let toggle {
-                Toggle("", isOn: toggle).labelsHidden().tint(.brandLime)
-            } else if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color.brandCream.opacity(0.25))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-
-        if let action {
-            Button(action: action) { rowContent }.buttonStyle(.plain)
-        } else {
-            rowContent
-        }
     }
 
     @ViewBuilder
@@ -1408,6 +1337,93 @@ struct BlockedUsersView: View {
         let f = parts.first?.prefix(1) ?? ""
         let l = parts.count > 1 ? parts.last!.prefix(1) : ""
         return "\(f)\(l)".uppercased()
+    }
+}
+
+// MARK: - SectionBlockView
+
+struct SectionBlockView<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        let labelColor = Color.brandLime.opacity(0.55)
+        let bgColor = Color.brandCream.opacity(0.04)
+        let borderColor = Color.brandCream.opacity(0.08)
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(labelColor)
+                .tracking(1.5)
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 12).fill(bgColor))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - SettingsRowView
+
+struct SettingsRowView: View {
+    let icon: String
+    let iconColor: Color
+    let label: String
+    var subtitle: String? = nil
+    var value: String? = nil
+    var labelColor: Color? = nil
+    var showChevron: Bool = true
+    var action: (() -> Void)? = nil
+    var toggle: Binding<Bool>? = nil
+
+    var body: some View {
+        let bgColor = iconColor.opacity(0.12)
+        let resolvedLabelColor = labelColor ?? .brandCream
+        let subtitleColor = Color.brandCream.opacity(0.4)
+        let valueColor = Color.brandCream.opacity(0.4)
+        let chevronColor = Color.brandCream.opacity(0.25)
+
+        let rowContent = HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7).fill(bgColor))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(resolvedLabelColor)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(subtitleColor)
+                }
+            }
+            Spacer()
+            if let value {
+                Text(value)
+                    .font(.system(size: 12))
+                    .foregroundColor(valueColor)
+            }
+            if let toggle {
+                Toggle("", isOn: toggle).labelsHidden().tint(.brandLime)
+            } else if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(chevronColor)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+
+        if let action {
+            Button(action: action) { rowContent }.buttonStyle(.plain)
+        } else {
+            rowContent
+        }
     }
 }
 
