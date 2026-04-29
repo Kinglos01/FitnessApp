@@ -1,5 +1,7 @@
 import SwiftUI
 import PhotosUI
+import Supabase
+import UIKit
 
 // Resolve ambiguity by aliasing the intended UserProfile type
 // If you have multiple modules with UserProfile, qualify it here, e.g., Models.UserProfile
@@ -7,6 +9,7 @@ typealias AppUserProfile = Profile
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) var appState
 
     // Make profile optional to support guest/placeholder mode
     let profile: AppUserProfile?
@@ -107,10 +110,69 @@ struct EditProfileView: View {
 
     private func save() {
         guard var updated = profile ?? Optional(resolvedProfile) else { return }
-        updated.displayName      = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.bio              = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.bio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.profileImageData = imageData
+
+        // Save locally first
         if let onSave { onSave(updated) }
+
+        // Then sync to Supabase
+        Task {
+            let userId = updated.id
+
+            // Upload image to Supabase Storage if imageData exists
+            var imageUrl: String? = nil
+            if let data = imageData {
+                do {
+                    let filePath = "\(userId)/avatar.jpg"
+
+                    // Convert to JPEG
+                    if let uiImage = UIImage(data: data),
+                       let jpegData = uiImage.jpegData(compressionQuality: 0.7) {
+
+                        try await supabase.storage
+                            .from("avatars")
+                            .upload(
+                                path: filePath,
+                                file: jpegData,
+                                options: FileOptions(
+                                    cacheControl: "3600",
+                                    contentType: "image/jpeg",
+                                    upsert: true
+                                )
+                            )
+
+                        // Get public URL
+                        let publicUrl = try supabase.storage
+                            .from("avatars")
+                            .getPublicURL(path: filePath)
+                        imageUrl = publicUrl.absoluteString
+                    }
+                } catch {
+                    print("Avatar upload error: \(error)")
+                }
+            }
+
+            // Update bio and profile_image_url in profiles table
+            var updateDict: [String: AnyEncodable] = [
+                "bio": AnyEncodable(updated.bio)
+            ]
+            if let url = imageUrl {
+                updateDict["profile_image_url"] = AnyEncodable(url)
+            }
+
+            do {
+                try await supabase
+                    .from("profiles")
+                    .update(updateDict)
+                    .eq("id", value: userId)
+                    .execute()
+            } catch {
+                print("Profile sync error: \(error)")
+            }
+        }
+
         dismiss()
     }
 

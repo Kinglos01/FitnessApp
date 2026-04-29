@@ -76,7 +76,7 @@ struct DashboardView: View {
         var checkDate = cal.startOfDay(for: Date())
         while true {
             let hasWorkout = allExercises.contains {
-                $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate
+                $0.isCompleted(on: checkDate)
             }
             if hasWorkout {
                 streak += 1
@@ -93,7 +93,7 @@ struct DashboardView: View {
         let monday = cal.date(byAdding: .day, value: -daysFromMonday, to: today) ?? today
         return (0...daysFromMonday).filter { offset in
             let day = cal.date(byAdding: .day, value: offset, to: monday) ?? today
-            return allExercises.contains { $0.isCompleted && cal.startOfDay(for: $0.date) == day }
+            return allExercises.contains { $0.isCompleted(on: day) }
         }.count
     }
 
@@ -102,10 +102,11 @@ struct DashboardView: View {
         let now = Date()
         let month = cal.component(.month, from: now)
         let year = cal.component(.year, from: now)
-        return allExercises.filter {
-            $0.isCompleted &&
-            cal.component(.month, from: $0.date) == month &&
-            cal.component(.year, from: $0.date) == year
+        return allExercises.filter { entry in
+            let entryDate = cal.startOfDay(for: entry.date)
+            return entry.isCompleted(on: entryDate) &&
+                cal.component(.month, from: entry.date) == month &&
+                cal.component(.year, from: entry.date) == year
         }.count
     }
 
@@ -185,14 +186,27 @@ struct DashboardView: View {
             allExercises = []
         }
         let today = Calendar.current.startOfDay(for: Date())
-        completedWorkouts = allExercises.filter {
-            $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
+        completedWorkouts = allExercises.filter { $0.isCompleted(on: today) }
+        Task {
+            await loadTodayLog()
+            // Also fetch from Supabase to ensure cross-device sync
+            if let remoteExercises = try? await WorkoutService.shared.fetchWorkouts(userId: uid) {
+                await MainActor.run {
+                    allExercises = remoteExercises
+                    if let data = try? JSONEncoder().encode(remoteExercises) {
+                        UserDefaults.standard.set(data, forKey: "savedExercises_\(uid)")
+                    }
+                    completedWorkouts = allExercises.filter { $0.isCompleted(on: today) }
+                }
+            }
         }
-        Task { await loadTodayLog() }
         nutritionManager.configure(userId: uid, user: appState.currentUser)
         nutritionManager.reloadBurnedCalories()
 
-        let completedAll = allExercises.filter { $0.isCompleted }
+        let completedAll = allExercises.filter { entry in
+            let entryDate = Calendar.current.startOfDay(for: entry.date)
+            return entry.isCompleted(on: entryDate)
+        }
         let totalBurned = completedAll.reduce(0) { $0 + $1.caloriesBurned }
         let cal = Calendar.current
         let hasEarlyBird = completedAll.contains { cal.component(.hour, from: $0.date) < 7 }
@@ -800,9 +814,7 @@ struct DashboardView: View {
     private func syncDailyLog() {
         guard !userId.isEmpty else { return }
         let today = Calendar.current.startOfDay(for: Date())
-        let todayWorkouts = allExercises.filter {
-            $0.isCompleted && Calendar.current.startOfDay(for: $0.date) == today
-        }
+        let todayWorkouts = allExercises.filter { $0.isCompleted(on: today) }
         let burned = todayWorkouts.reduce(0) { $0 + $1.caloriesBurned }
         let count = todayWorkouts.count
         let caloriesEaten = nutritionManager.totalCalories
@@ -878,9 +890,8 @@ private struct WeekDayRing: View {
     private var dayNum: Int    { cal.component(.day, from: date) }
 
     private var hasActivity: Bool {
-        allExercises.contains {
-            $0.isCompleted && cal.startOfDay(for: $0.date) == cal.startOfDay(for: date)
-        }
+        let day = cal.startOfDay(for: date)
+        return allExercises.contains { $0.isCompleted(on: day) }
     }
 
     private var calorieProgress: Double {
