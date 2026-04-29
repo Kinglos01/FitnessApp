@@ -21,6 +21,8 @@ struct ProfileView: View {
     @State private var showAchievements = false
     @State private var unlockedAchievements: [UnlockedAchievement] = []
     @State private var isLoadingAchievements = false
+    @State private var dayStreak: Int = 0
+    @State private var todayWorkoutCount: Int = 0
 
     private var userId: String { appState.currentUser?.id ?? "" }
 
@@ -40,6 +42,7 @@ struct ProfileView: View {
                     )
 
                     profileHeroCard(profile: local)
+                    statsRow
                     editButton
                     achievementsCard
                 } else {
@@ -73,10 +76,12 @@ struct ProfileView: View {
         .onAppear {
             appState.syncProfileStoreFromCurrentUser()
             Task { await loadAchievements() }
+            Task { await loadWorkoutStats() }
         }
         .onChange(of: appState.currentUser?.id) { _, _ in
             appState.syncProfileStoreFromCurrentUser()
             Task { await loadAchievements() }
+            Task { await loadWorkoutStats() }
         }
         .background(Color.brandNavy.ignoresSafeArea())
     }
@@ -181,6 +186,83 @@ struct ProfileView: View {
             .cornerRadius(14)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Stats Row
+
+    private var statsRow: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.brandOrange)
+                    Text("\(dayStreak)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandCream)
+                }
+                Text("Day Streak")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(Color.brandCream.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider().frame(height: 40).background(Color.brandCream.opacity(0.12))
+
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.brandLime)
+                    Text("\(todayWorkoutCount)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandCream)
+                }
+                Text("Workouts Today")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(Color.brandCream.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 12)
+        .background(Color.brandCream.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+        .cornerRadius(16)
+    }
+
+    // MARK: - Load Workout Stats
+
+    @MainActor
+    private func loadWorkoutStats() async {
+        guard !userId.isEmpty else { return }
+        do {
+            let workouts = try await WorkoutService.shared.fetchWorkouts(userId: userId)
+            let cal = Calendar.current
+            let todayStart = cal.startOfDay(for: Date())
+
+            // Today's workout count
+            todayWorkoutCount = workouts.filter {
+                cal.startOfDay(for: $0.date) == todayStart
+            }.count
+
+            // Day streak: consecutive days backwards from today with at least 1 workout
+            var streak = 0
+            var checkDate = todayStart
+            while true {
+                let hasWorkout = workouts.contains {
+                    cal.startOfDay(for: $0.date) == checkDate
+                }
+                if hasWorkout {
+                    streak += 1
+                    checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
+                } else {
+                    break
+                }
+            }
+            dayStreak = streak
+        } catch {
+            print("Failed to load workout stats: \(error)")
+        }
     }
 
     // MARK: - Achievements Card
