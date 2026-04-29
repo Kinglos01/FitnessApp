@@ -10,7 +10,6 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var nutritionManager = NutritionManager()
-    @State private var selectedTab = 0
     @Environment(AppState.self) var appState
 
     private let tabs: [(label: String, icon: String)] = [
@@ -21,8 +20,15 @@ struct MainTabView: View {
         ("Calendar",   "calendar")
     ]
 
+    private var selectedTab: Binding<Int> {
+        Binding(
+            get: { appState.selectedTab },
+            set: { appState.selectedTab = $0 }
+        )
+    }
+
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: selectedTab) {
             DashboardView()
                 .id(appState.currentUser?.id ?? "")
                 .tag(0)
@@ -52,9 +58,9 @@ struct MainTabView: View {
                     guard abs(horizontalAmount) > abs(verticalAmount) else { return }
                     withAnimation(.easeInOut(duration: 0.25)) {
                         if horizontalAmount < 0 {
-                            selectedTab = min(selectedTab + 1, 4)
+                            appState.selectedTab = min(appState.selectedTab + 1, 4)
                         } else {
-                            selectedTab = max(selectedTab - 1, 0)
+                            appState.selectedTab = max(appState.selectedTab - 1, 0)
                         }
                     }
                 }
@@ -103,11 +109,11 @@ struct MainTabView: View {
 
     private func tabButton(index: Int) -> some View {
         let tab      = tabs[index]
-        let isActive = selectedTab == index
+        let isActive = appState.selectedTab == index
 
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedTab = index
+                appState.selectedTab = index
             }
         } label: {
             VStack(spacing: 5) {

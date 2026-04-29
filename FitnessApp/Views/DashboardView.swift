@@ -121,19 +121,22 @@ struct DashboardView: View {
         NavigationView {
             ZStack {
                 Color.brandNavy.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 20) {
-                        greetingHeader
-                        todayPromptCard
-                        weeklyRingsCard
-                        calorieCard
-                        waterCard
-                        quickStatsBar
-                        weightThumbnailCard
-                        todaysWorkoutsCard
-                        Spacer(minLength: 70)
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            greetingHeader
+                            todayPromptCard(scrollProxy: scrollProxy)
+                            weeklyRingsCard
+                            calorieCard
+                            waterCard
+                                .id("waterCard")
+                            quickStatsBar
+                            weightThumbnailCard
+                            todaysWorkoutsCard
+                            Spacer(minLength: 70)
+                        }
+                        .padding(.vertical)
                     }
-                    .padding(.vertical)
                 }
             }
             .navigationTitle("Dashboard")
@@ -307,7 +310,7 @@ struct DashboardView: View {
 
     // MARK: - Today Prompt Card
 
-    private var todayPromptCard: some View {
+    private func todayPromptCard(scrollProxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "sparkles").foregroundColor(.brandLime)
@@ -320,9 +323,15 @@ struct DashboardView: View {
                 .font(.subheadline)
                 .foregroundColor(Color.brandCream.opacity(0.6))
             HStack(spacing: 10) {
-                statusPill(title: "Workout", complete: didLogWorkoutToday, color: Color(red: 0.25, green: 0.72, blue: 0.55))
-                statusPill(title: "Food", complete: didLogFoodToday, color: .brandOrange)
-                statusPill(title: "Water", complete: didMeetWaterHalfway, color: .brandBlue)
+                statusPill(title: "Workout", complete: didLogWorkoutToday, color: Color(red: 0.25, green: 0.72, blue: 0.55)) {
+                    withAnimation { appState.selectedTab = 2 }
+                }
+                statusPill(title: "Food", complete: didLogFoodToday, color: .brandOrange) {
+                    withAnimation { appState.selectedTab = 1 }
+                }
+                statusPill(title: "Water", complete: didMeetWaterHalfway, color: .brandBlue) {
+                    withAnimation { scrollProxy.scrollTo("waterCard", anchor: .top) }
+                }
             }
         }
         .padding()
@@ -332,16 +341,19 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
 
-    private func statusPill(title: String, complete: Bool, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: complete ? "checkmark.circle.fill" : "circle")
-            Text(title)
+    private func statusPill(title: String, complete: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: complete ? "checkmark.circle.fill" : "circle")
+                Text(title)
+            }
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundColor(complete ? .brandNavy : color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(complete ? color : color.opacity(0.15)))
         }
-        .font(.system(size: 12, weight: .semibold, design: .rounded))
-        .foregroundColor(complete ? .brandNavy : color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(complete ? color : color.opacity(0.15)))
+        .buttonStyle(.plain)
     }
 
     // MARK: - Calorie Card

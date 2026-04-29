@@ -45,6 +45,9 @@ private struct SocialProfileRow: Codable {
     let bio: String?
     let social_label: String?
     let profile_image_url: String?
+    let show_streak: Bool?
+    let show_workouts: Bool?
+    let show_achievements: Bool?
 }
 
 // MARK: - Supabase update payload
@@ -68,6 +71,10 @@ struct SocialProfileView: View {
     @State private var socialLabel: SocialLabel?
     @State private var streak: Int?
     @State private var workoutCount: Int?
+
+    @State private var showStreak: Bool = true
+    @State private var showWorkouts: Bool = true
+    @State private var showAchievementsPrivacy: Bool = true
 
     @State private var isLoading: Bool = true
     @State private var errorMessage: String?
@@ -233,17 +240,15 @@ struct SocialProfileView: View {
     private var statsRow: some View {
         HStack(spacing: 0) {
             statCell(
-                value: streak.map { "\($0)" } ?? "\u{2014}",
+                value: (isCurrentUser || showStreak) ? (streak.map { "\($0)" } ?? "\u{2014}") : nil,
                 label: "Day Streak",
                 icon: "flame.fill",
                 color: .brandOrange
             )
             Divider().frame(height: 40).background(Color.brandCream.opacity(0.12))
             statCell(
-                // TODO: workout_count is not available for other users via the current schema.
-                // For the current user we compute it from local exercises; for friends we show a placeholder.
-                value: workoutCount.map { "\($0)" } ?? "\u{2014}",
-                label: "Workouts",
+                value: (isCurrentUser || showWorkouts) ? (workoutCount.map { "\($0)" } ?? "\u{2014}") : nil,
+                label: "Workouts Today",
                 icon: "dumbbell.fill",
                 color: .brandLime
             )
@@ -255,15 +260,21 @@ struct SocialProfileView: View {
         .padding(.horizontal)
     }
 
-    private func statCell(value: String, label: String, icon: String, color: Color) -> some View {
+    private func statCell(value: String?, label: String, icon: String, color: Color) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(.brandCream)
+                if let value {
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(color)
+                    Text(value)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandCream)
+                } else {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color.brandCream.opacity(0.3))
+                }
             }
             Text(label)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -284,12 +295,25 @@ struct SocialProfileView: View {
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundColor(.brandCream)
                 Spacer()
-                Text("\(unlockedAchievements.count) / \(AchievementDefinition.all.count)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundColor(.brandLime)
+                if isCurrentUser || showAchievementsPrivacy {
+                    Text("\(unlockedAchievements.count) / \(AchievementDefinition.all.count)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(.brandLime)
+                }
             }
 
-            if isLoadingAchievements {
+            if !isCurrentUser && !showAchievementsPrivacy {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color.brandCream.opacity(0.3))
+                    Text("This user has hidden their achievements")
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundColor(Color.brandCream.opacity(0.4))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            } else if isLoadingAchievements {
                 ProgressView()
                     .tint(.brandLime)
                     .frame(maxWidth: .infinity)
@@ -434,7 +458,7 @@ struct SocialProfileView: View {
             do {
                 let row: SocialProfileRow = try await supabase
                     .from("profiles")
-                    .select("id, name, bio, social_label, profile_image_url")
+                    .select("id, name, bio, social_label, profile_image_url, show_streak, show_workouts, show_achievements")
                     .eq("id", value: userId.uuidString)
                     .single()
                     .execute()
@@ -444,6 +468,9 @@ struct SocialProfileView: View {
                     name = row.name ?? "Unknown"
                     bio = row.bio
                     profileImageUrl = row.profile_image_url
+                    showStreak = row.show_streak ?? true
+                    showWorkouts = row.show_workouts ?? true
+                    showAchievementsPrivacy = row.show_achievements ?? true
                     if let labelStr = row.social_label {
                         socialLabel = SocialLabel(rawValue: labelStr)
                     }
@@ -464,23 +491,15 @@ struct SocialProfileView: View {
                     } else { break }
                 }
 
-                // Workout count this month
-                let now = Date()
-                let month = cal.component(.month, from: now)
-                let year = cal.component(.year, from: now)
-                let monthCount = workouts.filter {
-                    $0.isCompleted &&
-                    cal.component(.month, from: $0.date) == month &&
-                    cal.component(.year, from: $0.date) == year
+                // Workout count today
+                let todayStart = cal.startOfDay(for: Date())
+                let todayCount = workouts.filter {
+                    cal.startOfDay(for: $0.date) == todayStart
                 }.count
 
                 await MainActor.run {
                     streak = s
-                    if isCurrentUser {
-                        workoutCount = monthCount
-                    } else {
-                        workoutCount = monthCount
-                    }
+                    workoutCount = todayCount
                     isLoading = false
                 }
 

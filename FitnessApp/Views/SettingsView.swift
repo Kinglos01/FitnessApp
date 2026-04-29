@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UserNotifications
+import Supabase
 
 // MARK: - Profile Draft
 
@@ -21,6 +22,9 @@ private struct ProfileDraft {
     var targetWeightLbs: Int
     var customCaloriesEnabled: Bool
     var units: String
+    var showStreak: Bool = true
+    var showWorkouts: Bool = true
+    var showAchievements: Bool = true
 }
 
 // MARK: - SettingsView
@@ -90,6 +94,7 @@ struct SettingsView: View {
     private let targetsIconColor = Color(hex: "48ACF0")
     private let displayIconColor = Color(hex: "A082FF")
     private let notificationsIconColor = Color(hex: "50D2B4")
+    private let privacyIconColor = Color(hex: "FF6B9D")
     private let accountIconColor = Color.brandOrange
 
     private func initials(from name: String) -> String {
@@ -179,6 +184,7 @@ struct SettingsView: View {
                     targetsSection
                     displaySection
                     notificationsSection
+                    privacySection
                     accountSection
                     if user.isAdmin {
                         adminSection
@@ -503,6 +509,50 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Privacy Section
+
+    private var privacySection: some View {
+        SectionBlockView(title: "PROFILE PRIVACY") {
+            VStack(spacing: 0) {
+                SettingsRowView(
+                    icon: "flame.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Day Streak",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showStreak },
+                        set: { draft.showStreak = $0; hasChanges = true }
+                    )
+                )
+                sectionDivider
+                SettingsRowView(
+                    icon: "dumbbell.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Workouts",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showWorkouts },
+                        set: { draft.showWorkouts = $0; hasChanges = true }
+                    )
+                )
+                sectionDivider
+                SettingsRowView(
+                    icon: "trophy.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Achievements",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showAchievements },
+                        set: { draft.showAchievements = $0; hasChanges = true }
+                    )
+                )
+            }
+        }
+    }
+
     // MARK: - Account Section
 
     private var accountSection: some View {
@@ -657,6 +707,33 @@ struct SettingsView: View {
         draft.targetWeightLbs = Int(user.targetWeightLbs ?? 175)
         draft.customCaloriesEnabled = user.customCaloriesEnabled
         draft.units = user.units
+
+        Task {
+            await loadPrivacySettings(userId: user.id)
+        }
+    }
+
+    @MainActor
+    private func loadPrivacySettings(userId: String) async {
+        struct PrivacyRow: Codable {
+            let show_streak: Bool?
+            let show_workouts: Bool?
+            let show_achievements: Bool?
+        }
+        do {
+            let row: PrivacyRow = try await supabase
+                .from("profiles")
+                .select("show_streak, show_workouts, show_achievements")
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            draft.showStreak = row.show_streak ?? true
+            draft.showWorkouts = row.show_workouts ?? true
+            draft.showAchievements = row.show_achievements ?? true
+        } catch {
+            print("Failed to load privacy settings: \(error)")
+        }
     }
 
     private func refreshNotificationStatus() {
@@ -724,6 +801,22 @@ struct SettingsView: View {
                 )
 
                 try await ProfileService.shared.updateProfile(userId: userId, update: update)
+
+                // Save privacy settings
+                struct PrivacyUpdate: Codable {
+                    let show_streak: Bool
+                    let show_workouts: Bool
+                    let show_achievements: Bool
+                }
+                try await supabase
+                    .from("profiles")
+                    .update(PrivacyUpdate(
+                        show_streak: draft.showStreak,
+                        show_workouts: draft.showWorkouts,
+                        show_achievements: draft.showAchievements
+                    ))
+                    .eq("id", value: userId)
+                    .execute()
 
                 if var user = appState.currentUser {
                     user.name = draft.name

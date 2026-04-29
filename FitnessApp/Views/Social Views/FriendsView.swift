@@ -13,6 +13,7 @@ import UIKit
 private struct ProfileImageRow: Codable {
     let id: String
     let profile_image_url: String?
+    let show_streak: Bool?
 }
 
 // MARK: - FriendsView
@@ -42,6 +43,7 @@ struct FriendsView: View {
     @State private var reportReason: String = ""
     @State private var alreadyReported: Bool = false
     @State private var friendImageUrls: [UUID: String] = [:]
+    @State private var friendShowStreak: [UUID: Bool] = [:]
 
     private var userId: UUID? {
         UUID(uuidString: appState.currentUser?.id ?? "")
@@ -198,11 +200,11 @@ struct FriendsView: View {
                 let myStreak = try await calculateStreak(userId: uid.uuidString)
                 friendStreaks[uid] = myStreak
 
-                // Fetch profile image URLs for friends
+                // Fetch profile image URLs and privacy settings for friends
                 for friend in friends {
                     if let row: ProfileImageRow = try? await supabase
                         .from("profiles")
-                        .select("id, profile_image_url")
+                        .select("id, profile_image_url, show_streak")
                         .eq("id", value: friend.id.uuidString)
                         .single()
                         .execute()
@@ -210,6 +212,7 @@ struct FriendsView: View {
                         if let url = row.profile_image_url {
                             friendImageUrls[friend.id] = url
                         }
+                        friendShowStreak[friend.id] = row.show_streak ?? true
                     }
                 }
             } catch {
@@ -248,9 +251,7 @@ struct FriendsView: View {
         var streak = 0
         var checkDate = cal.startOfDay(for: Date())
         while true {
-            let hasWorkout = workouts.contains {
-                $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate
-            }
+            let hasWorkout = workouts.contains { $0.isCompleted(on: checkDate) }
             if hasWorkout {
                 streak += 1
                 checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
@@ -494,6 +495,7 @@ struct FriendsView: View {
         let name: String
         let initials: String
         let streak: Int
+        let streakHidden: Bool
         let color: Color
         let imageUrl: String?
         let localImageData: Data?
@@ -504,17 +506,26 @@ struct FriendsView: View {
             Color(red: 0.25, green: 0.72, blue: 0.55), .orange,
             Color(red: 0.85, green: 0.35, blue: 0.25), .purple, .pink
         ]
+
+        // Current user entry (always first)
         var entries: [LeaderboardEntry] = []
-        let filteredFriends = friends.filter { !blockedIds.contains($0.id) }
-        for (i, friend) in filteredFriends.enumerated() {
-            let name = friend.name ?? "Unknown"
-            entries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, color: colors[i % colors.count], imageUrl: friendImageUrls[friend.id], localImageData: nil))
-        }
         if let uid = userId {
             let myName = appState.currentUser?.name ?? "You"
-            entries.append(LeaderboardEntry(id: uid, name: "You", initials: makeInitials(myName), streak: friendStreaks[uid] ?? 0, color: .blue, imageUrl: nil, localImageData: appState.profileStore.profile?.profileImageData))
+            entries.append(LeaderboardEntry(id: uid, name: "You", initials: makeInitials(myName), streak: friendStreaks[uid] ?? 0, streakHidden: false, color: .blue, imageUrl: nil, localImageData: appState.profileStore.profile?.profileImageData))
         }
-        return entries.sorted { $0.streak > $1.streak }
+
+        // Friend entries sorted by streak descending
+        let filteredFriends = friends.filter { !blockedIds.contains($0.id) }
+        var friendEntries: [LeaderboardEntry] = []
+        for (i, friend) in filteredFriends.enumerated() {
+            let name = friend.name ?? "Unknown"
+            let hidden = !(friendShowStreak[friend.id] ?? true)
+            friendEntries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, streakHidden: hidden, color: colors[i % colors.count], imageUrl: friendImageUrls[friend.id], localImageData: nil))
+        }
+        friendEntries.sort { $0.streak > $1.streak }
+
+        entries.append(contentsOf: friendEntries)
+        return entries
     }
 
     private func makeInitials(_ name: String) -> String {
@@ -757,21 +768,39 @@ struct LeaderboardEntryRow: View {
                 Text(isCurrentUser ? "You" : entry.name)
                     .font(.system(size: isFirstPlace ? 16 : 15, weight: .semibold, design: .rounded))
                     .foregroundColor(isCurrentUser ? .blue : .primary)
-                Text("\(entry.streak)-day streak")
-                    .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                if entry.streakHidden {
+                    Text("Streak hidden")
+                        .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                } else {
+                    Text("\(entry.streak)-day streak")
+                        .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                }
             }
             Spacer()
             // Streak pill badge
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 10, weight: .bold))
-                Text("\(entry.streak) \(entry.streak == 1 ? "day" : "days")")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            if entry.streakHidden {
+                HStack(spacing: 4) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Hidden")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.12))
+                .clipShape(Capsule())
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("\(entry.streak) \(entry.streak == 1 ? "day" : "days")")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(streakColor)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(streakColor.opacity(0.12))
+                .clipShape(Capsule())
             }
-            .foregroundColor(streakColor)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(streakColor.opacity(0.12))
-            .clipShape(Capsule())
         }
         .padding(.horizontal, 14).padding(.vertical, isFirstPlace ? 14 : 10)
         .background(
