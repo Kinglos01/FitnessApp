@@ -121,22 +121,63 @@ struct NutritionView: View {
 
             HStack(spacing: 24) {
                 ZStack {
+                    let progress = nutritionManager.totalCalories / Double(nutritionManager.calorieTarget)
+                    let lapIndex = Int(progress)
+                    let lapFraction = progress - Double(lapIndex)
+                    let isOver = progress > 1.0
+                    let currentLap = min(lapIndex, 3)
+                    let currentColor = lapColor(lap: currentLap)
+                    let activeFraction: Double = !isOver ? progress : (lapFraction == 0 ? 1.0 : lapFraction)
+
                     Circle()
-                        .stroke(Color.brandCream.opacity(0.1), lineWidth: 14)
+                        .stroke(lapColor(lap: 0).opacity(0.15), lineWidth: 14)
                         .frame(width: 110, height: 110)
-                    Circle()
-                        .trim(from: 0, to: min(nutritionManager.totalCalories / Double(nutritionManager.calorieTarget), 1.0))
-                        .stroke(nutritionManager.goal.color, style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 110, height: 110)
-                        .animation(.easeOut(duration: 0.5), value: nutritionManager.totalCalories)
+
+                    ForEach(0..<min(lapIndex, 4), id: \.self) { lap in
+                        Circle()
+                            .stroke(lapColor(lap: lap), lineWidth: 14)
+                            .frame(width: 110, height: 110)
+                            .id("lap-\(lap)")
+                    }
+
+                    Group {
+                        if activeFraction > 0 {
+                            if activeFraction >= 1.0 {
+                                Circle()
+                                    .stroke(currentColor, lineWidth: 14)
+                                    .frame(width: 110, height: 110)
+                            } else {
+                                Circle()
+                                    .trim(from: 0, to: activeFraction)
+                                    .stroke(currentColor, style: StrokeStyle(lineWidth: 14, lineCap: .butt))
+                                    .rotationEffect(.degrees(-90))
+                                    .frame(width: 110, height: 110)
+                            }
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.5), value: activeFraction)
+
+                    if lapIndex >= 4 {
+                        Text("×\(lapIndex + 1)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(lapColor(lap: 3))
+                            .clipShape(Capsule())
+                            .offset(y: 28)
+                    }
+
                     VStack(spacing: 2) {
                         Text("\(Int(nutritionManager.totalCalories))")
                             .font(.title2).fontWeight(.bold)
-                            .foregroundColor(.brandCream)
-                        Text("eaten").font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
+                            .foregroundColor(isOver ? currentColor : .brandCream)
+                        Text(isOver ? "over!" : "eaten")
+                            .font(.caption2)
+                            .foregroundColor(isOver ? currentColor : Color.brandCream.opacity(0.5))
                     }
                 }
+                .frame(width: 110, height: 110)
 
                 VStack(alignment: .leading, spacing: 10) {
                     calorieStatRow(label: "Base target",  value: "\(nutritionManager.calorieTarget) kcal", color: .brandCream)
@@ -149,10 +190,11 @@ struct NutritionView: View {
                             color: .brandCream
                         )
                     }
+                    let remaining = nutritionManager.remainingCalories
                     calorieStatRow(
-                        label: "Remaining",
-                        value: "\(max(nutritionManager.remainingCalories, 0)) kcal",
-                        color: nutritionManager.remainingCalories < 0 ? .brandOrange : Color(red: 0.25, green: 0.72, blue: 0.55)
+                        label: remaining < 0 ? "Over budget" : "Remaining",
+                        value: remaining < 0 ? "+\(abs(remaining)) kcal" : "\(remaining) kcal",
+                        color: remaining < 0 ? .brandOrange : Color(red: 0.25, green: 0.72, blue: 0.55)
                     )
                 }
                 Spacer()
@@ -185,6 +227,35 @@ struct NutritionView: View {
         .background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(20)
+    }
+    private func lapColor(lap: Int) -> Color {
+        let clampedLap = min(lap, 3)
+        switch nutritionManager.goal {
+        case .loseWeight:
+            let shades: [Color] = [
+                Color(red: 1.0,  green: 0.6,  blue: 0.6),
+                Color(red: 0.96, green: 0.33, blue: 0.33),
+                Color(red: 0.75, green: 0.19, blue: 0.19),
+                Color(red: 0.48, green: 0.08, blue: 0.08),
+            ]
+            return shades[clampedLap]
+        case .maintain:
+            let shades: [Color] = [
+                Color(red: 0.36, green: 0.88, blue: 0.66),
+                Color(red: 0.11, green: 0.74, blue: 0.48),
+                Color(red: 0.06, green: 0.43, blue: 0.34),
+                Color(red: 0.03, green: 0.31, blue: 0.25),
+            ]
+            return shades[clampedLap]
+        case .gainMuscle:
+            let shades: [Color] = [
+                Color(red: 0.52, green: 0.72, blue: 0.92),
+                Color(red: 0.29, green: 0.62, blue: 1.0),
+                Color(red: 0.09, green: 0.37, blue: 0.65),
+                Color(red: 0.05, green: 0.27, blue: 0.49),
+            ]
+            return shades[clampedLap]
+        }
     }
 
     // MARK: - Search
