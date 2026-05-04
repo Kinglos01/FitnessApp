@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UserNotifications
+import Supabase
 
 // MARK: - Profile Draft
 
@@ -21,6 +22,9 @@ private struct ProfileDraft {
     var targetWeightLbs: Int
     var customCaloriesEnabled: Bool
     var units: String
+    var showStreak: Bool = true
+    var showWorkouts: Bool = true
+    var showAchievements: Bool = true
 }
 
 // MARK: - SettingsView
@@ -29,6 +33,7 @@ struct SettingsView: View {
 
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) var dismiss
+    @Environment(ThemeManager.self) var themeManager
 
     @AppStorage("settings_appearance") private var appearance: String = "Dark"
     @AppStorage("settings_week_start") private var weekStart: String = "Sunday"
@@ -80,7 +85,8 @@ struct SettingsView: View {
     @State private var showCalorieSheet: Bool = false
     @State private var showTargetWeightSheet: Bool = false
     @State private var showMacroSheet: Bool = false
-    
+    @State private var showBlockedUsers: Bool = false
+
     //MARK: achievement
    
 
@@ -88,6 +94,7 @@ struct SettingsView: View {
     private let targetsIconColor = Color(hex: "48ACF0")
     private let displayIconColor = Color(hex: "A082FF")
     private let notificationsIconColor = Color(hex: "50D2B4")
+    private let privacyIconColor = Color(hex: "FF6B9D")
     private let accountIconColor = Color.brandOrange
 
     private func initials(from name: String) -> String {
@@ -177,6 +184,7 @@ struct SettingsView: View {
                     targetsSection
                     displaySection
                     notificationsSection
+                    privacySection
                     accountSection
                     if user.isAdmin {
                         adminSection
@@ -241,6 +249,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showAdminPanel) {
                 AdminPanelView().environment(appState)
+            }
+            .sheet(isPresented: $showBlockedUsers) {
+                BlockedUsersView().environment(appState)
             }
             .confirmationDialog("Primary Goal", isPresented: $showGoalDialog) {
                 Button("Lose Weight") { draft.primaryGoal = "Lose Weight"; hasChanges = true }
@@ -330,15 +341,15 @@ struct SettingsView: View {
     // MARK: - Profile Section
 
     private var profileSection: some View {
-        sectionBlock(label: "PROFILE") {
+        SectionBlockView(title: "PROFILE") {
             VStack(spacing: 0) {
-                settingsRow(icon: "scalemass.fill", iconColor: profileIconColor, label: "Weight", value: bodyWeightText, action: { showEditWeight = true })
+                SettingsRowView(icon: "scalemass.fill", iconColor: profileIconColor, label: "Weight", value: bodyWeightText, action: { showEditWeight = true })
                 sectionDivider
-                settingsRow(icon: "ruler.fill", iconColor: profileIconColor, label: "Height", value: heightText, action: { showEditHeight = true })
+                SettingsRowView(icon: "ruler.fill", iconColor: profileIconColor, label: "Height", value: heightText, action: { showEditHeight = true })
                 sectionDivider
-                settingsRow(icon: "calendar", iconColor: profileIconColor, label: "Date of Birth", value: formattedDate(draft.birthDate), action: { showEditDOB = true })
+                SettingsRowView(icon: "calendar", iconColor: profileIconColor, label: "Date of Birth", value: formattedDate(draft.birthDate), action: { showEditDOB = true })
                 sectionDivider
-                settingsRow(icon: "person.fill", iconColor: profileIconColor, label: "Gender", value: draft.gender, action: { showEditGender = true })
+                SettingsRowView(icon: "person.fill", iconColor: profileIconColor, label: "Gender", value: draft.gender, action: { showEditGender = true })
             }
         }
     }
@@ -346,23 +357,23 @@ struct SettingsView: View {
     // MARK: - Targets Section
 
     private var targetsSection: some View {
-        sectionBlock(label: "TARGETS") {
+        SectionBlockView(title: "TARGETS") {
             VStack(spacing: 0) {
-                settingsRow(icon: "target", iconColor: targetsIconColor, label: "Primary Goal", value: draft.primaryGoal, action: { showGoalDialog = true })
+                SettingsRowView(icon: "target", iconColor: targetsIconColor, label: "Primary Goal", value: draft.primaryGoal, action: { showGoalDialog = true })
                 sectionDivider
-                settingsRow(icon: "figure.walk", iconColor: targetsIconColor, label: "Activity Level", value: draft.activityLevel, action: { showActivityDialog = true })
+                SettingsRowView(icon: "figure.walk", iconColor: targetsIconColor, label: "Activity Level", value: draft.activityLevel, action: { showActivityDialog = true })
                 sectionDivider
-                settingsRow(icon: "bolt.fill", iconColor: targetsIconColor, label: "Your BMR", subtitle: "Basal Metabolic Rate", value: "\(Int(draftBMR.rounded())) kcal", showChevron: false)
+                SettingsRowView(icon: "bolt.fill", iconColor: targetsIconColor, label: "Your BMR", subtitle: "Basal Metabolic Rate", value: "\(Int(draftBMR.rounded())) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "chart.bar.fill", iconColor: targetsIconColor, label: "Your TDEE", subtitle: "Total Daily Energy Expenditure", value: "\(Int(draftTDEE.rounded())) kcal", showChevron: false)
+                SettingsRowView(icon: "chart.bar.fill", iconColor: targetsIconColor, label: "Your TDEE", subtitle: "Total Daily Energy Expenditure", value: "\(Int(draftTDEE.rounded())) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "sparkles", iconColor: targetsIconColor, label: "Recommended", subtitle: "Based on goal & activity", value: "\(recommendedCalories) kcal", showChevron: false)
+                SettingsRowView(icon: "sparkles", iconColor: targetsIconColor, label: "Recommended", subtitle: "Based on goal & activity", value: "\(recommendedCalories) kcal", showChevron: false)
                 sectionDivider
-                settingsRow(icon: "flame.fill", iconColor: targetsIconColor, label: "Daily Calorie Goal", value: "\(draft.calorieGoal) kcal", action: { showCalorieSheet = true })
+                SettingsRowView(icon: "flame.fill", iconColor: targetsIconColor, label: "Daily Calorie Goal", value: "\(draft.calorieGoal) kcal", action: { showCalorieSheet = true })
                 sectionDivider
-                settingsRow(icon: "chart.pie.fill", iconColor: targetsIconColor, label: "Macro Targets", subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat", value: macroTargetSummary, action: { showMacroSheet = true })
+                SettingsRowView(icon: "chart.pie.fill", iconColor: targetsIconColor, label: "Macro Targets", subtitle: useCustomMacros ? "Custom" : "Protein / Carbs / Fat", value: macroTargetSummary, action: { showMacroSheet = true })
                 sectionDivider
-                settingsRow(icon: "scalemass.fill", iconColor: targetsIconColor, label: "Target Weight", value: "\(draft.targetWeightLbs) lbs", action: { showTargetWeightSheet = true })
+                SettingsRowView(icon: "scalemass.fill", iconColor: targetsIconColor, label: "Target Weight", value: "\(draft.targetWeightLbs) lbs", action: { showTargetWeightSheet = true })
             }
         }
     }
@@ -378,44 +389,104 @@ struct SettingsView: View {
         )
         return "\(macros.protein)g · \(macros.carbs)g · \(macros.fat)g"
     }
-
+    
     // MARK: - Display Section
 
     private var displaySection: some View {
-        sectionBlock(label: "DISPLAY") {
+        SectionBlockView(title: "DISPLAY") {
             VStack(spacing: 0) {
-                settingsRow(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
+                themePickerRow
                 sectionDivider
-                settingsRow(icon: "moon.fill", iconColor: displayIconColor, label: "Appearance", value: appearance, action: { showAppearanceDialog = true })
+                SettingsRowView(icon: "calendar", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
                 sectionDivider
-                settingsRow(
-                    icon: "envelope.fill",
-                    iconColor: displayIconColor,
-                    label: "Show Email on Profile",
-                    subtitle: showEmailOnProfile ? "Visible on profile page" : "Hidden on profile page",
-                    showChevron: false,
-                    toggle: $showEmailOnProfile
-                )
-                sectionDivider
-                settingsRow(icon: "calendar.badge.clock", iconColor: displayIconColor, label: "Week Starts On", value: weekStart, action: { showWeekStartDialog = true })
+                SettingsRowView(icon: "ruler", iconColor: displayIconColor, label: "Units", value: draft.units, action: { showUnitsDialog = true })
             }
         }
+    }
+
+    // MARK: - Theme Section
+    
+    private var themePickerRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color(hex: "A082FF").opacity(0.12))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "paintpalette.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(hex: "A082FF"))
+                }
+                Text("Theme")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.brandCream)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 11)
+     
+            HStack(spacing: 8) {
+                ForEach(AppTheme.allCases, id: \.self) { theme in
+                    themeOption(theme)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+        }
+    }
+     
+    private func themeOption(_ theme: AppTheme) -> some View {
+        let isSelected = themeManager.current == theme
+        return Button {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                themeManager.current = theme
+            }
+        } label: {
+            VStack(spacing: 8) {
+                // Mini preview swatch
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(theme.navy)
+                        .frame(height: 44)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(isSelected ? theme.lime : Color.clear, lineWidth: 2)
+                        )
+     
+                    HStack(spacing: 4) {
+                        Circle().fill(theme.lime).frame(width: 8, height: 8)
+                        Circle().fill(theme.orange).frame(width: 8, height: 8)
+                        Circle().fill(theme.blue).frame(width: 8, height: 8)
+                    }
+                }
+     
+                HStack(spacing: 4) {
+                    Image(systemName: theme.icon)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(theme.displayName)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                }
+                .foregroundColor(isSelected ? .brandLime : Color.brandCream.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Notifications Section
 
     private var notificationsSection: some View {
-        sectionBlock(label: "NOTIFICATIONS") {
+        SectionBlockView(title: "NOTIFICATIONS") {
             VStack(spacing: 0) {
-                settingsRow(icon: "bell.badge.fill", iconColor: notificationsIconColor, label: "Notification Access", subtitle: notificationStatusText, showChevron: false)
+                SettingsRowView(icon: "bell.badge.fill", iconColor: notificationsIconColor, label: "Notification Access", subtitle: notificationStatusText, showChevron: false)
                 sectionDivider
-                settingsRow(icon: "fork.knife", iconColor: notificationsIconColor, label: "Meal Reminders", subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off", showChevron: false, toggle: $mealReminders)
+                SettingsRowView(icon: "fork.knife", iconColor: notificationsIconColor, label: "Meal Reminders", subtitle: mealReminders ? "Daily at \(formattedHour(mealReminderHour))" : "Off", showChevron: false, toggle: $mealReminders)
                 if mealReminders { hourStepperRow(title: "Meal Reminder Time", hour: $mealReminderHour) }
                 sectionDivider
-                settingsRow(icon: "dumbbell.fill", iconColor: notificationsIconColor, label: "Workout Reminder", subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off", showChevron: false, toggle: $workoutReminder)
+                SettingsRowView(icon: "dumbbell.fill", iconColor: notificationsIconColor, label: "Workout Reminder", subtitle: workoutReminder ? "Daily at \(formattedHour(workoutReminderHour))" : "Off", showChevron: false, toggle: $workoutReminder)
                 if workoutReminder { hourStepperRow(title: "Workout Reminder Time", hour: $workoutReminderHour) }
                 sectionDivider
-                settingsRow(icon: "flame.fill", iconColor: notificationsIconColor, label: "Streak Reminder", subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off", showChevron: false, toggle: $streakReminder)
+                SettingsRowView(icon: "flame.fill", iconColor: notificationsIconColor, label: "Streak Reminder", subtitle: streakReminder ? "Daily at \(formattedHour(streakReminderHour))" : "Off", showChevron: false, toggle: $streakReminder)
                 if streakReminder { hourStepperRow(title: "Streak Reminder Time", hour: $streakReminderHour) }
                 sectionDivider
                 Button {
@@ -438,14 +509,60 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Privacy Section
+
+    private var privacySection: some View {
+        SectionBlockView(title: "PROFILE PRIVACY") {
+            VStack(spacing: 0) {
+                SettingsRowView(
+                    icon: "flame.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Day Streak",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showStreak },
+                        set: { draft.showStreak = $0; hasChanges = true }
+                    )
+                )
+                sectionDivider
+                SettingsRowView(
+                    icon: "dumbbell.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Workouts",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showWorkouts },
+                        set: { draft.showWorkouts = $0; hasChanges = true }
+                    )
+                )
+                sectionDivider
+                SettingsRowView(
+                    icon: "trophy.fill",
+                    iconColor: privacyIconColor,
+                    label: "Show Achievements",
+                    subtitle: "Visible on your social profile",
+                    showChevron: false,
+                    toggle: Binding(
+                        get: { draft.showAchievements },
+                        set: { draft.showAchievements = $0; hasChanges = true }
+                    )
+                )
+            }
+        }
+    }
+
     // MARK: - Account Section
 
     private var accountSection: some View {
-        sectionBlock(label: "ACCOUNT") {
+        SectionBlockView(title: "ACCOUNT") {
             VStack(spacing: 0) {
-                settingsRow(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
+                SettingsRowView(icon: "hand.raised.fill", iconColor: accountIconColor, label: "Blocked Users", action: { showBlockedUsers = true })
                 sectionDivider
-                settingsRow(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
+                SettingsRowView(icon: "lock.fill", iconColor: accountIconColor, label: "Change Password", action: { })
+                sectionDivider
+                SettingsRowView(icon: "rectangle.portrait.and.arrow.right", iconColor: accountIconColor, label: "Log Out", labelColor: .brandOrange, showChevron: false, action: { appState.signOut() })
             }
         }
     }
@@ -453,7 +570,7 @@ struct SettingsView: View {
     // MARK: - Admin Section
 
     private var adminSection: some View {
-        sectionBlock(label: "ADMIN") {
+        SectionBlockView(title: "ADMIN") {
             Button {
                 showAdminPanel = true
             } label: {
@@ -540,82 +657,11 @@ struct SettingsView: View {
 
     // MARK: - Shared Helpers
 
-    @ViewBuilder
-    private func sectionBlock<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(label)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(Color.brandLime.opacity(0.55))
-                .tracking(1.5)
-            VStack(spacing: 0) {
-                content()
-            }
-            .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.brandCream.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.08), lineWidth: 0.5))
-        }
-    }
-
     private var sectionDivider: some View {
         Rectangle()
             .fill(Color.brandCream.opacity(0.06))
             .frame(height: 0.5)
             .padding(.leading, 52)
-    }
-
-    @ViewBuilder
-    private func settingsRow(
-        icon: String,
-        iconColor: Color,
-        label: String,
-        subtitle: String? = nil,
-        value: String? = nil,
-        labelColor: Color? = nil,
-        showChevron: Bool = true,
-        action: (() -> Void)? = nil,
-        toggle: Binding<Bool>? = nil
-    ) -> some View {
-        let rowContent = HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(iconColor.opacity(0.12))
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(iconColor)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(labelColor ?? .brandCream)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.brandCream.opacity(0.4))
-                }
-            }
-            Spacer()
-            if let value {
-                Text(value)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.brandCream.opacity(0.4))
-            }
-            if let toggle {
-                Toggle("", isOn: toggle).labelsHidden().tint(.brandLime)
-            } else if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color.brandCream.opacity(0.25))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-
-        if let action {
-            Button(action: action) { rowContent }.buttonStyle(.plain)
-        } else {
-            rowContent
-        }
     }
 
     @ViewBuilder
@@ -661,6 +707,33 @@ struct SettingsView: View {
         draft.targetWeightLbs = Int(user.targetWeightLbs ?? 175)
         draft.customCaloriesEnabled = user.customCaloriesEnabled
         draft.units = user.units
+
+        Task {
+            await loadPrivacySettings(userId: user.id)
+        }
+    }
+
+    @MainActor
+    private func loadPrivacySettings(userId: String) async {
+        struct PrivacyRow: Codable {
+            let show_streak: Bool?
+            let show_workouts: Bool?
+            let show_achievements: Bool?
+        }
+        do {
+            let row: PrivacyRow = try await supabase
+                .from("profiles")
+                .select("show_streak, show_workouts, show_achievements")
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            draft.showStreak = row.show_streak ?? true
+            draft.showWorkouts = row.show_workouts ?? true
+            draft.showAchievements = row.show_achievements ?? true
+        } catch {
+            print("Failed to load privacy settings: \(error)")
+        }
     }
 
     private func refreshNotificationStatus() {
@@ -728,6 +801,22 @@ struct SettingsView: View {
                 )
 
                 try await ProfileService.shared.updateProfile(userId: userId, update: update)
+
+                // Save privacy settings
+                struct PrivacyUpdate: Codable {
+                    let show_streak: Bool
+                    let show_workouts: Bool
+                    let show_achievements: Bool
+                }
+                try await supabase
+                    .from("profiles")
+                    .update(PrivacyUpdate(
+                        show_streak: draft.showStreak,
+                        show_workouts: draft.showWorkouts,
+                        show_achievements: draft.showAchievements
+                    ))
+                    .eq("id", value: userId)
+                    .execute()
 
                 if var user = appState.currentUser {
                     user.name = draft.name
@@ -1208,6 +1297,226 @@ private struct SheetHeader: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
+    }
+}
+
+// MARK: - Blocked Users View
+
+struct BlockedUsersView: View {
+    @Environment(AppState.self) var appState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var blockedUsers: [(id: UUID, name: String)] = []
+    @State private var isLoading: Bool = true
+    @State private var showUnblockAlert: Bool = false
+    @State private var userToUnblock: (id: UUID, name: String)? = nil
+
+    private var userId: UUID? {
+        UUID(uuidString: appState.currentUser?.id ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+
+                if isLoading {
+                    ProgressView().tint(.brandCream)
+                } else if blockedUsers.isEmpty {
+                    VStack(spacing: 14) {
+                        Image(systemName: "hand.raised.slash")
+                            .font(.system(size: 42))
+                            .foregroundColor(.gray.opacity(0.3))
+                        Text("No blocked users")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.secondary)
+                        Text("Users you block will appear here")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
+                } else {
+                    List {
+                        ForEach(blockedUsers, id: \.id) { user in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle().fill(Color.red.opacity(0.15)).frame(width: 40, height: 40)
+                                    Text(makeInitials(user.name))
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundColor(.red)
+                                }
+                                Text(user.name)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.brandCream)
+                                Spacer()
+                                Button {
+                                    userToUnblock = user
+                                    showUnblockAlert = true
+                                } label: {
+                                    Text("Unblock")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 14).padding(.vertical, 6)
+                                        .background(Color.red.opacity(0.8))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            .listRowBackground(Color.brandCream.opacity(0.04))
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Blocked Users")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(.brandLime)
+                }
+            }
+            .alert("Unblock User", isPresented: $showUnblockAlert) {
+                Button("Unblock", role: .destructive) {
+                    if let user = userToUnblock {
+                        unblock(user)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let user = userToUnblock {
+                    Text("Unblock \(user.name)? They will be able to find you and send friend requests again.")
+                }
+            }
+            .onAppear { loadBlockedUsers() }
+        }
+    }
+
+    private func loadBlockedUsers() {
+        guard let uid = userId else { return }
+        isLoading = true
+        Task {
+            do {
+                let blockedIds = try await BlockService.shared.fetchBlockedIds(userId: uid)
+                var users: [(id: UUID, name: String)] = []
+                for blockedId in blockedIds {
+                    if let profile = try? await ProfileService.shared.fetchProfile(userId: blockedId.uuidString) {
+                        users.append((id: blockedId, name: profile.name))
+                    } else {
+                        users.append((id: blockedId, name: "Unknown User"))
+                    }
+                }
+                blockedUsers = users
+            } catch {
+                print("Failed to load blocked users: \(error)")
+            }
+            isLoading = false
+        }
+    }
+
+    private func unblock(_ user: (id: UUID, name: String)) {
+        guard let uid = userId else { return }
+        Task {
+            do {
+                try await BlockService.shared.unblockUser(blockerId: uid, blockedId: user.id)
+                blockedUsers.removeAll { $0.id == user.id }
+            } catch {
+                print("Unblock error: \(error)")
+            }
+        }
+    }
+
+    private func makeInitials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        let f = parts.first?.prefix(1) ?? ""
+        let l = parts.count > 1 ? parts.last!.prefix(1) : ""
+        return "\(f)\(l)".uppercased()
+    }
+}
+
+// MARK: - SectionBlockView
+
+struct SectionBlockView<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        let labelColor = Color.brandLime.opacity(0.55)
+        let bgColor = Color.brandCream.opacity(0.04)
+        let borderColor = Color.brandCream.opacity(0.08)
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(labelColor)
+                .tracking(1.5)
+            VStack(spacing: 0) {
+                content()
+            }
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 12).fill(bgColor))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - SettingsRowView
+
+struct SettingsRowView: View {
+    let icon: String
+    let iconColor: Color
+    let label: String
+    var subtitle: String? = nil
+    var value: String? = nil
+    var labelColor: Color? = nil
+    var showChevron: Bool = true
+    var action: (() -> Void)? = nil
+    var toggle: Binding<Bool>? = nil
+
+    var body: some View {
+        let bgColor = iconColor.opacity(0.12)
+        let resolvedLabelColor = labelColor ?? .brandCream
+        let subtitleColor = Color.brandCream.opacity(0.4)
+        let valueColor = Color.brandCream.opacity(0.4)
+        let chevronColor = Color.brandCream.opacity(0.25)
+
+        let rowContent = HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7).fill(bgColor))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(resolvedLabelColor)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(subtitleColor)
+                }
+            }
+            Spacer()
+            if let value {
+                Text(value)
+                    .font(.system(size: 12))
+                    .foregroundColor(valueColor)
+            }
+            if let toggle {
+                Toggle("", isOn: toggle).labelsHidden().tint(.brandLime)
+            } else if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(chevronColor)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+
+        if let action {
+            Button(action: action) { rowContent }.buttonStyle(.plain)
+        } else {
+            rowContent
+        }
     }
 }
 

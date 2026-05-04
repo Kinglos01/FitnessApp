@@ -20,65 +20,64 @@ struct UserInfoView: View {
     @State private var isSaving = false
     @State private var errorMessage = ""
     @State private var appeared = false
+    @State private var isGenderDropdownOpen = false
     @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
     
     let genders = ["Male", "Female", "Other", "Prefer Not To Say"]
     
-    private var totalHeightInInches: Int { heightFeet * 12 + heightInches }
+    private var totalHeightInInches: Int {
+        heightFeet * 12 + heightInches
+    }
+    
+    private var latestAllowedBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -16, to: Date()) ?? Date()
+    }
+    
+    private let pickerFieldHeight: CGFloat = 100
+    private let textFieldHeight: CGFloat = 58
+    
+    private var genderDropdownHeight: CGFloat {
+        CGFloat(genders.count * 44) + CGFloat(max(genders.count - 1, 0) * 6) + 16
+    }
     
     var body: some View {
         ZStack {
             Color.brandNavy.ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                
                 // MARK: - Header
-                ZStack(alignment: .bottomLeading) {
-                    GeometryReader { geo in
-                        Path { path in
-                            let w = geo.size.width + 60
-                            let h = geo.size.height
-                            path.move(to: CGPoint(x: -30, y: 0))
-                            path.addLine(to: CGPoint(x: w, y: 0))
-                            path.addLine(to: CGPoint(x: w, y: h * 0.72))
-                            path.addLine(to: CGPoint(x: -30, y: h))
-                            path.closeSubpath()
-                        }
-                        .fill(Color.brandLime)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
                         Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 46, weight: .bold))
-                            .foregroundColor(.brandNavy)
-                            .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 10)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.05), value: appeared)
-                        
-                        Text("Set Up Profile")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
-                            .foregroundColor(.brandNavy)
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(.brandLime)
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 8)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.12), value: appeared)
-                        
-                        Text("We'll use this to personalize your experience")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.brandNavy.opacity(0.6))
+                            .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.05), value: appeared)
+
+                        Text("Set Up Profile")
+                            .font(.system(size: 28, weight: .black))
+                            .foregroundColor(.brandCream)
                             .opacity(appeared ? 1 : 0)
-                            .offset(y: appeared ? 0 : 6)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.18), value: appeared)
+                            .offset(y: appeared ? 0 : 8)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1), value: appeared)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+
+                    Text("We'll use this to personalize your experience")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color.brandCream.opacity(0.55))
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 6)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.16), value: appeared)
                 }
-                .frame(height: 210)
-                .clipped()
-                
+                .padding(.horizontal, 24)
+                .padding(.top, 28)
+                .padding(.bottom, 16)
+
                 // MARK: - Form
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 20) {
-                        
+                    VStack(spacing: 18) {
+
                         // Name
                         formSection(label: "FULL NAME", delay: 0.22) {
                             ZStack(alignment: .leading) {
@@ -87,93 +86,159 @@ struct UserInfoView: View {
                                         .foregroundColor(Color.brandCream.opacity(0.35))
                                         .padding(.horizontal, 16)
                                 }
+
                                 TextField("", text: $name)
+                                    .textInputAutocapitalization(.words)
+                                    .autocorrectionDisabled(true)
                                     .foregroundColor(.brandCream)
+                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                                     .padding(.horizontal, 16)
                             }
-                            .frame(height: 52)
-                            .background(Color.brandCream.opacity(0.07))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
-                            .cornerRadius(12)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: textFieldHeight)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        
+
                         // Gender
                         formSection(label: "GENDER", delay: 0.27) {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 10) {
+                            VStack(spacing: 8) {
+                                Button {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                                        isGenderDropdownOpen.toggle()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(gender)
+                                            .font(.system(size: 16, weight: .semibold, design: .default))
+                                            .foregroundColor(.brandCream)
+
+                                        Spacer()
+
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(Color.brandCream.opacity(0.55))
+                                            .rotationEffect(.degrees(isGenderDropdownOpen ? 180 : 0))
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: textFieldHeight)
+                                    .background(Color.brandCream.opacity(0.08))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                .buttonStyle(.plain)
+
+                                VStack(spacing: 6) {
                                     ForEach(genders, id: \.self) { option in
                                         Button {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
                                                 gender = option
+                                                isGenderDropdownOpen = false
                                             }
                                         } label: {
-                                            Text(option)
-                                                .font(.system(size: 13, weight: .semibold))
-                                                .foregroundColor(gender == option ? .brandNavy : Color.brandCream.opacity(0.6))
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 10)
-                                                .background(
-                                                    gender == option
-                                                    ? Color.brandLime
-                                                    : Color.brandCream.opacity(0.07)
-                                                )
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .stroke(
-                                                            gender == option
-                                                            ? Color.clear
-                                                            : Color.brandCream.opacity(0.18),
-                                                            lineWidth: 1
-                                                        )
-                                                )
-                                                .cornerRadius(10)
+                                            HStack {
+                                                Text(option)
+                                                    .font(.system(size: 15, weight: .semibold, design: .default))
+                                                    .foregroundColor(gender == option ? .brandNavy : .brandCream)
+
+                                                Spacer()
+
+                                                if gender == option {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 13, weight: .black))
+                                                        .foregroundColor(.brandNavy)
+                                                }
+                                            }
+                                            .padding(.horizontal, 14)
+                                            .frame(height: 44)
+                                            .background(
+                                                gender == option
+                                                ? Color.brandLime
+                                                : Color.brandCream.opacity(0.06)
+                                            )
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
                                         }
+                                        .buttonStyle(.plain)
                                     }
                                 }
+                                .padding(8)
+                                .background(Color.brandCream.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .scaleEffect(x: 1, y: isGenderDropdownOpen ? 1 : 0.92, anchor: .top)
+                                .frame(height: isGenderDropdownOpen ? genderDropdownHeight : 0, alignment: .top)
+                                .clipped()
+                                .allowsHitTesting(isGenderDropdownOpen)
+                                .animation(.spring(response: 0.35, dampingFraction: 0.88), value: isGenderDropdownOpen)
                             }
                         }
-                        
+
                         // Date of Birth
                         formSection(label: "DATE OF BIRTH", delay: 0.32) {
-                            DatePicker(
-                                "",
-                                selection: $birthDate,
-                                in: ...Calendar.current.date(byAdding: .year, value: -16, to: Date())!,
-                                displayedComponents: .date
+                            ZStack {
+                                DatePicker(
+                                    "",
+                                    selection: $birthDate,
+                                    in: ...latestAllowedBirthDate,
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.wheel)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: pickerFieldHeight)
+                                .colorScheme(.dark)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: pickerFieldHeight)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
                             )
-                            .datePickerStyle(.wheel)
-                            .labelsHidden()
-                            .frame(height: 100)
-                            .clipped()
-                            .colorScheme(.dark)
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        
+
                         // Weight
                         formSection(label: "WEIGHT", delay: 0.37) {
-                            HStack {
+                            HStack(spacing: 0) {
                                 Picker("", selection: $weightLbs) {
                                     ForEach(80...999, id: \.self) { lbs in
-                                        Text("\(lbs)").tag(lbs)
+                                        Text("\(lbs)")
+                                            .tag(lbs)
                                             .foregroundColor(.brandCream)
                                     }
                                 }
                                 .pickerStyle(.wheel)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 80)
+                                .frame(height: pickerFieldHeight)
                                 .colorScheme(.dark)
-                                
+
                                 Text("lbs")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(Color.brandCream.opacity(0.5))
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundColor(Color.brandCream.opacity(0.6))
                                     .padding(.trailing, 12)
                             }
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
-                            .clipped()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: pickerFieldHeight)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        
+
                         // Height
                         formSection(label: "HEIGHT", delay: 0.42) {
                             HStack(spacing: 0) {
@@ -184,9 +249,13 @@ struct UserInfoView: View {
                                 }
                                 .pickerStyle(.wheel)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 80)
+                                .frame(height: pickerFieldHeight)
                                 .colorScheme(.dark)
-                                
+
+                                Divider()
+                                    .frame(width: 1)
+                                    .background(Color.brandCream.opacity(0.12))
+
                                 Picker("", selection: $heightInches) {
                                     ForEach(0...11, id: \.self) { inch in
                                         Text("\(inch) in").tag(inch)
@@ -194,39 +263,55 @@ struct UserInfoView: View {
                                 }
                                 .pickerStyle(.wheel)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 80)
+                                .frame(height: pickerFieldHeight)
                                 .colorScheme(.dark)
                             }
-                            .background(Color.brandCream.opacity(0.07))
-                            .cornerRadius(12)
-                            .clipped()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: pickerFieldHeight)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.brandCream.opacity(0.16), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        
+
                         // Error
                         if !errorMessage.isEmpty {
                             HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.circle.fill").font(.caption)
-                                Text(errorMessage).font(.caption)
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.caption)
+
+                                Text(errorMessage)
+                                    .font(.caption)
                             }
                             .foregroundColor(.brandOrange)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 2)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-                        
+
                         // Save Button
                         Button {
-                            withAnimation(.easeInOut(duration: 0.1)) { savePressed = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                withAnimation(.easeInOut(duration: 0.15)) { savePressed = false }
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                savePressed = true
                             }
+
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    savePressed = false
+                                }
+                            }
+
                             saveUserInfo()
                         } label: {
                             ZStack {
                                 if isSaving {
-                                    ProgressView().tint(.brandNavy)
+                                    ProgressView()
+                                        .tint(.brandNavy)
                                 } else {
                                     Text("Save & Continue")
-                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .font(.system(size: 16, weight: .black, design: .default))
                                         .foregroundColor(.brandNavy)
                                         .frame(maxWidth: .infinity)
                                 }
@@ -236,37 +321,45 @@ struct UserInfoView: View {
                         .background(
                             (name.isEmpty || isSaving)
                             ? Color.brandLime.opacity(0.4)
-                            : (savePressed ? Color.brandLime.opacity(0.8) : Color.brandLime)
+                            : (savePressed ? Color.brandLime.opacity(0.85) : Color.brandLime)
                         )
-                        .cornerRadius(14)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                         .scaleEffect(savePressed ? 0.97 : 1.0)
                         .animation(.easeInOut(duration: 0.12), value: savePressed)
                         .disabled(name.isEmpty || isSaving)
                         .opacity(appeared ? 1 : 0)
                         .animation(.easeInOut(duration: 0.4).delay(0.48), value: appeared)
-                        
-                        Spacer(minLength: 40)
+
+                        Spacer(minLength: 32)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.top, 28)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
                 }
             }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { appeared = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                appeared = true
+            }
         }
     }
     
     // MARK: - Section Builder
     @ViewBuilder
-    private func formSection<Content: View>(label: String, delay: Double, @ViewBuilder content: () -> Content) -> some View {
+    private func formSection<Content: View>(
+        label: String,
+        delay: Double,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(Color.brandLime.opacity(0.75))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(Color.brandLime)
                 .tracking(1.2)
+
             content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 12)
         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(delay), value: appeared)
@@ -278,13 +371,16 @@ struct UserInfoView: View {
             errorMessage = "Session error. Please log in again."
             return
         }
+
         let email = appState.pendingEmail ?? appState.currentUser?.email ?? ""
         
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         
-        
-        let initialEntry = WeightHistoryEntry(date: Date(), weight_lbs: Double(weightLbs))
+        let initialEntry = WeightHistoryEntry(
+            date: Date(),
+            weight_lbs: Double(weightLbs)
+        )
         
         let profileUpdate = ProfileUpdate(
             name: name,
@@ -298,7 +394,7 @@ struct UserInfoView: View {
             target_weight_lbs: nil,
             custom_calories_enabled: false,
             units: "Imperial",
-            weight_history: [initialEntry] 
+            weight_history: [initialEntry]
         )
         
         isSaving = true
@@ -307,6 +403,7 @@ struct UserInfoView: View {
         Task {
             do {
                 try await ProfileService.shared.updateProfile(userId: uid, update: profileUpdate)
+
                 let user = User(
                     id: uid,
                     email: email,
@@ -321,15 +418,18 @@ struct UserInfoView: View {
                     targetWeightLbs: nil,
                     customCaloriesEnabled: false
                 )
+
                 appState.completeOnboarding(user: user)
             } catch {
                 errorMessage = "Failed to save profile. Please try again."
                 print("Supabase profile update error: \(error)")
             }
+
             isSaving = false
         }
     }
 }
+
 #Preview {
     UserInfoView()
         .environment(AppState())

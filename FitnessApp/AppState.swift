@@ -7,6 +7,7 @@ class AppState {
     var currentUser: User?
     var isLoggedIn: Bool = false
     var hasCompletedOnboarding: Bool = false
+    var selectedTab: Int = 0
 
     var pendingUserId: String?
     var pendingEmail: String?
