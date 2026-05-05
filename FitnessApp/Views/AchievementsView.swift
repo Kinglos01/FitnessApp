@@ -19,6 +19,7 @@ struct AchievementsView: View {
     private var userId: String { appState.currentUser?.id ?? "" }
 
     private var unlockedIds: Set<String> { Set(unlocked.map { $0.id }) }
+    
 
     private var filteredDefinitions: [AchievementDefinition] {
         if let cat = selectedCategory {
@@ -197,91 +198,164 @@ struct AchievementsView: View {
 private struct BadgeCell: View {
     let definition: AchievementDefinition
     let unlockedAt: Date?
-
+    
     private var isUnlocked: Bool { unlockedAt != nil }
-
+    @State private var showDetail = false
+    
     private var formattedDate: String {
         guard let date = unlockedAt else { return "" }
         let f = DateFormatter()
         f.dateFormat = "MMM d"
         return f.string(from: date)
     }
-
+    
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(isUnlocked
-                          ? definition.tier.ringColor.opacity(0.18)
-                          : Color.brandCream.opacity(0.04))
-                    .frame(width: 62, height: 62)
-
-                Circle()
-                    .stroke(isUnlocked
-                            ? definition.tier.ringColor.opacity(0.5)
-                            : Color.brandCream.opacity(0.1),
-                            lineWidth: isUnlocked ? 2 : 1)
-                    .frame(width: 62, height: 62)
-
-                Image(systemName: definition.category.icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(isUnlocked
-                                     ? definition.tier.ringColor
-                                     : Color.brandCream.opacity(0.18))
-
-                // lock overlay
-                if !isUnlocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color.brandCream.opacity(0.25))
-                        .offset(x: 18, y: 18)
+        Button { showDetail = true } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(isUnlocked
+                              ? definition.tier.ringColor.opacity(0.18)
+                              : Color.brandCream.opacity(0.04))
+                        .frame(width: 62, height: 62)
+                    
+                    Circle()
+                        .stroke(isUnlocked
+                                ? definition.tier.ringColor.opacity(0.5)
+                                : Color.brandCream.opacity(0.1),
+                                lineWidth: isUnlocked ? 2 : 1)
+                        .frame(width: 62, height: 62)
+                    
+                    Image(systemName: definition.category.icon)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(isUnlocked
+                                         ? definition.tier.ringColor
+                                         : Color.brandCream.opacity(0.18))
+                    
+                    // lock overlay
+                    if !isUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color.brandCream.opacity(0.25))
+                            .offset(x: 18, y: 18)
+                    }
+                    
+                    // tier crown for gold
+                    if isUnlocked && definition.tier == .gold {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.yellow)
+                            .offset(x: 18, y: -18)
+                    }
                 }
-
-                // tier crown for gold
-                if isUnlocked && definition.tier == .gold {
-                    Image(systemName: "crown.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.yellow)
-                        .offset(x: 18, y: -18)
-                }
-            }
-
-            VStack(spacing: 3) {
-                Text(definition.title)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(isUnlocked ? .brandCream : Color.brandCream.opacity(0.3))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-
-                if isUnlocked {
-                    Text(formattedDate)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(definition.tier.ringColor.opacity(0.8))
-                } else {
-                    Text(definition.description)
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.brandCream.opacity(0.2))
+                
+                VStack(spacing: 3) {
+                    Text(definition.title)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(isUnlocked ? .brandCream : Color.brandCream.opacity(0.3))
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
+                    
+                    if isUnlocked {
+                        Text(formattedDate)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(definition.tier.ringColor.opacity(0.8))
+                    } else {
+                        Text(definition.description)
+                            .font(.system(size: 9))
+                            .foregroundColor(Color.brandCream.opacity(0.2))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
                 }
             }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isUnlocked
+                          ? definition.tier.ringColor.opacity(0.06)
+                          : Color.brandCream.opacity(0.02))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isUnlocked
+                            ? definition.tier.ringColor.opacity(0.2)
+                            : Color.brandCream.opacity(0.06),
+                            lineWidth: 0.5)
+            )
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 6)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(isUnlocked
-                      ? definition.tier.ringColor.opacity(0.06)
-                      : Color.brandCream.opacity(0.02))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isUnlocked
-                        ? definition.tier.ringColor.opacity(0.2)
-                        : Color.brandCream.opacity(0.06),
-                        lineWidth: 0.5)
-        )
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showDetail) {
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                VStack(spacing: 20) {
+                    ZStack {
+                        Circle()
+                            .fill(isUnlocked ? definition.tier.ringColor.opacity(0.18) : Color.brandCream.opacity(0.06))
+                            .frame(width: 90, height: 90)
+                        Circle()
+                            .stroke(isUnlocked ? definition.tier.ringColor.opacity(0.5) : Color.brandCream.opacity(0.1), lineWidth: 2)
+                            .frame(width: 90, height: 90)
+                        Image(systemName: definition.category.icon)
+                            .font(.system(size: 36, weight: .semibold))
+                            .foregroundColor(isUnlocked ? definition.tier.ringColor : Color.brandCream.opacity(0.2))
+                    }
+                    VStack(spacing: 6) {
+                        Text(definition.title)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(.brandCream)
+                        Text(definition.tier.label)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(definition.tier.ringColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(definition.tier.ringColor.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    VStack(spacing: 8) {
+                        Text("HOW TO EARN")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color.brandCream.opacity(0.4))
+                            .tracking(1)
+                        Text(definition.description)
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundColor(.brandCream)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 30)
+                    VStack(spacing: 8) {
+                        Text("FUN FACT")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color.brandLime.opacity(0.6))
+                            .tracking(1)
+                        Text(definition.funFact)
+                            .font(.system(size: 14))
+                            .foregroundColor(Color.brandCream.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .background(Color.brandCream.opacity(0.04))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.08), lineWidth: 1))
+                    .cornerRadius(14)
+                    .padding(.horizontal, 20)
+                    if let date = unlockedAt {
+                        Text("Unlocked \(date.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 13))
+                            .foregroundColor(definition.tier.ringColor.opacity(0.8))
+                    } else {
+                        Text("Not yet unlocked")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color.brandCream.opacity(0.3))
+                    }
+                    Spacer()
+                }
+                .padding(.top, 40)
+            }
+            .presentationDetents([.medium])
+        }
     }
 }
 
