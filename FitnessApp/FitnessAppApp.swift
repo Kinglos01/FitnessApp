@@ -1,6 +1,6 @@
 //
-//  FitnessAppApp.swift
-//  FitnessApp
+//  SimplyFitApp.swift
+//  SimplyFit
 //
 //  Created by Carlos Berio on 2/11/26.
 //

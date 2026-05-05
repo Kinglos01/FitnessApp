@@ -1,6 +1,6 @@
 //
 //  CommunityService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for communities, community_members,
 //  and community_messages tables.

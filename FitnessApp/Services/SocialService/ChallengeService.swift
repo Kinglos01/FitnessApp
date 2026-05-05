@@ -1,6 +1,6 @@
 //
 //  ChallengeService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for challenges + challenge_participants tables.
 //  Handles creating challenges, joining, updating progress, and fetching.

@@ -1,12 +1,12 @@
 //
 //  ThemeManager.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Created by Carlos Berio 
 //
 //
 //  ThemeManager.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import SwiftUI

@@ -1,6 +1,6 @@
 //
 //  SplashView.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import SwiftUI
@@ -37,7 +37,7 @@ struct SplashView: View {
                         .scaleEffect(logoScale)
                         .opacity(logoOpacity)
 
-                    Text("FitnessApp")
+                    Text("SimplyFit")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                         .opacity(logoOpacity)

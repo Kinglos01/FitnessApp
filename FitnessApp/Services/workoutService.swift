@@ -1,6 +1,6 @@
 //
 //  WorkoutService.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

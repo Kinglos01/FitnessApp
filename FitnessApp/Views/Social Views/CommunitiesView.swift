@@ -1,6 +1,6 @@
 //
 //  CommunitiesView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Group chats by interest from Supabase via CommunityService.
 //

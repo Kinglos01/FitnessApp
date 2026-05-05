@@ -1,6 +1,6 @@
 //
 //  FriendService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for the friendships table.
 //  Handles sending/accepting/declining friend requests,

@@ -1,6 +1,6 @@
 //
 //  GroupChatService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for group_chats, group_chat_members,
 //  and group_chat_messages tables.

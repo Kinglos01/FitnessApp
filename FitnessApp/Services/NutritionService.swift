@@ -1,6 +1,6 @@
 //
 //  NutritionService.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

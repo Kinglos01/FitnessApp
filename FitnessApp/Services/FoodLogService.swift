@@ -1,6 +1,6 @@
 //
 //  FoodLogService.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

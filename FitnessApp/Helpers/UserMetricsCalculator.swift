@@ -1,6 +1,6 @@
 //
 //  UserMetricsCalculator.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

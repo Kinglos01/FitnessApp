@@ -1,6 +1,6 @@
 //
 //  ChallengesView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Active challenges from Supabase via ChallengeService.
 //

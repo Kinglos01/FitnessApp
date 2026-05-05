@@ -1,6 +1,6 @@
 //
 //  GroupChatThreadView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Full-screen group chat thread and settings views.
 //

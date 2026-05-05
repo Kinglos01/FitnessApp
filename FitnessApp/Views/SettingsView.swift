@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import SwiftUI
@@ -648,7 +648,7 @@ struct SettingsView: View {
     // MARK: - Footer
 
     private var footerText: some View {
-        Text("FitnessApp v1.0")
+        Text("SimplyFit v1.0")
             .font(.system(size: 12))
             .foregroundColor(Color.brandCream.opacity(0.2))
             .frame(maxWidth: .infinity, alignment: .center)

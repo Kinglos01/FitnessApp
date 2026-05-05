@@ -1,6 +1,6 @@
 //
 //  WeightLogService.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

@@ -1,6 +1,6 @@
 //
 //  DirectMessageService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for the direct_messages table.
 //  Handles sending DMs, fetching conversation threads,

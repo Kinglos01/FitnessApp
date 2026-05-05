@@ -1,6 +1,6 @@
 //
 //  dailyLogService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Created by Carlos Berio on 4/8/26.
 //

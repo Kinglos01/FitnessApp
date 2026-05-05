@@ -1,6 +1,6 @@
 //
 //  GroupChatListView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Group chat list, creation, and thread views for the Messages tab.
 //
