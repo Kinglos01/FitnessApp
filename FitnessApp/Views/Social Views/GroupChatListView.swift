@@ -158,6 +158,15 @@ private struct GroupChatRowView: View {
                     .font(.system(size: 12, design: .rounded))
                     .foregroundColor(.gray)
             }
+            HStack(spacing: 4) {
+                Image(systemName: "person.2.fill").font(.system(size: 10))
+                Text("\(preview.memberNames.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Color(.systemGray5)).clipShape(Capsule())
+
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary)
         }

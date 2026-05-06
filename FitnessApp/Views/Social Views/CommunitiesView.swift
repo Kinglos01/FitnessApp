@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+struct IdentifiableUUID: Identifiable {
+    let id: UUID
+}
+
 struct CommunitiesView: View {
 
     @Environment(AppState.self) var appState
@@ -18,6 +22,7 @@ struct CommunitiesView: View {
     @State private var selectedCommunity: CommunityRecord? = nil
     @State private var refreshTimer: Timer? = nil
     @State private var blockedIds: Set<UUID> = []
+    @State private var liveMemberCounts: [UUID: Int] = [:]
 
     private var userId: UUID? { UUID(uuidString: appState.currentUser?.id ?? "") }
 
@@ -63,16 +68,32 @@ struct CommunitiesView: View {
     }
 
     private func loadData(showLoading: Bool = false) {
-        guard let uid = userId else { return }
         if showLoading { isLoading = true }
         Task {
-            do {
-                let blocked = try await BlockService.shared.fetchBlockedIds(userId: uid)
-                blockedIds = Set(blocked)
-                myCommunities = try await CommunityService.shared.fetchMyCommunities(userId: uid)
-                allCommunities = try await CommunityService.shared.fetchAllCommunities()
-            } catch { print("CommunitiesView load error: \(error)") }
-            isLoading = false
+            await loadDataAsync()
+        }
+    }
+
+    private func loadDataAsync() async {
+        guard let uid = userId else { return }
+        do {
+            let blocked = try await BlockService.shared.fetchBlockedIds(userId: uid)
+            blockedIds = Set(blocked)
+            async let myResult = CommunityService.shared.fetchMyCommunities(userId: uid)
+            async let allResult = CommunityService.shared.fetchAllCommunities()
+            let (my, all) = try await (myResult, allResult)
+            let filteredAll = all.filter { !blockedIds.contains($0.creator_id) }
+            let allIds = Array(Set((my + filteredAll).map { $0.id }))
+            let counts = try await CommunityService.shared.fetchMemberCounts(communityIds: allIds)
+            await MainActor.run {
+                myCommunities = my
+                allCommunities = filteredAll
+                liveMemberCounts = counts
+                isLoading = false
+            }
+        } catch {
+            print("Load error: \(error)")
+            await MainActor.run { isLoading = false }
         }
     }
 
@@ -112,7 +133,7 @@ struct CommunitiesView: View {
             VStack(spacing: 0) {
                 ForEach(Array(myCommunities.enumerated()), id: \.element.id) { index, community in
                     Button { selectedCommunity = community } label: {
-                        CommunityRowView(community: community, isJoined: true, onJoin: {}, onLeave: { leave(community) })
+                        CommunityRowView(community: community, isJoined: true, liveMemberCount: liveMemberCounts[community.id], onJoin: {}, onLeave: { leave(community) })
                     }
                     .buttonStyle(.plain)
                     if index < myCommunities.count - 1 { Divider().padding(.leading, 70) }
@@ -142,7 +163,7 @@ struct CommunitiesView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(discoverCommunities.enumerated()), id: \.element.id) { index, community in
-                        CommunityRowView(community: community, isJoined: false, onJoin: { join(community) }, onLeave: {})
+                        CommunityRowView(community: community, isJoined: false, liveMemberCount: liveMemberCounts[community.id], onJoin: { join(community) }, onLeave: {})
                         if index < discoverCommunities.count - 1 { Divider().padding(.leading, 70) }
                     }
                 }.background(Color(.systemGray6)).cornerRadius(14).padding(.horizontal, 16)
@@ -164,16 +185,20 @@ struct CommunitiesView: View {
     private func join(_ community: CommunityRecord) {
         guard let uid = userId else { return }
         Task {
-            do { try await CommunityService.shared.joinCommunity(communityId: community.id, userId: uid); loadData() }
-            catch { print("Join error: \(error)") }
+            do {
+                try await CommunityService.shared.joinCommunity(communityId: community.id, userId: uid)
+                await loadDataAsync()
+            } catch { print("Join error: \(error)") }
         }
     }
 
     private func leave(_ community: CommunityRecord) {
         guard let uid = userId else { return }
         Task {
-            do { try await CommunityService.shared.leaveCommunity(communityId: community.id, userId: uid); loadData() }
-            catch { print("Leave error: \(error)") }
+            do {
+                try await CommunityService.shared.leaveCommunity(communityId: community.id, userId: uid)
+                await loadDataAsync()
+            } catch { print("Leave error: \(error)") }
         }
     }
 }
@@ -183,6 +208,7 @@ struct CommunitiesView: View {
 struct CommunityRowView: View {
     let community: CommunityRecord
     let isJoined: Bool
+    var liveMemberCount: Int? = nil
     let onJoin: () -> Void
     let onLeave: () -> Void
 
@@ -216,7 +242,7 @@ struct CommunityRowView: View {
             if isJoined {
                 HStack(spacing: 4) {
                     Image(systemName: "person.2.fill").font(.system(size: 10))
-                    Text("\(community.member_count)")
+                    Text("\(liveMemberCount ?? community.member_count)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                 }
                 .foregroundColor(.secondary)
@@ -229,7 +255,7 @@ struct CommunityRowView: View {
             } else {
                 HStack(spacing: 4) {
                     Image(systemName: "person.2.fill").font(.system(size: 10))
-                    Text("\(community.member_count)")
+                    Text("\(liveMemberCount ?? community.member_count)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                 }
                 .foregroundColor(.secondary)
@@ -365,6 +391,7 @@ struct CommunityChatView: View {
                     members: members,
                     isLoading: isLoadingMembers
                 )
+                .environment(appState)
             }
             .alert("Delete Community?", isPresented: $showDeleteAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -379,17 +406,24 @@ struct CommunityChatView: View {
     private func loadMessages() {
         isLoading = true
         Task {
+            defer { isLoading = false }
             do {
                 messages = try await CommunityService.shared.fetchMessages(communityId: community.id)
-                // Fetch sender names for messages that aren't ours
                 let uniqueSenderIds = Set(messages.map { $0.sender_id }).filter { $0 != userId }
                 for senderId in uniqueSenderIds {
-                    if let profile = try? await ProfileService.shared.fetchProfile(userId: senderId.uuidString) {
-                        senderNames[senderId] = profile.name
+                    let profileTask = Task { () -> String? in
+                        try? await ProfileService.shared.fetchProfile(userId: senderId.uuidString).name
                     }
+                    let timeoutTask = Task {
+                        try await Task.sleep(nanoseconds: 5_000_000_000)
+                        profileTask.cancel()
+                    }
+                    if let name = await profileTask.value {
+                        senderNames[senderId] = name
+                    }
+                    timeoutTask.cancel()
                 }
             } catch { print("Load community messages error: \(error)") }
-            isLoading = false
         }
     }
 
@@ -462,7 +496,9 @@ struct CommunityMembersSheet: View {
     let members: [UserSearchResult]
     let isLoading: Bool
 
+    @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedProfileUserId: IdentifiableUUID? = nil
 
     var body: some View {
         NavigationView {
@@ -476,24 +512,29 @@ struct CommunityMembersSheet: View {
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(members) { member in
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle().fill(Color.blue.opacity(0.15)).frame(width: 40, height: 40)
-                                Text(makeInitials(member.name ?? "?"))
-                                    .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.blue)
+                        Button {
+                            selectedProfileUserId = IdentifiableUUID(id: member.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle().fill(Color.blue.opacity(0.15)).frame(width: 40, height: 40)
+                                    Text(makeInitials(member.name ?? "?"))
+                                        .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.blue)
+                                }
+                                Text(member.name ?? "Unknown")
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                if member.id == creatorId {
+                                    Text("Creator")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 8).padding(.vertical, 3)
+                                        .background(Color.orange.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                                Spacer()
                             }
-                            Text(member.name ?? "Unknown")
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            if member.id == creatorId {
-                                Text("Creator")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundColor(.orange)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Color.orange.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-                            Spacer()
                         }
+                        .buttonStyle(.plain)
                     }
                     .listStyle(.plain)
                 }
@@ -504,6 +545,10 @@ struct CommunityMembersSheet: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(item: $selectedProfileUserId) { profileId in
+                SocialProfileView(userId: profileId.id, isCurrentUser: profileId.id == UUID(uuidString: appState.currentUser?.id ?? ""))
+                    .environment(appState)
             }
         }
         .presentationDetents([.medium, .large])

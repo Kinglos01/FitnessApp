@@ -21,22 +21,18 @@ struct ChallengesView: View {
     @State private var challengeToDelete: ChallengeRow? = nil
     @State private var showDeleteAlert: Bool = false
     @State private var refreshTimer: Timer? = nil
+    @State private var countdownTimer: Timer? = nil
+    @State private var now = Date()
     @State private var blockedIds: Set<UUID> = []
 
     private var userId: UUID? { UUID(uuidString: appState.currentUser?.id ?? "") }
 
     private var activeChallenges: [ChallengeRow] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
-        return challenges.filter { $0.end_date >= today }
+        challenges.filter { $0.deadline > now }
     }
 
     private var pastChallenges: [ChallengeRow] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
-        return challenges.filter { $0.end_date < today }
+        challenges.filter { $0.deadline <= now }
     }
 
     var body: some View {
@@ -57,7 +53,8 @@ struct ChallengesView: View {
                         ChallengeCardLive(
                             challenge: challenge,
                             progress: myProgress[challenge.id],
-                            participantCount: participantCounts[challenge.id] ?? 0
+                            participantCount: participantCounts[challenge.id] ?? 0,
+                            now: now
                         )
                         .contextMenu {
                             if challenge.creator_id == userId {
@@ -94,11 +91,14 @@ struct ChallengesView: View {
         .refreshable { loadData(showLoading: false) }
         .onAppear {
             loadData(showLoading: true)
-            refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in loadData(showLoading: false) }
+            refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in loadData(showLoading: false) }
+            countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in now = Date() }
         }
         .onDisappear {
             refreshTimer?.invalidate()
             refreshTimer = nil
+            countdownTimer?.invalidate()
+            countdownTimer = nil
         }
     }
 
@@ -120,10 +120,7 @@ struct ChallengesView: View {
                 // Fetch all challenges and filter out ones the user already joined
                 let allChallenges = try await ChallengeService.shared.fetchAllChallenges()
                 let myIds = Set(challenges.map { $0.id })
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let todayString = dateFormatter.string(from: Date())
-                discoverChallenges = allChallenges.filter { !myIds.contains($0.id) && $0.end_date >= todayString && !blockedIds.contains($0.creator_id) }
+                discoverChallenges = allChallenges.filter { !myIds.contains($0.id) && $0.deadline > now && !blockedIds.contains($0.creator_id) }
 
                 // Fetch participant counts and creator names for discoverable challenges
                 for challenge in discoverChallenges {
@@ -162,7 +159,8 @@ struct ChallengesView: View {
                 ChallengeCardLive(
                     challenge: challenge,
                     progress: myProgress[challenge.id],
-                    participantCount: participantCounts[challenge.id] ?? 0
+                    participantCount: participantCounts[challenge.id] ?? 0,
+                    now: now
                 )
             }.padding(.horizontal, 16)
         }
@@ -188,6 +186,7 @@ struct ChallengesView: View {
                         challenge: challenge,
                         creatorName: creatorNames[challenge.creator_id] ?? "Unknown",
                         participantCount: discoverParticipantCounts[challenge.id] ?? 0,
+                        now: now,
                         onJoin: { joinDiscoverChallenge(challenge) }
                     )
                 }.padding(.horizontal, 16)
@@ -234,17 +233,28 @@ struct ChallengeCardLive: View {
     let challenge: ChallengeRow
     let progress: ParticipantRow?
     let participantCount: Int
+    let now: Date
 
     private var progressPercent: Double {
         guard let p = progress, challenge.target_value > 0 else { return 0 }
         return min(Double(p.current_value) / Double(challenge.target_value), 1.0)
     }
 
-    private var daysLeft: Int {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let end = formatter.date(from: challenge.end_date) else { return 0 }
-        return max(Calendar.current.dateComponents([.day], from: Date(), to: end).day ?? 0, 0)
+    private var isEnded: Bool {
+        challenge.deadline <= now
+    }
+
+    private var countdownText: String {
+        let components = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: now, to: challenge.deadline)
+        let d = max(components.day ?? 0, 0)
+        let h = max(components.hour ?? 0, 0)
+        let m = max(components.minute ?? 0, 0)
+        let s = max(components.second ?? 0, 0)
+        if d > 0 {
+            return "\(d)d \(h)h \(m)m left"
+        } else {
+            return "\(h)h \(m)m \(s)s left"
+        }
     }
 
     private var challengeColor: Color {
@@ -261,17 +271,17 @@ struct ChallengeCardLive: View {
             HStack {
                 Text(challenge.title).font(.system(size: 15, weight: .bold, design: .rounded))
                 Spacer()
-                if daysLeft == 0 {
+                if isEnded {
                     Text("Ended")
                         .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(.gray)
                         .padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.12)).clipShape(Capsule())
                 } else {
-                    Text("\(daysLeft)d left")
+                    Text(countdownText)
                         .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
                         .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
                 }
             }
-            Text("\(participantCount) participants \u{00B7} \(formattedGoalType)")
+            Text("\(participantCount) \(participantCount == 1 ? "participant" : "participants") \u{00B7} \(formattedGoalType)")
                 .font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
 
             VStack(spacing: 4) {
@@ -291,7 +301,7 @@ struct ChallengeCardLive: View {
             }
         }
         .padding(14).background(Color(.systemGray6)).cornerRadius(14)
-        .opacity(daysLeft == 0 ? 0.7 : 1.0)
+        .opacity(isEnded ? 0.7 : 1.0)
     }
 
     private var formattedGoalType: String {
@@ -305,13 +315,24 @@ struct DiscoverChallengeCard: View {
     let challenge: ChallengeRow
     let creatorName: String
     let participantCount: Int
+    let now: Date
     let onJoin: () -> Void
 
-    private var daysLeft: Int {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let end = formatter.date(from: challenge.end_date) else { return 0 }
-        return max(Calendar.current.dateComponents([.day], from: Date(), to: end).day ?? 0, 0)
+    private var isEnded: Bool {
+        challenge.deadline <= now
+    }
+
+    private var countdownText: String {
+        let components = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: now, to: challenge.deadline)
+        let d = max(components.day ?? 0, 0)
+        let h = max(components.hour ?? 0, 0)
+        let m = max(components.minute ?? 0, 0)
+        let s = max(components.second ?? 0, 0)
+        if d > 0 {
+            return "\(d)d \(h)h \(m)m left"
+        } else {
+            return "\(h)h \(m)m \(s)s left"
+        }
     }
 
     private var challengeColor: Color {
@@ -332,12 +353,12 @@ struct DiscoverChallengeCard: View {
             HStack {
                 Text(challenge.title).font(.system(size: 15, weight: .bold, design: .rounded))
                 Spacer()
-                if daysLeft == 0 {
+                if isEnded {
                     Text("Ended")
                         .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(.gray)
                         .padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.12)).clipShape(Capsule())
                 } else {
-                    Text("\(daysLeft)d left")
+                    Text(countdownText)
                         .font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundColor(challengeColor)
                         .padding(.horizontal, 8).padding(.vertical, 4).background(challengeColor.opacity(0.12)).clipShape(Capsule())
                 }
@@ -345,7 +366,7 @@ struct DiscoverChallengeCard: View {
             HStack(spacing: 4) {
                 Text("by \(creatorName)").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
                 Text("\u{00B7}").foregroundColor(.secondary)
-                Text("\(participantCount) participants").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
+                Text("\(participantCount) \(participantCount == 1 ? "participant" : "participants")").font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
                 Text("\u{00B7}").foregroundColor(.secondary)
                 Text(formattedGoalType).font(.system(size: 12, design: .rounded)).foregroundColor(.secondary)
             }
@@ -358,9 +379,9 @@ struct DiscoverChallengeCard: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16).padding(.vertical, 7)
-                        .background(daysLeft == 0 ? Color.gray : challengeColor).clipShape(Capsule())
+                        .background(isEnded ? Color.gray : challengeColor).clipShape(Capsule())
                 }
-                .disabled(daysLeft == 0)
+                .disabled(isEnded)
             }
         }
         .padding(14).background(Color(.systemGray6)).cornerRadius(14)
