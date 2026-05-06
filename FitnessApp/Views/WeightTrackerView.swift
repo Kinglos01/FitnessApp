@@ -1,6 +1,6 @@
 //
 //  WeightTrackerView.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import SwiftUI

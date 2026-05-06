@@ -186,6 +186,8 @@ struct SignUpView: View {
     @State private var isLoading = false
     @State private var createPressed = false
     @State private var appeared = false
+    @State private var showPassword = false
+    @State private var showConfirmPassword = false
 
     var body: some View {
         ZStack {
@@ -203,11 +205,97 @@ struct SignUpView: View {
 
                         VStack(spacing: 12) {
                             BrandTextField(placeholder: "Email address", text: $email, keyboardType: .emailAddress)
-                            BrandTextField(placeholder: "Password", text: $password, isSecure: true)
-                            BrandTextField(placeholder: "Confirm password", text: $confirmPassword, isSecure: true)
+
+                            // Password field with eye toggle
+                            ZStack(alignment: .trailing) {
+                                ZStack(alignment: .leading) {
+                                    if password.isEmpty {
+                                        Text("Password")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(Color.brandCream.opacity(0.35))
+                                            .padding(.horizontal, 16)
+                                    }
+                                    Group {
+                                        if showPassword {
+                                            TextField("", text: $password)
+                                                .textInputAutocapitalization(.never)
+                                                .autocorrectionDisabled()
+                                        } else {
+                                            SecureField("", text: $password)
+                                        }
+                                    }
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .padding(.horizontal, 16)
+                                    .foregroundColor(.brandCream)
+                                }
+                                Button {
+                                    showPassword.toggle()
+                                } label: {
+                                    Image(systemName: showPassword ? "eye.fill" : "eye.slash.fill")
+                                        .foregroundColor(Color.brandCream.opacity(0.5))
+                                        .font(.system(size: 16))
+                                }
+                                .padding(.trailing, 16)
+                            }
+                            .frame(height: 52)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.brandCream.opacity(0.24), lineWidth: 1)
+                            )
+                            .cornerRadius(10)
+
+                            // Confirm password field with eye toggle
+                            ZStack(alignment: .trailing) {
+                                ZStack(alignment: .leading) {
+                                    if confirmPassword.isEmpty {
+                                        Text("Confirm password")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(Color.brandCream.opacity(0.35))
+                                            .padding(.horizontal, 16)
+                                    }
+                                    Group {
+                                        if showConfirmPassword {
+                                            TextField("", text: $confirmPassword)
+                                                .textInputAutocapitalization(.never)
+                                                .autocorrectionDisabled()
+                                        } else {
+                                            SecureField("", text: $confirmPassword)
+                                        }
+                                    }
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .padding(.horizontal, 16)
+                                    .foregroundColor(.brandCream)
+                                }
+                                Button {
+                                    showConfirmPassword.toggle()
+                                } label: {
+                                    Image(systemName: showConfirmPassword ? "eye.fill" : "eye.slash.fill")
+                                        .foregroundColor(Color.brandCream.opacity(0.5))
+                                        .font(.system(size: 16))
+                                }
+                                .padding(.trailing, 16)
+                            }
+                            .frame(height: 52)
+                            .background(Color.brandCream.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.brandCream.opacity(0.24), lineWidth: 1)
+                            )
+                            .cornerRadius(10)
                         }
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 16)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
+
+                        // Password requirements checklist
+                        VStack(alignment: .leading, spacing: 8) {
+                            passwordRequirementRow("At least 6 characters", met: password.count >= 6)
+                            passwordRequirementRow("Contains one uppercase letter", met: password.range(of: "[A-Z]", options: .regularExpression) != nil)
+                            passwordRequirementRow("Contains one number", met: password.range(of: "[0-9]", options: .regularExpression) != nil)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.22), value: appeared)
 
                         if !message.isEmpty {
@@ -272,6 +360,18 @@ struct SignUpView: View {
         .onDisappear { appeared = false }
     }
 
+    @ViewBuilder
+    private func passwordRequirementRow(_ text: String, met: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: met ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(met ? .brandLime : Color.brandCream.opacity(0.3))
+                .animation(.easeInOut, value: met)
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color.brandCream.opacity(0.7))
+        }
+    }
+
     private func createAccount() {
         message = ""
         let emailTrimmed = email.trimmingCharacters(in: .whitespaces)
@@ -285,11 +385,17 @@ struct SignUpView: View {
         if emailTrimmed.isEmpty && !password.isEmpty {
             message = "Please enter your email address."; return
         }
-        guard emailTrimmed.contains("@") && emailTrimmed.contains(".") else {
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
+        guard emailPredicate.evaluate(with: emailTrimmed) else {
             message = "That doesn't look like a valid email."; return
         }
         guard password.count >= 6 else {
             message = "Password must be at least 6 characters."; return
+        }
+        guard password.range(of: "[A-Z]", options: .regularExpression) != nil,
+              password.range(of: "[0-9]", options: .regularExpression) != nil else {
+            message = "Password must have at least one uppercase letter and one number."; return
         }
         guard !confirmPassword.isEmpty else {
             message = "Please confirm your password."; return

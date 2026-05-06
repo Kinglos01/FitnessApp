@@ -1,6 +1,6 @@
 //
 //  SocialProfileView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Displays a user's social profile: name, label badge, bio, streak, workout count.
 //  Current user can edit their label and bio, persisted to Supabase profiles table.

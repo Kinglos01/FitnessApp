@@ -1,6 +1,6 @@
 //
 //  AuthService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Created by Nelson Mojica on 2/13/26.
 //

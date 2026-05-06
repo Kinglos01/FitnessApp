@@ -1,6 +1,6 @@
 //
 //  AchievementService.swift
-//  FitnessApp
+//  SimplyFit
 //
  
 import Foundation

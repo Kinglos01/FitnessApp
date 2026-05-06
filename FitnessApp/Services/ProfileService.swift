@@ -1,6 +1,6 @@
 //
 //  ProfileService.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import Foundation

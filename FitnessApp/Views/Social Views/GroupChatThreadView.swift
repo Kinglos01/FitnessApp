@@ -1,6 +1,6 @@
 //
 //  GroupChatThreadView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Full-screen group chat thread and settings views.
 //
@@ -203,6 +203,14 @@ private struct GroupThreadBubble: View {
     }
 }
 
+// MARK: - Member Profile Action
+
+struct MemberProfileAction: Identifiable {
+    let id: UUID
+    let name: String
+    let isCreator: Bool
+}
+
 // MARK: - GroupChatSettingsView
 
 struct GroupChatSettingsView: View {
@@ -212,6 +220,8 @@ struct GroupChatSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
     @State private var members: [(id: UUID, name: String)] = []
+    @State private var selectedMember: MemberProfileAction? = nil
+    @State private var friendIds: Set<UUID> = []
     @State private var friends: [UserSearchResult] = []
     @State private var groupName: String
     @State private var isEditing: Bool = false
@@ -244,6 +254,7 @@ struct GroupChatSettingsView: View {
                         HStack {
                             TextField("Group name", text: $groupName)
                                 .font(.system(size: 15, design: .rounded))
+                                .autocorrectionDisabled()
                             Button("Save") { saveGroupName() }
                                 .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundColor(.brandLime)
@@ -266,26 +277,33 @@ struct GroupChatSettingsView: View {
                         ProgressView().frame(maxWidth: .infinity)
                     } else {
                         ForEach(members, id: \.id) { member in
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.purple.opacity(0.15))
-                                        .frame(width: 36, height: 36)
-                                    Text(makeInitials(member.name))
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundColor(.purple)
+                            Button {
+                                if member.id != userId {
+                                    selectedMember = MemberProfileAction(id: member.id, name: member.name, isCreator: member.id == group.creator_id)
                                 }
-                                Text(member.id == userId ? "You" : member.name)
-                                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                                if member.id == group.creator_id {
-                                    Text("Admin")
-                                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 8).padding(.vertical, 3)
-                                        .background(Color.purple).clipShape(Capsule())
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.purple.opacity(0.15))
+                                            .frame(width: 36, height: 36)
+                                        Text(makeInitials(member.name))
+                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                            .foregroundColor(.purple)
+                                    }
+                                    Text(member.id == userId ? "You" : member.name)
+                                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                                    if member.id == group.creator_id {
+                                        Text("Admin")
+                                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8).padding(.vertical, 3)
+                                            .background(Color.purple).clipShape(Capsule())
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
                             }
+                            .buttonStyle(.plain)
                             .contextMenu {
                                 if isCreator && member.id != userId {
                                     Button(role: .destructive) {
@@ -362,6 +380,14 @@ struct GroupChatSettingsView: View {
             AddGroupMemberSheet(group: group, memberIdsInGroup: memberIdsInGroup)
                 .environment(appState)
         }
+        .sheet(item: $selectedMember) { member in
+            MemberProfileSheet(
+                member: member,
+                currentUserId: userId,
+                groupId: group.id
+            )
+            .environment(appState)
+        }
         .alert("Leave Group", isPresented: $showLeaveAlert) {
             Button("Leave", role: .destructive) { leaveGroup() }
             Button("Cancel", role: .cancel) {}
@@ -412,12 +438,13 @@ struct GroupChatSettingsView: View {
     }
 
     private func saveGroupName() {
-        let trimmed = groupName.trimmingCharacters(in: .whitespaces)
+        let trimmed = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        groupName = trimmed
+        isEditing = false
         Task {
             do {
                 try await GroupChatService.shared.renameGroup(groupId: group.id, newName: trimmed)
-                isEditing = false
             } catch {
                 print("Rename group error: \(error)")
             }
@@ -464,6 +491,133 @@ struct GroupChatSettingsView: View {
         let f = parts.first?.prefix(1) ?? ""
         let l = parts.count > 1 ? parts.last!.prefix(1) : ""
         return "\(f)\(l)".uppercased()
+    }
+}
+
+// MARK: - Member Profile Sheet
+
+private struct MemberProfileSheet: View {
+    let member: MemberProfileAction
+    let currentUserId: UUID?
+    let groupId: UUID
+
+    @Environment(AppState.self) var appState
+    @Environment(\.dismiss) private var dismiss
+    @State private var isFriend: Bool = false
+    @State private var requestSent: Bool = false
+    @State private var isLoadingFriend: Bool = true
+    @State private var alreadyReported: Bool = false
+    @State private var showReportOptions: Bool = false
+    @State private var reportSubmitted: Bool = false
+
+    private func makeInitials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        let f = parts.first?.prefix(1) ?? ""
+        let l = parts.count > 1 ? parts.last!.prefix(1) : ""
+        return "\(f)\(l)".uppercased()
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle().fill(Color.purple.opacity(0.15)).frame(width: 72, height: 72)
+                        Text(makeInitials(member.name))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.purple)
+                    }
+                    HStack(spacing: 8) {
+                        Text(member.name)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                        if member.isCreator {
+                            Text("Creator")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Color.brandOrange).clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(.top, 20)
+
+                VStack(spacing: 12) {
+                    if isLoadingFriend {
+                        ProgressView()
+                    } else if !isFriend {
+                        Button {
+                            guard let uid = currentUserId else { return }
+                            Task {
+                                try? await FriendService.shared.sendRequest(from: uid, to: member.id)
+                                requestSent = true
+                            }
+                        } label: {
+                            Label(requestSent ? "Request Sent" : "Add Friend", systemImage: requestSent ? "checkmark" : "person.badge.plus")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundColor(requestSent ? .secondary : .white)
+                                .frame(maxWidth: .infinity).frame(height: 48)
+                                .background(requestSent ? Color(.systemGray4) : Color.blue)
+                                .cornerRadius(12)
+                        }
+                        .disabled(requestSent)
+                        .padding(.horizontal, 24)
+                    }
+
+                    Button {
+                        showReportOptions = true
+                    } label: {
+                        Label(alreadyReported ? "Already Reported" : "Report User", systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(alreadyReported ? .secondary : .red)
+                            .frame(maxWidth: .infinity).frame(height: 48)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                    }
+                    .disabled(alreadyReported)
+                    .padding(.horizontal, 24)
+
+                    if reportSubmitted {
+                        Text("Report submitted. Thank you.")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .confirmationDialog("Report \(member.name)", isPresented: $showReportOptions, titleVisibility: .visible) {
+                Button("Spam", role: .destructive) { submitReport("Spam") }
+                Button("Harassment", role: .destructive) { submitReport("Harassment") }
+                Button("Inappropriate Content", role: .destructive) { submitReport("Inappropriate Content") }
+                Button("Other", role: .destructive) { submitReport("Other") }
+                Button("Cancel", role: .cancel) {}
+            }
+        }
+        .onAppear {
+            guard let uid = currentUserId else { isLoadingFriend = false; return }
+            Task {
+                let friends = (try? await FriendService.shared.fetchFriends(userId: uid)) ?? []
+                isFriend = friends.contains(where: { $0.id == member.id })
+                alreadyReported = (try? await ReportService.shared.hasAlreadyReported(reporterId: uid, reportedId: member.id)) ?? false
+                isLoadingFriend = false
+            }
+        }
+    }
+
+    private func submitReport(_ reason: String) {
+        guard let uid = currentUserId else { return }
+        Task {
+            try? await ReportService.shared.reportUser(reporterId: uid, reportedId: member.id, reason: reason)
+            alreadyReported = true
+            reportSubmitted = true
+        }
     }
 }
 

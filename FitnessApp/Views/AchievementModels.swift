@@ -1,6 +1,6 @@
 //
 //  AchievementModels.swift
-//  FitnessApp
+//  SimplyFit
 //
 
 import SwiftUI

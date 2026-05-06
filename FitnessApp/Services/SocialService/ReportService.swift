@@ -1,6 +1,6 @@
 //
 //  ReportService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for the reports table.
 //  Handles reporting users and auto-suspension after threshold.

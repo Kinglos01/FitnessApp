@@ -1,6 +1,6 @@
 //
 //  UserInfoView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Created by Yohangel Adames on 3/4/26.
 //

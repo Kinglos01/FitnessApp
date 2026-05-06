@@ -1,6 +1,6 @@
 //
 //  FriendsView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Search users by name from DB, send friend requests,
 //  view pending requests, and streak leaderboard from workouts.

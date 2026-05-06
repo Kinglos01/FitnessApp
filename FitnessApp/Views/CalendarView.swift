@@ -1,6 +1,6 @@
 //
 //  CalendarView.swift
-//  FitnessApp
+//  SimplyFit
 //
 import SwiftUI
 

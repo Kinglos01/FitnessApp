@@ -1,6 +1,6 @@
 //
 //  MessagesView.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  DM list — only shows conversations with accepted friends.
 //  Pulls from direct_messages table via DirectMessageService.

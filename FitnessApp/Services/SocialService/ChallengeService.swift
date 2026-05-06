@@ -1,6 +1,6 @@
 //
 //  ChallengeService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for challenges + challenge_participants tables.
 //  Handles creating challenges, joining, updating progress, and fetching.
@@ -17,9 +17,65 @@ struct ChallengeRow: Codable, Identifiable {
     let title: String
     let goal_type: String
     let target_value: Int
-    let start_date: String
-    let end_date: String
+    let start_date: Date
+    let end_date: Date
     let created_at: Date?
+
+    static let dateOnlyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    enum CodingKeys: String, CodingKey {
+        case id, creator_id, title, goal_type, target_value, start_date, end_date, created_at
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        creator_id = try container.decode(UUID.self, forKey: .creator_id)
+        title = try container.decode(String.self, forKey: .title)
+        goal_type = try container.decode(String.self, forKey: .goal_type)
+        target_value = try container.decode(Int.self, forKey: .target_value)
+        created_at = try container.decodeIfPresent(Date.self, forKey: .created_at)
+
+        let startString = try container.decode(String.self, forKey: .start_date)
+        guard let start = Self.dateOnlyFormatter.date(from: startString) else {
+            throw DecodingError.dataCorruptedError(forKey: .start_date, in: container, debugDescription: "Invalid date format: \(startString)")
+        }
+        start_date = start
+
+        let endString = try container.decode(String.self, forKey: .end_date)
+        guard let end = Self.dateOnlyFormatter.date(from: endString) else {
+            throw DecodingError.dataCorruptedError(forKey: .end_date, in: container, debugDescription: "Invalid date format: \(endString)")
+        }
+        end_date = end
+    }
+
+    /// The actual expiration timestamp.
+    /// Computed as created_at + (end_date - start_date) in days,
+    /// so a 1-day challenge created at 2 PM expires at 2 PM the next day.
+    var deadline: Date {
+        guard let createdAt = created_at else {
+            return Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: end_date) ?? end_date
+        }
+        let durationDays = Calendar.current.dateComponents([.day], from: start_date, to: end_date).day ?? 0
+        return Calendar.current.date(byAdding: .day, value: durationDays, to: createdAt) ?? end_date
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(creator_id, forKey: .creator_id)
+        try container.encode(title, forKey: .title)
+        try container.encode(goal_type, forKey: .goal_type)
+        try container.encode(target_value, forKey: .target_value)
+        try container.encode(Self.dateOnlyFormatter.string(from: start_date), forKey: .start_date)
+        try container.encode(Self.dateOnlyFormatter.string(from: end_date), forKey: .end_date)
+        try container.encodeIfPresent(created_at, forKey: .created_at)
+    }
 }
 
 struct ChallengeInsert: Codable {

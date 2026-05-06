@@ -1,6 +1,6 @@
 //
 //  CommunityService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for communities, community_members,
 //  and community_messages tables.
@@ -152,6 +152,32 @@ final class CommunityService {
             .update(["member_count": members.count])
             .eq("id", value: communityId.uuidString)
             .execute()
+    }
+
+    // MARK: - Fetch live member count for a single community
+    func fetchMemberCount(communityId: UUID) async throws -> Int {
+        let members: [CommunityMemberRow] = try await supabase
+            .from("community_members")
+            .select()
+            .eq("community_id", value: communityId.uuidString)
+            .execute()
+            .value
+        return members.count
+    }
+
+    // MARK: - Fetch live member counts for multiple communities
+    func fetchMemberCounts(communityIds: [UUID]) async throws -> [UUID: Int] {
+        guard !communityIds.isEmpty else { return [:] }
+        let allMembers: [CommunityMemberRow] = try await supabase
+            .from("community_members")
+            .select()
+            .in("community_id", values: communityIds.map { $0.uuidString })
+            .execute()
+            .value
+        var counts: [UUID: Int] = [:]
+        for id in communityIds { counts[id] = 0 }
+        for member in allMembers { counts[member.community_id, default: 0] += 1 }
+        return counts
     }
 
     // MARK: - Fetch members of a community

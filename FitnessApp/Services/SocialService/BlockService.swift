@@ -1,6 +1,6 @@
 //
 //  BlockService.swift
-//  FitnessApp
+//  SimplyFit
 //
 //  Supabase service for the blocks table.
 //  Handles blocking/unblocking users and querying block status.
