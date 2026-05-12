@@ -19,17 +19,6 @@ enum NutritionMealType: String, CaseIterable, Codable {
     }
 }
 
-// MARK: - Quick Food Template
-struct QuickFoodTemplate: Identifiable {
-    let id = UUID()
-    let name: String
-    let calories: Double
-    let protein: Double
-    let carbs: Double
-    let fat: Double
-    let mealType: NutritionMealType
-}
-
 // MARK: - Main View
 struct NutritionView: View {
     @Environment(NutritionManager.self) var nutritionManager
@@ -41,16 +30,9 @@ struct NutritionView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingQuickAddSheet = false
-    @State private var selectedMealType: NutritionMealType = .snack
-
-    private let quickFoods: [QuickFoodTemplate] = [
-        QuickFoodTemplate(name: "Protein Shake",    calories: 160, protein: 25, carbs: 8,  fat: 3,  mealType: .drink),
-        QuickFoodTemplate(name: "Grilled Chicken",  calories: 165, protein: 31, carbs: 0,  fat: 4,  mealType: .lunch),
-        QuickFoodTemplate(name: "Rice Bowl",        calories: 220, protein: 4,  carbs: 45, fat: 2,  mealType: .lunch),
-        QuickFoodTemplate(name: "Banana",           calories: 105, protein: 1,  carbs: 27, fat: 0,  mealType: .snack),
-        QuickFoodTemplate(name: "Greek Yogurt",     calories: 100, protein: 10, carbs: 7,  fat: 0,  mealType: .breakfast),
-        QuickFoodTemplate(name: "Eggs",             calories: 140, protein: 10, carbs: 1,  fat: 10, mealType: .breakfast)
-    ]
+    @State private var selectedMealType: NutritionMealType = .breakfast
+    @State private var customFoods: [CustomFoodRecord] = []
+    @State private var selectedFood: FoodItem? = nil
 
     var body: some View {
         NavigationView {
@@ -72,9 +54,40 @@ struct NutritionView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color.brandNavy, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .sheet(isPresented: $showingQuickAddSheet) {
+            .sheet(isPresented: $showingQuickAddSheet, onDismiss: { loadCustomFoods() }) {
                 QuickAddFoodSheet(selectedMealType: selectedMealType) { food, mealType in
                     nutritionManager.logFood(food, mealType: mealType)
+                    let uid = appState.currentUser?.id ?? ""
+                    if !uid.isEmpty {
+                        Task {
+                            try? await CustomFoodService.shared.insertCustomFood(
+                                userId: uid,
+                                name: food.description,
+                                calories: food.calories,
+                                protein: food.protein,
+                                carbs: food.carbs,
+                                fat: food.fat,
+                                mealType: mealType.rawValue
+                            )
+                        }
+                    }
+                }
+            }
+            .sheet(item: $selectedFood) { food in
+                FoodDetailSheet(food: food, mealType: selectedMealType) { confirmedFood, qty in
+                    let multiplied = FoodItem(
+                        fdcId: confirmedFood.fdcId,
+                        description: qty > 1 ? "\(confirmedFood.description) x\(qty)" : confirmedFood.description,
+                        foodNutrients: [
+                            FoodNutrient(nutrientId: 1008, value: confirmedFood.calories * Double(qty)),
+                            FoodNutrient(nutrientId: 1003, value: confirmedFood.protein * Double(qty)),
+                            FoodNutrient(nutrientId: 1005, value: confirmedFood.carbs * Double(qty)),
+                            FoodNutrient(nutrientId: 1004, value: confirmedFood.fat * Double(qty))
+                        ]
+                    )
+                    nutritionManager.logFood(multiplied, mealType: selectedMealType)
+                    foods = []
+                    searchText = ""
                 }
             }
             .alert("Error", isPresented: Binding(
@@ -91,6 +104,7 @@ struct NutritionView: View {
                 userId: appState.currentUser?.id ?? "guest",
                 user: appState.currentUser
             )
+            loadCustomFoods()
         }
         .task {
             await nutritionManager.loadFromSupabase()
@@ -313,31 +327,43 @@ struct NutritionView: View {
                     .font(.subheadline).fontWeight(.semibold)
                     .foregroundColor(.brandLime)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(quickFoods) { item in
-                        Button {
-                            nutritionManager.logFood(makeFoodItem(from: item), mealType: item.mealType)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Label(item.mealType.rawValue, systemImage: item.mealType.icon)
-                                    .font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
-                                Text(item.name).font(.subheadline).fontWeight(.semibold).lineLimit(1)
-                                    .foregroundColor(.brandCream)
-                                Text("\(Int(item.calories)) kcal").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
-                                HStack(spacing: 6) {
-                                    Text("P:\(Int(item.protein))g").font(.caption2).foregroundColor(.brandBlue)
-                                    Text("C:\(Int(item.carbs))g").font(.caption2).foregroundColor(Color(red: 0.25, green: 0.72, blue: 0.55))
-                                    Text("F:\(Int(item.fat))g").font(.caption2).foregroundColor(.brandOrange)
+            if customFoods.isEmpty {
+                Text("Tap Custom to save your first food")
+                    .font(.subheadline)
+                    .foregroundColor(Color.brandCream.opacity(0.4))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(customFoods) { record in
+                            Button {
+                                let food = makeFoodItem(from: record)
+                                let meal = mealType(from: record.mealType)
+                                nutritionManager.logFood(food, mealType: meal)
+                                Task { try? await CustomFoodService.shared.incrementUseCount(id: record.id) }
+                            } label: {
+                                let meal = mealType(from: record.mealType)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Label(meal.rawValue, systemImage: meal.icon)
+                                        .font(.caption2).foregroundColor(Color.brandCream.opacity(0.5))
+                                    Text(record.foodName).font(.subheadline).fontWeight(.semibold).lineLimit(1)
+                                        .foregroundColor(.brandCream)
+                                    Text("\(Int(record.calories)) kcal").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                                    HStack(spacing: 6) {
+                                        Text("P:\(Int(record.protein))g").font(.caption2).foregroundColor(.brandBlue)
+                                        Text("C:\(Int(record.carbs))g").font(.caption2).foregroundColor(Color(red: 0.25, green: 0.72, blue: 0.55))
+                                        Text("F:\(Int(record.fat))g").font(.caption2).foregroundColor(.brandOrange)
+                                    }
                                 }
+                                .frame(width: 140, alignment: .leading)
+                                .padding()
+                                .background(Color.brandCream.opacity(0.06))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
+                                .cornerRadius(14)
                             }
-                            .frame(width: 140, alignment: .leading)
-                            .padding()
-                            .background(Color.brandCream.opacity(0.06))
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
-                            .cornerRadius(14)
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -351,9 +377,7 @@ struct NutritionView: View {
             LazyVStack(spacing: 10) {
                 ForEach(foods) { food in
                     FoodRowView(food: food) {
-                        nutritionManager.logFood(food, mealType: selectedMealType)
-                        foods = []
-                        searchText = ""
+                        selectedFood = food
                     }
                 }
             }
@@ -428,17 +452,30 @@ struct NutritionView: View {
         isLoading = false
     }
 
-    private func makeFoodItem(from template: QuickFoodTemplate) -> FoodItem {
+    private func makeFoodItem(from record: CustomFoodRecord) -> FoodItem {
         FoodItem(
             fdcId: Int(Date().timeIntervalSince1970 * 1000) + Int.random(in: 1...999),
-            description: template.name,
+            description: record.foodName,
             foodNutrients: [
-                FoodNutrient(nutrientId: 1008, value: template.calories),
-                FoodNutrient(nutrientId: 1003, value: template.protein),
-                FoodNutrient(nutrientId: 1005, value: template.carbs),
-                FoodNutrient(nutrientId: 1004, value: template.fat)
+                FoodNutrient(nutrientId: 1008, value: record.calories),
+                FoodNutrient(nutrientId: 1003, value: record.protein),
+                FoodNutrient(nutrientId: 1005, value: record.carbs),
+                FoodNutrient(nutrientId: 1004, value: record.fat)
             ]
         )
+    }
+
+    private func mealType(from string: String?) -> NutritionMealType {
+        guard let raw = string else { return .snack }
+        return NutritionMealType(rawValue: raw) ?? .snack
+    }
+
+    private func loadCustomFoods() {
+        let uid = appState.currentUser?.id ?? ""
+        guard !uid.isEmpty else { return }
+        Task {
+            customFoods = (try? await CustomFoodService.shared.fetchCustomFoods(userId: uid)) ?? []
+        }
     }
 
     private func calorieStatRow(label: String, value: String, color: Color) -> some View {
@@ -547,9 +584,10 @@ struct QuickAddFoodSheet: View {
     @State private var protein = ""
     @State private var carbs = ""
     @State private var fat = ""
-    @State private var mealType: NutritionMealType = .snack
+    @State private var mealType: NutritionMealType = .breakfast
+    @State private var quantity = "1"
 
-    init(selectedMealType: NutritionMealType = .snack, onSave: @escaping (FoodItem, NutritionMealType) -> Void) {
+    init(selectedMealType: NutritionMealType = .breakfast, onSave: @escaping (FoodItem, NutritionMealType) -> Void) {
         self.selectedMealType = selectedMealType
         self.onSave = onSave
         _mealType = State(initialValue: selectedMealType)
@@ -567,6 +605,7 @@ struct QuickAddFoodSheet: View {
                                 Label(type.rawValue, systemImage: type.icon).tag(type)
                             }
                         }
+                        TextField("Quantity", text: $quantity).keyboardType(.numberPad)
                     }
                     Section("Nutrition") {
                         TextField("Calories",    text: $calories).keyboardType(.numberPad)
@@ -589,14 +628,15 @@ struct QuickAddFoodSheet: View {
                     Button("Save") {
                         let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !finalName.isEmpty else { return }
+                        let qty = Double(max(Int(quantity) ?? 1, 1))
                         let food = FoodItem(
                             fdcId: Int(Date().timeIntervalSince1970 * 1000) + Int.random(in: 1000...9999),
                             description: finalName,
                             foodNutrients: [
-                                FoodNutrient(nutrientId: 1008, value: Double(calories) ?? 0),
-                                FoodNutrient(nutrientId: 1003, value: Double(protein) ?? 0),
-                                FoodNutrient(nutrientId: 1005, value: Double(carbs) ?? 0),
-                                FoodNutrient(nutrientId: 1004, value: Double(fat) ?? 0)
+                                FoodNutrient(nutrientId: 1008, value: (Double(calories) ?? 0) * qty),
+                                FoodNutrient(nutrientId: 1003, value: (Double(protein) ?? 0) * qty),
+                                FoodNutrient(nutrientId: 1005, value: (Double(carbs) ?? 0) * qty),
+                                FoodNutrient(nutrientId: 1004, value: (Double(fat) ?? 0) * qty)
                             ]
                         )
                         onSave(food, mealType)
@@ -604,6 +644,95 @@ struct QuickAddFoodSheet: View {
                     }
                     .foregroundColor(.brandLime)
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+struct FoodDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let food: FoodItem
+    let mealType: NutritionMealType
+    let onConfirm: (FoodItem, Int) -> Void
+    @State private var quantity: Int = 1
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.brandNavy.ignoresSafeArea()
+                VStack(spacing: 20) {
+                    Text(food.description)
+                        .font(.title3).fontWeight(.bold)
+                        .foregroundColor(.brandCream)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+
+                    HStack(spacing: 16) {
+                        MacroLabel(value: food.calories * Double(quantity), label: " kcal", color: .brandLime)
+                        MacroLabel(value: food.protein * Double(quantity),  label: "g P",   color: .brandBlue)
+                        MacroLabel(value: food.carbs * Double(quantity),    label: "g C",   color: Color(red: 0.25, green: 0.72, blue: 0.55))
+                        MacroLabel(value: food.fat * Double(quantity),      label: "g F",   color: .brandOrange)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.brandCream.opacity(0.06))
+                    .cornerRadius(14)
+
+                    HStack {
+                        Text("Quantity").font(.headline).foregroundColor(.brandCream)
+                        Spacer()
+                        Button {
+                            if quantity > 1 { quantity -= 1 }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.brandOrange.opacity(quantity <= 1 ? 0.3 : 1.0))
+                        }
+                        .disabled(quantity <= 1)
+                        Text("\(quantity)")
+                            .font(.title2).fontWeight(.bold)
+                            .foregroundColor(.brandCream)
+                            .frame(minWidth: 40)
+                        Button {
+                            if quantity < 20 { quantity += 1 }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.brandLime)
+                        }
+                        .disabled(quantity >= 20)
+                    }
+                    .padding(.horizontal)
+
+                    Spacer()
+
+                    Button {
+                        onConfirm(food, quantity)
+                        dismiss()
+                    } label: {
+                        Text("Add \(quantity) to Log")
+                            .font(.headline).fontWeight(.bold)
+                            .foregroundColor(.brandNavy)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.brandLime)
+                            .cornerRadius(14)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
+                .padding()
+            }
+            .navigationTitle("Add Food")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.brandNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(Color.brandCream.opacity(0.6))
                 }
             }
         }

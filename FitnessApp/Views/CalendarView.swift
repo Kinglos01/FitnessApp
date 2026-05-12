@@ -92,6 +92,32 @@ private class CalendarDataEngine {
         ) else { return }
 
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+
+        let datesWithFood = logs.filter { $0.calories_eaten > 0 }.map { $0.date }
+        var foodEntriesByDate: [String: [LoggedFoodEntry]] = [:]
+        for dateStr in datesWithFood {
+            guard let records = try? await FoodLogService.shared.fetchLogs(userId: userId, date: dateStr),
+                  let parsedDate = f.date(from: dateStr) else { continue }
+            foodEntriesByDate[dateStr] = records.map { record in
+                let item = FoodItem(
+                    fdcId: 0,
+                    description: record.foodName,
+                    foodNutrients: [
+                        FoodNutrient(nutrientId: 1008, value: record.calories),
+                        FoodNutrient(nutrientId: 1003, value: record.protein),
+                        FoodNutrient(nutrientId: 1005, value: record.carbs),
+                        FoodNutrient(nutrientId: 1004, value: record.fat)
+                    ]
+                )
+                return LoggedFoodEntry(
+                    id: record.id,
+                    foodItem: item,
+                    date: parsedDate,
+                    mealType: NutritionMealType(rawValue: record.mealType) ?? .snack
+                )
+            }
+        }
+
         for log in logs {
             guard let date = f.date(from: log.date) else { continue }
             let day = Calendar.current.startOfDay(for: date)
@@ -101,10 +127,26 @@ private class CalendarDataEngine {
                 completedWorkouts: snapshot.completedWorkouts,
                 totalCalories: log.calories_eaten > 0 ? log.calories_eaten : snapshot.totalCalories,
                 calorieTarget: snapshot.calorieTarget,
-                loggedFoods: snapshot.loggedFoods,
+                loggedFoods: foodEntriesByDate[log.date] ?? snapshot.loggedFoods,
                 waterConsumed: log.water_consumed,
                 waterGoal: log.water_goal
             )
+        }
+
+        if let allWorkouts = try? await WorkoutService.shared.fetchWorkouts(userId: userId) {
+            for day in snapshots.keys {
+                guard let existing = snapshots[day] else { continue }
+                let dayWorkouts = allWorkouts.filter { $0.isCompleted(on: day) }
+                snapshots[day] = DaySnapshot(
+                    date: existing.date,
+                    completedWorkouts: dayWorkouts,
+                    totalCalories: existing.totalCalories,
+                    calorieTarget: existing.calorieTarget,
+                    loggedFoods: existing.loggedFoods,
+                    waterConsumed: existing.waterConsumed,
+                    waterGoal: existing.waterGoal
+                )
+            }
         }
     }
 
