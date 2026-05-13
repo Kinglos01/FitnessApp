@@ -68,6 +68,19 @@ final class FoodLogService {
         return f
     }()
 
+    func fetchLogs(userId: String, date: String) async throws -> [FoodLogRecord] {
+        guard let uid = UUID(uuidString: userId) else { return [] }
+        let response: [FoodLogRecord] = try await supabase
+            .from("food_logs")
+            .select()
+            .eq("user_id", value: uid)
+            .eq("date", value: date)
+            .order("created_at")
+            .execute()
+            .value
+        return response
+    }
+
     func fetchTodayLogs(userId: String) async throws -> [FoodLogRecord] {
         guard let uid = UUID(uuidString: userId) else { return [] }
         let todayString = dateFormatter.string(from: Date())
