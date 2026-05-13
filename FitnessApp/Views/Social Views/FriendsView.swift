@@ -507,24 +507,25 @@ struct FriendsView: View {
             Color(red: 0.85, green: 0.35, blue: 0.25), .purple, .pink
         ]
 
-        // Current user entry (always first)
         var entries: [LeaderboardEntry] = []
+
         if let uid = userId {
             let myName = appState.currentUser?.name ?? "You"
             entries.append(LeaderboardEntry(id: uid, name: "You", initials: makeInitials(myName), streak: friendStreaks[uid] ?? 0, streakHidden: false, color: .blue, imageUrl: nil, localImageData: appState.profileStore.profile?.profileImageData))
         }
 
-        // Friend entries sorted by streak descending
         let filteredFriends = friends.filter { !blockedIds.contains($0.id) }
-        var friendEntries: [LeaderboardEntry] = []
         for (i, friend) in filteredFriends.enumerated() {
             let name = friend.name ?? "Unknown"
             let hidden = !(friendShowStreak[friend.id] ?? true)
-            friendEntries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, streakHidden: hidden, color: colors[i % colors.count], imageUrl: friendImageUrls[friend.id], localImageData: nil))
+            entries.append(LeaderboardEntry(id: friend.id, name: name, initials: makeInitials(name), streak: friendStreaks[friend.id] ?? 0, streakHidden: hidden, color: colors[i % colors.count], imageUrl: friendImageUrls[friend.id], localImageData: nil))
         }
-        friendEntries.sort { $0.streak > $1.streak }
 
-        entries.append(contentsOf: friendEntries)
+        entries.sort {
+            if $0.streak != $1.streak { return $0.streak > $1.streak }
+            return $0.id == userId
+        }
+
         return entries
     }
 

@@ -242,7 +242,7 @@ struct ProfileView: View {
 
             // Today's workout count
             todayWorkoutCount = workouts.filter {
-                cal.startOfDay(for: $0.date) == todayStart
+                $0.isCompleted(on: todayStart)
             }.count
 
             // Day streak: consecutive days backwards from today with at least 1 workout
@@ -250,7 +250,7 @@ struct ProfileView: View {
             var checkDate = todayStart
             while true {
                 let hasWorkout = workouts.contains {
-                    cal.startOfDay(for: $0.date) == checkDate
+                    $0.isCompleted(on: checkDate)
                 }
                 if hasWorkout {
                     streak += 1
