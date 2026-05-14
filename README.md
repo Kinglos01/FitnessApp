@@ -244,7 +244,7 @@ All tables use Row Level Security (RLS) so users can only read and write their o
 14. As a user, I want to be able to setup notifications to remind myself to eat, drink, and workout. (Sammuel)
 15. As a user, I want to add temporary excercises that won't save forever but just for one day.  (Carlos)
 16. As a user, I want to be able to block or remove friends or users on the platform. (Nelson)
-17 As a user, I want to be able to set my fitness goals and have the apps recomended calories change depending on my choice. (Carlos, Nelson)
+17 As a user, I want to be able to set my fitness goals and have recomended calories change depending on my choice.(Carlos, Nelson)
 18. As a user, I want to be able to search through a USDA food database to find the food i'm eating. (Nelson)
 19. As a user, I want to devlop a streak so I am encouraged to keep using the app.  (Carlos, Nelson)
 20. As a user, I may not know the calories burned for my excercises and want a option to calculate them for myself. (Carlos)
