@@ -483,7 +483,7 @@ struct SocialProfileView: View {
                 var checkDate = cal.startOfDay(for: Date())
                 while true {
                     let hasWorkout = workouts.contains {
-                        $0.isCompleted && cal.startOfDay(for: $0.date) == checkDate
+                        $0.isCompleted(on: checkDate)
                     }
                     if hasWorkout {
                         s += 1
@@ -494,7 +494,7 @@ struct SocialProfileView: View {
                 // Workout count today
                 let todayStart = cal.startOfDay(for: Date())
                 let todayCount = workouts.filter {
-                    cal.startOfDay(for: $0.date) == todayStart
+                    $0.isCompleted(on: todayStart)
                 }.count
 
                 await MainActor.run {
