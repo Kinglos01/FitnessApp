@@ -385,6 +385,9 @@ struct DashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .padding(.horizontal)
+        .onTapGesture {
+                    withAnimation { appState.selectedTab = 1 }
+                }
     }
 
     // MARK: - Water Card
@@ -611,6 +614,9 @@ struct DashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
         .padding(.horizontal)
+        .onTapGesture {
+                    withAnimation { appState.selectedTab = 4 }
+                }
     }
 
     private func weekLegendItem(color: Color, label: String) -> some View {
