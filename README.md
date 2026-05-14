@@ -228,13 +228,26 @@ All tables use Row Level Security (RLS) so users can only read and write their o
 ---
 
 ## User Stories
-- As a user, I want to create an account and log in so I can securely use the app.
-- As a user, I want to track my calories so I can manage my diet and health goals.
-- As a user, I want to search for workouts so I can find exercises that match my fitness goals.
-- As a user, I want to record my progress so I can monitor improvements over time.
-- As a user, I want to view my weight history and charts so I can understand my progress visually.
-- As a user, I want to communicate with other users so I can stay motivated and connected.
-- As a user, I want an easy-to-use interface so I can navigate the app without confusion.
+1. As a user, I want to create an account and log in so I can securely use the app. (Carlos, Yohangel)
+2. As a user, I want my data saved so I can see my progress on any device. (Carlos, Nelson)
+3. As a user, I want to be able to save my excercises and mark them as completed daily. (Carlos)
+4. As a user, I want to track my calories so I can manage my diet and health goals. (Carlos, Nelson, Shanzay, Sammuel)
+5. As a user, I want to search for workouts using AI so I can find exercises that match my fitness goals. (Carlos)
+6. As a user, I want to view my weight history and charts so I can understand my progress visually. (Carlos, Shanzay Nelson)
+7. As a user, I want to communicate with other users so I can stay motivated and connected. (Nelson)
+8. As a user, I want to be able to look at a calendar and see my past days progress. (Carlos, Nelson)
+9. As a user, I want an easy-to-use interface so I can navigate the app without confusion. (Carlos, Shanzay, Nelson)
+10. As a user, I want to have a profile where I can change my photo and bio.  (Yohangel)
+11. As a user, I want to earn badges to keep me going.  (Carlos, Shanzay)
+12. As a user, I want different themes to specialize my app. (Carlos)
+13. As a user, I want to be able to log my water intake customize how much i should drink.  (Carlos, Nelson)
+14. As a user, I want to be able to setup notifications to remind myself to eat, drink, and workout. (Sammuel)
+15. As a user, I want to add temporary excercises that won't save forever but just for one day.  (Carlos)
+16. As a user, I want to be able to block or remove friends or users on the platform. (Nelson)
+17 As a user, I want to be able to set my fitness goals and have the apps recomended calories change depending on my choice. (Carlos, Nelson)
+18. As a user, I want to be able to search through a USDA food database to find the food i'm eating. (Nelson)
+19. As a user, I want to devlop a streak so I am encouraged to keep using the app.  (Carlos, Nelson)
+20. As a user, I may not know the calories burned for my excercises and want a option to calculate them for myself. (Carlos)
 
 ---
 
