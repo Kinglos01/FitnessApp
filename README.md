@@ -163,6 +163,35 @@ SmplyFit/
 
 ---
 
+## Context Diagram
+
+```mermaid
+flowchart LR
+    U[User / iOS Device]
+
+    A[SimplyFit iOS App]
+
+    S[Supabase<br/>Authentication, Database, Storage]
+
+    F[USDA FoodData Central API<br/>Nutrition Data]
+
+    C[Claude API<br/>AI Recommendations]
+
+    U -->|Uses app| A
+    A -->|Shows dashboard, progress, meals, workouts| U
+
+    A -->|Stores and retrieves user data| S
+    S -->|Returns auth and saved data| A
+
+    A -->|Searches food data| F
+    F -->|Returns nutrition data| A
+
+    A -->|Sends prompts and meal context| C
+    C -->|Returns recommendations| A
+```
+
+---
+
 
 ## Database (Supabase)
 
@@ -301,6 +330,13 @@ This project demonstrates:
 - Team collaboration using GitHub
 - Software engineering best practices
 - Real-world problem solving
+
+
+---
+
+## Test Account
+Email : nel@gmail.com   
+Password : Password
 
 ---
 
