@@ -15,7 +15,7 @@ struct ActivityEntry: Identifiable, Codable {
     var notes: String
     var date: Date
     var completedDates: [Date]
-    var isTemporary: Bool           // true = one-off, false = permanent fixture
+    var isTemporary: Bool
 
     func isCompleted(on day: Date) -> Bool {
         let cal = Calendar.current
@@ -98,6 +98,16 @@ enum ExerciseCategory: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Calculator Result
+
+struct CalculatorResult {
+    var calories: Int
+    var duration: Int?
+    var sets: Int?
+    var reps: Int?
+    var weightLbs: Double?
+}
+
 // MARK: - ViewModel
 
 final class ActivityLogViewModel: ObservableObject {
@@ -110,10 +120,7 @@ final class ActivityLogViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var selectedDate: Date = Calendar.current.startOfDay(for: Date())
 
-    // Whether we are in history mode (navigated away from today)
-    var isHistoryMode: Bool {
-        !Calendar.current.isDateInToday(selectedDate)
-    }
+    var isHistoryMode: Bool { !Calendar.current.isDateInToday(selectedDate) }
 
     var selectedDateString: String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
@@ -134,28 +141,18 @@ final class ActivityLogViewModel: ObservableObject {
         Task { await loadFromSupabase() }
     }
 
-    // Today mode: show all permanent + temporary that were created today
-    // History mode: show only exercises completed on that day
     var filteredExercises: [ActivityEntry] {
         let base: [ActivityEntry]
         if isHistoryMode {
-            // Only show exercises that were completed on the selected day
             base = exercises.filter { $0.isCompleted(on: selectedDate) }
         } else {
-            // Today: show all permanent + temporary created today
             let today = Calendar.current.startOfDay(for: Date())
             base = exercises.filter { entry in
-                if entry.isTemporary {
-                    return Calendar.current.isDate(entry.date, inSameDayAs: today)
-                }
+                if entry.isTemporary { return Calendar.current.isDate(entry.date, inSameDayAs: today) }
                 return true
             }
         }
-
-        let categoryFiltered: [ActivityEntry] = selectedFilter == nil
-            ? base
-            : base.filter { $0.category == selectedFilter }
-
+        let categoryFiltered: [ActivityEntry] = selectedFilter == nil ? base : base.filter { $0.category == selectedFilter }
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return categoryFiltered.sorted { $0.name < $1.name }
         }
@@ -165,36 +162,29 @@ final class ActivityLogViewModel: ObservableObject {
         }.sorted { $0.name < $1.name }
     }
 
-    // All days that have at least one completed exercise, sorted descending
     var daysWithActivity: [Date] {
         var days = Set<Date>()
         let cal = Calendar.current
         for entry in exercises {
-            for date in entry.completedDates {
-                days.insert(cal.startOfDay(for: date))
-            }
+            for date in entry.completedDates { days.insert(cal.startOfDay(for: date)) }
         }
         return days.sorted(by: >)
     }
 
-    // Jump to the most recent day before selectedDate that has completed exercises
     func goToPreviousActiveDay() {
         let cal = Calendar.current
         let current = cal.startOfDay(for: selectedDate)
-        let previous = daysWithActivity.first { $0 < current }
-        if let prev = previous {
+        if let prev = daysWithActivity.first(where: { $0 < current }) {
             withAnimation(.easeInOut(duration: 0.2)) { selectedDate = prev }
         }
     }
 
-    // Jump back to today
     func goToToday() {
         withAnimation(.easeInOut(duration: 0.2)) {
             selectedDate = Calendar.current.startOfDay(for: Date())
         }
     }
 
-    // Whether there's a previous active day to navigate to
     var hasPreviousActiveDay: Bool {
         let cal = Calendar.current
         let current = cal.startOfDay(for: selectedDate)
@@ -202,9 +192,7 @@ final class ActivityLogViewModel: ObservableObject {
     }
 
     var totalCaloriesForDay: Int {
-        exercises
-            .filter { $0.isCompleted(on: selectedDate) }
-            .reduce(0) { $0 + $1.caloriesBurned }
+        exercises.filter { $0.isCompleted(on: selectedDate) }.reduce(0) { $0 + $1.caloriesBurned }
     }
 
     var totalWorkoutsForDay: Int {
@@ -216,8 +204,7 @@ final class ActivityLogViewModel: ObservableObject {
         var streak = 0
         var checkDate = cal.startOfDay(for: Date())
         while true {
-            let hasWorkout = exercises.contains { $0.isCompleted(on: checkDate) }
-            if hasWorkout {
+            if exercises.contains(where: { $0.isCompleted(on: checkDate) }) {
                 streak += 1
                 checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
             } else { break }
@@ -252,13 +239,11 @@ final class ActivityLogViewModel: ObservableObject {
         guard let idx = exercises.firstIndex(where: { $0.id == entry.id }) else { return }
         let cal = Calendar.current
         let day = cal.startOfDay(for: selectedDate)
-
         if exercises[idx].isCompleted(on: day) {
             exercises[idx].completedDates.removeAll { cal.isDate($0, inSameDayAs: day) }
         } else {
             exercises[idx].completedDates.append(day)
         }
-
         let updated = exercises[idx]
         saveToCache()
         Task { try? await WorkoutService.shared.upsertWorkout(updated, userId: userId) }
@@ -386,10 +371,7 @@ struct ActivityLogView: View {
         let isYesterday = cal.isDateInYesterday(vm.selectedDate)
 
         return HStack {
-            // Back — jumps to previous active day
-            Button {
-                vm.goToPreviousActiveDay()
-            } label: {
+            Button { vm.goToPreviousActiveDay() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(vm.hasPreviousActiveDay ? Color.brandCream.opacity(0.6) : Color.brandCream.opacity(0.15))
@@ -416,10 +398,7 @@ struct ActivityLogView: View {
 
             Spacer()
 
-            // Forward — goes back to today
-            Button {
-                vm.goToToday()
-            } label: {
+            Button { vm.goToToday() } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(isToday ? .clear : Color.brandCream.opacity(0.6))
@@ -457,8 +436,8 @@ struct ActivityLogView: View {
     private var statsStrip: some View {
         HStack(spacing: 12) {
             StatCard(value: "\(vm.totalWorkoutsForDay)", label: vm.isHistoryMode ? "Completed" : "Done Today", icon: "checkmark.circle.fill", color: Color(red: 0.25, green: 0.72, blue: 0.55), animate: animateStats)
-            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories",   icon: "flame.fill",  color: .brandOrange, animate: animateStats)
-            StatCard(value: "\(vm.currentStreak)",       label: "Streak",     icon: "bolt.fill",   color: .brandLime,   animate: animateStats)
+            StatCard(value: "\(vm.totalCaloriesForDay)", label: "Calories", icon: "flame.fill", color: .brandOrange, animate: animateStats)
+            StatCard(value: "\(vm.currentStreak)", label: "Streak", icon: "bolt.fill", color: .brandLime, animate: animateStats)
         }
         .padding(.horizontal)
     }
@@ -470,13 +449,9 @@ struct ActivityLogView: View {
             Image(systemName: "magnifyingglass").foregroundColor(Color.brandCream.opacity(0.4))
             ZStack(alignment: .leading) {
                 if vm.searchText.isEmpty {
-                    Text("Search exercises...")
-                        .foregroundColor(Color.brandCream.opacity(0.3))
-                        .allowsHitTesting(false)
+                    Text("Search exercises...").foregroundColor(Color.brandCream.opacity(0.3)).allowsHitTesting(false)
                 }
-                TextField("", text: $vm.searchText)
-                    .foregroundColor(.brandCream)
-                    .textInputAutocapitalization(.words)
+                TextField("", text: $vm.searchText).foregroundColor(.brandCream).textInputAutocapitalization(.words)
             }
             if !vm.searchText.isEmpty {
                 Button { vm.searchText = "" } label: {
@@ -523,22 +498,14 @@ struct ActivityLogView: View {
                         exercise: exercise,
                         selectedDate: vm.selectedDate,
                         isReadOnly: vm.isHistoryMode,
-                        onDelete: {
-                            if !vm.isHistoryMode {
-                                withAnimation { vm.deleteEntry(exercise) }
-                            }
-                        },
+                        onDelete: { if !vm.isHistoryMode { withAnimation { vm.deleteEntry(exercise) } } },
                         onToggleComplete: {
                             if !vm.isHistoryMode {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                                    vm.toggleComplete(exercise)
-                                }
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { vm.toggleComplete(exercise) }
                             }
                         }
                     )
-                    .onTapGesture {
-                        if !vm.isHistoryMode { vm.editingExercise = exercise }
-                    }
+                    .onTapGesture { if !vm.isHistoryMode { vm.editingExercise = exercise } }
                     .contextMenu {
                         if !vm.isHistoryMode {
                             Button { vm.editingExercise = exercise } label: { Label("Edit", systemImage: "pencil") }
@@ -561,9 +528,7 @@ struct ActivityLogView: View {
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundColor(Color.brandCream.opacity(0.5))
             Text(vm.isHistoryMode ? "Use the arrows to find a day with activity." : "Tap the button below to add your first exercise.")
-                .font(.system(size: 14))
-                .foregroundColor(Color.brandCream.opacity(0.35))
-                .multilineTextAlignment(.center)
+                .font(.system(size: 14)).foregroundColor(Color.brandCream.opacity(0.35)).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 60).padding(.horizontal)
     }
@@ -605,16 +570,11 @@ struct StatCard: View {
             Text(value)
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundColor(.brandCream)
-                .scaleEffect(animate ? 1.0 : 0.5)
-                .opacity(animate ? 1.0 : 0)
+                .scaleEffect(animate ? 1.0 : 0.5).opacity(animate ? 1.0 : 0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.6), value: animate)
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color.brandCream.opacity(0.5))
-                .textCase(.uppercase)
+            Text(label).font(.system(size: 11, weight: .medium)).foregroundColor(Color.brandCream.opacity(0.5)).textCase(.uppercase)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity).padding(.vertical, 18)
         .background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
         .cornerRadius(16)
@@ -684,18 +644,14 @@ struct ExerciseRow: View {
                         .strikethrough(completedOnDay)
                     if exercise.isTemporary {
                         Text("ONE-TIME")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.brandOrange)
+                            .font(.system(size: 8, weight: .bold)).foregroundColor(.brandOrange)
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.brandOrange.opacity(0.15))
-                            .clipShape(Capsule())
+                            .background(Color.brandOrange.opacity(0.15)).clipShape(Capsule())
                     }
                 }
                 Text(subtitleText).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                 if !isReadOnly && completionCount > 0 {
-                    Text("Completed \(completionCount)x total")
-                        .font(.caption2)
-                        .foregroundColor(Color.brandLime.opacity(0.6))
+                    Text("Completed \(completionCount)x total").font(.caption2).foregroundColor(Color.brandLime.opacity(0.6))
                 }
                 if !exercise.notes.isEmpty {
                     Text(exercise.notes).font(.caption2).foregroundColor(Color.brandCream.opacity(0.35)).lineLimit(1)
@@ -706,11 +662,9 @@ struct ExerciseRow: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 Text(exercise.category.rawValue)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(exercise.category.color)
+                    .font(.system(size: 10, weight: .bold)).foregroundColor(exercise.category.color)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(exercise.category.color.opacity(0.15))
-                    .clipShape(Capsule())
+                    .background(exercise.category.color.opacity(0.15)).clipShape(Capsule())
 
                 if !isReadOnly {
                     Button { onToggleComplete() } label: {
@@ -722,9 +676,7 @@ struct ExerciseRow: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(exercise.category.color)
-                        .font(.system(size: 20))
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(exercise.category.color).font(.system(size: 20))
                 }
             }
         }
@@ -786,9 +738,7 @@ struct AddExerciseSheet: View {
                         Button(role: .destructive) {
                             if let e = editingExercise { vm.deleteEntry(e) }
                             dismiss()
-                        } label: {
-                            Image(systemName: "trash").foregroundColor(.brandOrange)
-                        }
+                        } label: { Image(systemName: "trash").foregroundColor(.brandOrange) }
                     }
                 }
             }
@@ -800,48 +750,44 @@ struct AddExerciseSheet: View {
                 workoutName: name,
                 userWeightKg: userWeightKg,
                 isImperial: isImperial
-            ) { calculatedCalories, calculatedDuration in
-                calories = "\(calculatedCalories)"
-                if let d = calculatedDuration { duration = "\(d)" }
+            ) { result in
+                // Fill ALL fields from calculator result
+                calories = "\(result.calories)"
+                if let d = result.duration, d > 0 { duration = "\(d)" }
+                if let s = result.sets,    s > 0 { sets = s }
+                if let r = result.reps,    r > 0 { reps = r }
+                if let w = result.weightLbs, w > 0 {
+                    weight = isImperial ? "\(Int(w))" : "\(Int(w * 0.453592))"
+                }
             }
         }
     }
 
-    // MARK: - Two save buttons (new exercise only)
+    // MARK: - Save buttons
 
     private var saveButtons: some View {
         VStack(spacing: 12) {
-            // Permanent
             Button { saveExercise(temporary: false) } label: {
                 VStack(spacing: 4) {
                     HStack(spacing: 8) {
                         Image(systemName: "bookmark.fill")
-                        Text("Save Permanently")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        Text("Save Permanently").font(.system(size: 16, weight: .bold, design: .rounded))
                     }
                     .foregroundColor(.brandNavy)
-                    Text("Appears every day in your exercise list")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.brandNavy.opacity(0.6))
+                    Text("Appears every day in your exercise list").font(.system(size: 11)).foregroundColor(Color.brandNavy.opacity(0.6))
                 }
-                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(Color.brandLime)
-                .cornerRadius(14)
+                .frame(maxWidth: .infinity).padding(.vertical, 14).background(Color.brandLime).cornerRadius(14)
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            // One-time
             Button { saveExercise(temporary: true) } label: {
                 VStack(spacing: 4) {
                     HStack(spacing: 8) {
                         Image(systemName: "clock")
-                        Text("Log Once")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        Text("Log Once").font(.system(size: 16, weight: .bold, design: .rounded))
                     }
                     .foregroundColor(.brandOrange)
-                    Text("Only shows today, won't carry over")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.brandOrange.opacity(0.7))
+                    Text("Only shows today, won't carry over").font(.system(size: 11)).foregroundColor(Color.brandOrange.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 14)
                 .background(Color.brandOrange.opacity(0.12))
@@ -852,24 +798,17 @@ struct AddExerciseSheet: View {
         }
     }
 
-    // Single save button for edits
     private var editSaveButton: some View {
         Button { saveExercise(temporary: editingExercise?.isTemporary ?? false) } label: {
-            Text("Save Changes")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(.brandNavy)
-                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(Color.brandLime).cornerRadius(14)
+            Text("Save Changes").font(.system(size: 16, weight: .bold, design: .rounded)).foregroundColor(.brandNavy)
+                .frame(maxWidth: .infinity).padding(.vertical, 14).background(Color.brandLime).cornerRadius(14)
         }
         .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private var categoryPickerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Category")
-                .font(.caption).fontWeight(.bold)
-                .foregroundColor(Color.brandCream.opacity(0.5))
-                .textCase(.uppercase).tracking(1.2)
+            Text("Category").font(.caption).fontWeight(.bold).foregroundColor(Color.brandCream.opacity(0.5)).textCase(.uppercase).tracking(1.2)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ExerciseCategory.allCases, id: \.self) { cat in
@@ -895,14 +834,9 @@ struct AddExerciseSheet: View {
 
     private var suggestedExercisesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Exercise Name")
-                .font(.caption).fontWeight(.bold)
-                .foregroundColor(Color.brandCream.opacity(0.5))
-                .textCase(.uppercase).tracking(1.2)
+            Text("Exercise Name").font(.caption).fontWeight(.bold).foregroundColor(Color.brandCream.opacity(0.5)).textCase(.uppercase).tracking(1.2)
             ZStack(alignment: .leading) {
-                if name.isEmpty {
-                    Text("Enter exercise name").foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
-                }
+                if name.isEmpty { Text("Enter exercise name").foregroundColor(Color.brandCream.opacity(0.3)).padding(12) }
                 TextField("", text: $name).foregroundColor(.brandCream).padding(12)
             }
             .background(Color.brandCream.opacity(0.07))
@@ -913,11 +847,8 @@ struct AddExerciseSheet: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], spacing: 10) {
                 ForEach(category.suggestedExercises, id: \.self) { suggestion in
                     Button { name = suggestion } label: {
-                        Text(suggestion)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(.brandCream)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10).padding(.horizontal, 10)
+                        Text(suggestion).font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundColor(.brandCream)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 10)
                             .background(Color.brandCream.opacity(0.06))
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.12), lineWidth: 1))
                             .cornerRadius(12)
@@ -930,25 +861,35 @@ struct AddExerciseSheet: View {
 
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Details")
-                .font(.caption).fontWeight(.bold)
-                .foregroundColor(Color.brandCream.opacity(0.5))
-                .textCase(.uppercase).tracking(1.2)
+            Text("Details").font(.caption).fontWeight(.bold).foregroundColor(Color.brandCream.opacity(0.5)).textCase(.uppercase).tracking(1.2)
             if category.usesDuration {
                 brandDetailField(title: "Duration (minutes)", text: $duration, keyboard: .numberPad)
             } else {
-                Stepper("Sets: \(sets)", value: $sets, in: 1...20).foregroundColor(.brandCream)
-                Stepper("Reps: \(reps)", value: $reps, in: 1...100).foregroundColor(.brandCream)
+                // Sets — clamp at 1
+                Stepper("Sets: \(sets)", value: Binding(
+                    get: { sets },
+                    set: { sets = max(1, $0) }
+                ), in: 1...100).foregroundColor(.brandCream)
+
+                // Reps — clamp at 1
+                Stepper("Reps: \(reps)", value: Binding(
+                    get: { reps },
+                    set: { reps = max(1, $0) }
+                ), in: 1...500).foregroundColor(.brandCream)
+
                 brandDetailField(title: "Weight (lbs)", text: $weight, keyboard: .decimalPad)
             }
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Calories Burned").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                     ZStack(alignment: .leading) {
-                        if calories.isEmpty {
-                            Text("e.g. 300").foregroundColor(Color.brandCream.opacity(0.3)).padding(10)
-                        }
-                        TextField("", text: $calories).foregroundColor(.brandCream).keyboardType(.numberPad).padding(10)
+                        if calories.isEmpty { Text("e.g. 300").foregroundColor(Color.brandCream.opacity(0.3)).padding(10) }
+                        TextField("", text: $calories)
+                            .foregroundColor(.brandCream).keyboardType(.numberPad).padding(10)
+                            .onChange(of: calories) { _, newVal in
+                                // Prevent negatives
+                                if let v = Int(newVal), v < 0 { calories = "0" }
+                            }
                     }
                     .background(Color.brandCream.opacity(0.07))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
@@ -959,10 +900,7 @@ struct AddExerciseSheet: View {
                         Image(systemName: "flame.fill").font(.system(size: 14, weight: .semibold))
                         Text("Calc").font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundColor(.brandNavy)
-                    .frame(width: 52, height: 40)
-                    .background(category.color)
-                    .cornerRadius(10)
+                    .foregroundColor(.brandNavy).frame(width: 52, height: 40).background(category.color).cornerRadius(10)
                 }
                 .buttonStyle(.plain)
             }
@@ -975,16 +913,10 @@ struct AddExerciseSheet: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Notes")
-                .font(.caption).fontWeight(.bold)
-                .foregroundColor(Color.brandCream.opacity(0.5))
-                .textCase(.uppercase).tracking(1.2)
+            Text("Notes").font(.caption).fontWeight(.bold).foregroundColor(Color.brandCream.opacity(0.5)).textCase(.uppercase).tracking(1.2)
             ZStack(alignment: .topLeading) {
-                if notes.isEmpty {
-                    Text("Add a quick note...").foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
-                }
-                TextField("", text: $notes, axis: .vertical)
-                    .foregroundColor(.brandCream).lineLimit(3...5).padding(12)
+                if notes.isEmpty { Text("Add a quick note...").foregroundColor(Color.brandCream.opacity(0.3)).padding(12) }
+                TextField("", text: $notes, axis: .vertical).foregroundColor(.brandCream).lineLimit(3...5).padding(12)
             }
             .background(Color.brandCream.opacity(0.07))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
@@ -1000,6 +932,9 @@ struct AddExerciseSheet: View {
                 .background(Color.brandCream.opacity(0.07))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
                 .cornerRadius(10)
+                .onChange(of: text.wrappedValue) { _, newVal in
+                    if let v = Double(newVal), v < 0 { text.wrappedValue = "0" }
+                }
         }
     }
 
@@ -1007,24 +942,31 @@ struct AddExerciseSheet: View {
         category = editingExercise?.category ?? initialCategory
         guard let exercise = editingExercise else { return }
         name     = exercise.name
-        sets     = exercise.sets
-        reps     = exercise.reps
-        weight   = exercise.weight.map { String(Int($0)) } ?? ""
-        duration = exercise.duration.map { String($0) } ?? ""
-        calories = String(exercise.caloriesBurned)
+        sets     = max(1, exercise.sets)
+        reps     = max(1, exercise.reps)
+        weight   = exercise.weight.map { String(Int(max(0, $0))) } ?? ""
+        duration = exercise.duration.map { String(max(0, $0)) } ?? ""
+        calories = String(max(0, exercise.caloriesBurned))
         notes    = exercise.notes
     }
 
     private func saveExercise(temporary: Bool) {
+        let cal = max(0, Int(calories) ?? 0)
+        let dur = duration.isEmpty ? nil : max(0, Int(duration) ?? 0)
+        let wt: Double? = category.usesDuration ? nil : {
+            guard let v = Double(weight) else { return nil }
+            return max(0, v)
+        }()
+
         let entry = ActivityEntry(
             id:             editingExercise?.id ?? UUID(),
             name:           name.trimmingCharacters(in: .whitespacesAndNewlines),
             category:       category,
-            sets:           category.usesDuration ? 0 : sets,
-            reps:           category.usesDuration ? 0 : reps,
-            weight:         category.usesDuration ? nil : Double(weight),
-            duration:       category.usesDuration ? Int(duration) : nil,
-            caloriesBurned: Int(calories) ?? 0,
+            sets:           category.usesDuration ? 0 : max(1, sets),
+            reps:           category.usesDuration ? 0 : max(1, reps),
+            weight:         wt,
+            duration:       dur,
+            caloriesBurned: cal,
             notes:          notes,
             date:           editingExercise?.date ?? Date(),
             completedDates: editingExercise?.completedDates ?? [],
@@ -1042,13 +984,11 @@ struct CalorieCalculatorSheet: View {
     let workoutName: String
     let userWeightKg: Double
     let isImperial: Bool
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
     @Environment(\.dismiss) private var dismiss
 
     private var displayWeight: String {
-        isImperial
-            ? String(format: "%.1f lbs", userWeightKg * 2.20462)
-            : String(format: "%.1f kg", userWeightKg)
+        isImperial ? String(format: "%.1f lbs", userWeightKg * 2.20462) : String(format: "%.1f kg", userWeightKg)
     }
 
     var body: some View {
@@ -1059,8 +999,7 @@ struct CalorieCalculatorSheet: View {
                     VStack(spacing: 20) {
                         HStack(spacing: 8) {
                             Image(systemName: "person.fill").foregroundColor(Color.brandCream.opacity(0.5))
-                            Text("Your weight: \(displayWeight)")
-                                .font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                            Text("Your weight: \(displayWeight)").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
                             Spacer()
                         }
                         .padding(12)
@@ -1070,15 +1009,15 @@ struct CalorieCalculatorSheet: View {
 
                         switch category {
                         case .strength:
-                            StrengthCalculator(userWeightKg: userWeightKg, isImperial: isImperial) { cals, dur in onResult(cals, dur); dismiss() }
+                            StrengthCalculator(userWeightKg: userWeightKg, isImperial: isImperial) { result in onResult(result); dismiss() }
                         case .cardio:
-                            CardioCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in onResult(cals, dur); dismiss() }
+                            CardioCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { result in onResult(result); dismiss() }
                         case .sports:
-                            SportsCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in onResult(cals, dur); dismiss() }
+                            SportsCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { result in onResult(result); dismiss() }
                         case .flexibility:
-                            FlexibilityCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in onResult(cals, dur); dismiss() }
+                            FlexibilityCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { result in onResult(result); dismiss() }
                         case .outdoor:
-                            OutdoorCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { cals, dur in onResult(cals, dur); dismiss() }
+                            OutdoorCalculator(userWeightKg: userWeightKg, isImperial: isImperial, workoutName: workoutName) { result in onResult(result); dismiss() }
                         }
                         Spacer(minLength: 40)
                     }
@@ -1112,7 +1051,7 @@ private struct CalcStepper: View {
             Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             HStack {
                 Button {
-                    if value - step >= range.lowerBound { value -= step }
+                    value = max(range.lowerBound, value - step)
                 } label: {
                     Image(systemName: "minus.circle.fill").font(.system(size: 28)).foregroundColor(Color.brandCream.opacity(0.3))
                 }
@@ -1120,7 +1059,7 @@ private struct CalcStepper: View {
                 Text("\(value)").font(.system(size: 20, weight: .bold, design: .rounded)).foregroundColor(.brandCream)
                 Spacer()
                 Button {
-                    if value + step <= range.upperBound { value += step }
+                    value = min(range.upperBound, value + step)
                 } label: {
                     Image(systemName: "plus.circle.fill").font(.system(size: 28)).foregroundColor(.brandLime)
                 }
@@ -1140,10 +1079,12 @@ private struct CalcTextField: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
             ZStack(alignment: .leading) {
-                if text.isEmpty {
-                    Text(placeholder).foregroundColor(Color.brandCream.opacity(0.3)).padding(12)
-                }
-                TextField("", text: $text).foregroundColor(.brandCream).keyboardType(keyboard).padding(12)
+                if text.isEmpty { Text(placeholder).foregroundColor(Color.brandCream.opacity(0.3)).padding(12) }
+                TextField("", text: $text)
+                    .foregroundColor(.brandCream).keyboardType(keyboard).padding(12)
+                    .onChange(of: text) { _, newVal in
+                        if let v = Double(newVal), v < 0 { text = "0" }
+                    }
             }
             .background(Color.brandCream.opacity(0.07))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandCream.opacity(0.18), lineWidth: 1))
@@ -1198,12 +1139,11 @@ private struct ResultBanner: View {
 }
 
 private struct UseResultButton: View {
-    let calories: Int
-    let duration: Int?
-    let onResult: (Int, Int?) -> Void
+    let result: CalculatorResult
+    let onResult: (CalculatorResult) -> Void
 
     var body: some View {
-        Button { onResult(calories, duration) } label: {
+        Button { onResult(result) } label: {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                 Text("Use This Result").font(.system(size: 15, weight: .bold, design: .rounded))
@@ -1230,12 +1170,13 @@ private struct CalculateButton: View {
     }
 }
 
-// MARK: - Strength Calculator
+// MARK: - Strength Calculator (pre-fills sets, reps, weight, duration, calories)
 
 private struct StrengthCalculator: View {
     let userWeightKg: Double
     let isImperial: Bool
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
+
     @State private var sets: Int = 3
     @State private var reps: Int = 10
     @State private var liftWeightText: String = "135"
@@ -1243,62 +1184,113 @@ private struct StrengthCalculator: View {
     @State private var result: Int? = nil
 
     private var weightUnit: String { isImperial ? "lbs" : "kg" }
-    private var liftWeightKg: Double { let v = Double(liftWeightText) ?? 0; return isImperial ? v * 0.453592 : v }
-    private var durationMins: Int { Int(durationText) ?? 45 }
+    private var liftWeightKg: Double {
+        let v = max(0, Double(liftWeightText) ?? 0)
+        return isImperial ? v * 0.453592 : v
+    }
+    private var durationMins: Int { max(0, Int(durationText) ?? 45) }
+    private var liftWeightLbs: Double { liftWeightKg * 2.20462 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Strength Training").font(.headline).foregroundColor(.brandCream)
             CalcStepper(label: "Sets", value: $sets, range: 1...20)
-            CalcStepper(label: "Reps per set", value: $reps, range: 1...30)
+            CalcStepper(label: "Reps per set", value: $reps, range: 1...100)
             CalcTextField(label: "Weight lifted (\(weightUnit))", placeholder: isImperial ? "e.g. 135" : "e.g. 60", text: $liftWeightText)
             CalcTextField(label: "Session duration (minutes)", placeholder: "e.g. 45", text: $durationText, keyboard: .numberPad)
-            FormulaInfoButton(formula: "Calories = (sets × reps × lift_weight_kg × 0.075) + (MET 6.0 × body_weight_kg × duration_hrs)")
+            FormulaInfoButton(formula: "Calories = (sets × reps × lift_weight_kg × 0.075) + (MET 6.0 × body_weight_kg × duration_hrs)\n\nAll fields pre-fill when you use the result.")
             CalculateButton {
                 let repCals = Double(sets * reps) * liftWeightKg * 0.075
                 let metCals = 6.0 * userWeightKg * (Double(durationMins) / 60.0)
                 result = max(1, Int(repCals + metCals))
             }
-            if let r = result { ResultBanner(calories: r); UseResultButton(calories: r, duration: durationMins, onResult: onResult) }
+            if let r = result {
+                ResultBanner(calories: r)
+                UseResultButton(
+                    result: CalculatorResult(
+                        calories: r,
+                        duration: durationMins,
+                        sets: sets,
+                        reps: reps,
+                        weightLbs: liftWeightLbs
+                    ),
+                    onResult: onResult
+                )
+            }
         }
         .padding().background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1)).cornerRadius(16)
     }
 }
 
-// MARK: - Cardio Calculator
+// MARK: - Cardio Calculator (type + intensity + direct duration)
 
 private struct CardioCalculator: View {
     let userWeightKg: Double
     let isImperial: Bool
     let workoutName: String
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
 
     enum CardioType: String, CaseIterable {
-        case walking = "Walking", running = "Running", sprinting = "Sprinting"
-        var met: Double { switch self { case .walking: return 3.5; case .running: return 9.8; case .sprinting: return 14.0 } }
-        var defaultSpeedMph: Double { switch self { case .walking: return 3.0; case .running: return 6.0; case .sprinting: return 12.0 } }
-        var icon: String { switch self { case .walking: return "figure.walk"; default: return "figure.run" } }
+        case walking = "Walking", running = "Running", cycling = "Cycling", sprinting = "Sprinting"
+        var baseMET: Double {
+            switch self {
+            case .walking:   return 3.5
+            case .running:   return 9.8
+            case .cycling:   return 7.5
+            case .sprinting: return 14.0
+            }
+        }
+        var icon: String {
+            switch self {
+            case .walking:   return "figure.walk"
+            case .running:   return "figure.run"
+            case .cycling:   return "bicycle"
+            case .sprinting: return "hare.fill"
+            }
+        }
+    }
+
+    enum Intensity: String, CaseIterable {
+        case light = "Light", moderate = "Moderate", hard = "Hard"
+        var multiplier: Double {
+            switch self {
+            case .light:    return 0.80
+            case .moderate: return 1.00
+            case .hard:     return 1.25
+            }
+        }
+        var color: Color {
+            switch self {
+            case .light:    return Color(red: 0.25, green: 0.72, blue: 0.55)
+            case .moderate: return .brandOrange
+            case .hard:     return Color(red: 0.96, green: 0.35, blue: 0.35)
+            }
+        }
     }
 
     @State private var selectedType: CardioType = .running
-    @State private var distanceText: String = "3.0"
+    @State private var selectedIntensity: Intensity = .moderate
+    @State private var durationText: String = "30"
+    @State private var distanceText: String = ""      // optional reference
     @State private var result: Int? = nil
-    @State private var calculatedDuration: Int? = nil
 
+    private var durationMins: Int { max(0, Int(durationText) ?? 0) }
     private var distanceUnit: String { isImperial ? "miles" : "km" }
-    private var distanceInMiles: Double { let v = Double(distanceText) ?? 0; return isImperial ? v : v * 0.621371 }
-    private var estimatedMins: Int { guard selectedType.defaultSpeedMph > 0 else { return 0 }; return Int((distanceInMiles / selectedType.defaultSpeedMph) * 60) }
+    private var effectiveMET: Double { selectedType.baseMET * selectedIntensity.multiplier }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Cardio").font(.headline).foregroundColor(.brandCream)
-            HStack(spacing: 8) {
+
+            // Activity type
+            Text("Activity Type").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(CardioType.allCases, id: \.self) { type in
                     Button { selectedType = type; result = nil } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: type.icon).font(.system(size: 16))
-                            Text(type.rawValue).font(.system(size: 11, weight: .semibold))
+                        HStack(spacing: 6) {
+                            Image(systemName: type.icon).font(.system(size: 13))
+                            Text(type.rawValue).font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(selectedType == type ? .brandNavy : Color.brandCream.opacity(0.7))
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
@@ -1306,21 +1298,50 @@ private struct CardioCalculator: View {
                     }.buttonStyle(.plain)
                 }
             }
-            CalcTextField(label: "Distance (\(distanceUnit))", placeholder: isImperial ? "e.g. 3.0" : "e.g. 5.0", text: $distanceText)
+
+            // Intensity
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Intensity").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                HStack(spacing: 8) {
+                    ForEach(Intensity.allCases, id: \.self) { level in
+                        Button { selectedIntensity = level; result = nil } label: {
+                            Text(level.rawValue)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(selectedIntensity == level ? .brandNavy : level.color)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(selectedIntensity == level ? level.color : level.color.opacity(0.12)))
+                        }.buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // Duration — required
+            CalcTextField(label: "Duration (minutes) *", placeholder: "e.g. 30", text: $durationText, keyboard: .numberPad)
+
+            // Distance — optional reference
+            CalcTextField(label: "Distance (\(distanceUnit)) — optional", placeholder: "e.g. 3.0", text: $distanceText)
+
+            // MET info
             HStack(spacing: 6) {
-                Image(systemName: "clock").foregroundColor(Color.brandCream.opacity(0.4)).font(.caption)
-                Text("Estimated time: ~\(estimatedMins) min at \(String(format: "%.0f", selectedType.defaultSpeedMph)) mph").font(.caption).foregroundColor(Color.brandCream.opacity(0.5))
+                Image(systemName: "info.circle").font(.system(size: 11)).foregroundColor(.brandBlue)
+                Text("Effective MET: \(String(format: "%.1f", effectiveMET)) (\(selectedType.rawValue) · \(selectedIntensity.rawValue))")
+                    .font(.system(size: 11)).foregroundColor(Color.brandCream.opacity(0.5))
             }
-            FormulaInfoButton(formula: "Calories = MET × body_weight_kg × duration_hours\n\n• Walking MET: 3.5 | Running: 9.8 | Sprinting: 14.0")
+
+            FormulaInfoButton(formula: "Calories = base_MET × intensity_multiplier × body_weight_kg × (duration_hrs)\n\n• Walking: 3.5 | Running: 9.8 | Cycling: 7.5 | Sprinting: 14.0\n• Light: ×0.80 | Moderate: ×1.00 | Hard: ×1.25")
+
             CalculateButton {
-                let hours = distanceInMiles / selectedType.defaultSpeedMph
-                result = max(1, Int(selectedType.met * userWeightKg * hours))
-                calculatedDuration = Int(hours * 60)
+                guard durationMins > 0 else { return }
+                let cals = effectiveMET * userWeightKg * (Double(durationMins) / 60.0)
+                result = max(1, Int(cals))
             }
+
             if let r = result {
                 ResultBanner(calories: r)
-                if let d = calculatedDuration { Text("Estimated duration: \(d) min").font(.caption).foregroundColor(Color.brandCream.opacity(0.5)) }
-                UseResultButton(calories: r, duration: calculatedDuration, onResult: onResult)
+                UseResultButton(
+                    result: CalculatorResult(calories: r, duration: durationMins),
+                    onResult: onResult
+                )
             }
         }
         .padding().background(Color.brandCream.opacity(0.06))
@@ -1328,6 +1349,7 @@ private struct CardioCalculator: View {
         .onAppear {
             if workoutName.lowercased().contains("walk") { selectedType = .walking }
             else if workoutName.lowercased().contains("sprint") { selectedType = .sprinting }
+            else if workoutName.lowercased().contains("cycl") || workoutName.lowercased().contains("bike") { selectedType = .cycling }
             else { selectedType = .running }
         }
     }
@@ -1339,7 +1361,7 @@ private struct SportsCalculator: View {
     let userWeightKg: Double
     let isImperial: Bool
     let workoutName: String
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
 
     enum SportType: String, CaseIterable {
         case football = "Football", basketball = "Basketball", soccer = "Soccer", rockClimbing = "Rock Climbing"
@@ -1350,7 +1372,7 @@ private struct SportsCalculator: View {
     @State private var selectedSport: SportType = .basketball
     @State private var durationText: String = "60"
     @State private var result: Int? = nil
-    private var durationMins: Int { Int(durationText) ?? 60 }
+    private var durationMins: Int { max(0, Int(durationText) ?? 60) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1369,9 +1391,12 @@ private struct SportsCalculator: View {
                 }
             }
             CalcTextField(label: "Duration (minutes)", placeholder: "e.g. 60", text: $durationText, keyboard: .numberPad)
-            FormulaInfoButton(formula: "Calories = MET × body_weight_kg × (duration_mins ÷ 60)\n\n• Football/Basketball MET: 8.0 | Soccer: 10.0 | Rock Climbing: 7.5")
+            FormulaInfoButton(formula: "Calories = MET × body_weight_kg × (duration_mins ÷ 60)\n\n• Football/Basketball: 8.0 | Soccer: 10.0 | Rock Climbing: 7.5")
             CalculateButton { result = max(1, Int(selectedSport.met * userWeightKg * Double(durationMins) / 60.0)) }
-            if let r = result { ResultBanner(calories: r); UseResultButton(calories: r, duration: durationMins, onResult: onResult) }
+            if let r = result {
+                ResultBanner(calories: r)
+                UseResultButton(result: CalculatorResult(calories: r, duration: durationMins), onResult: onResult)
+            }
         }
         .padding().background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1)).cornerRadius(16)
@@ -1390,7 +1415,7 @@ private struct FlexibilityCalculator: View {
     let userWeightKg: Double
     let isImperial: Bool
     let workoutName: String
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
 
     enum FlexType: String, CaseIterable {
         case yoga = "Yoga", pilates = "Pilates"
@@ -1405,7 +1430,7 @@ private struct FlexibilityCalculator: View {
     @State private var result: Int? = nil
     private let intensityLabels = ["Light", "Moderate", "Intense"]
     private let intensityMultipliers: [Double] = [0.85, 1.0, 1.2]
-    private var durationMins: Int { Int(durationText) ?? 60 }
+    private var durationMins: Int { max(0, Int(durationText) ?? 60) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1432,9 +1457,12 @@ private struct FlexibilityCalculator: View {
                     ForEach(0..<intensityLabels.count, id: \.self) { i in Text(intensityLabels[i]).tag(i) }
                 }.pickerStyle(.segmented)
             }
-            FormulaInfoButton(formula: "Calories = MET × intensity_multiplier × body_weight_kg × (duration_mins ÷ 60)")
+            FormulaInfoButton(formula: "Calories = MET × intensity × body_weight_kg × (duration_mins ÷ 60)")
             CalculateButton { result = max(1, Int(selectedType.met * intensityMultipliers[intensityIndex] * userWeightKg * Double(durationMins) / 60.0)) }
-            if let r = result { ResultBanner(calories: r); UseResultButton(calories: r, duration: durationMins, onResult: onResult) }
+            if let r = result {
+                ResultBanner(calories: r)
+                UseResultButton(result: CalculatorResult(calories: r, duration: durationMins), onResult: onResult)
+            }
         }
         .padding().background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1)).cornerRadius(16)
@@ -1448,7 +1476,7 @@ private struct OutdoorCalculator: View {
     let userWeightKg: Double
     let isImperial: Bool
     let workoutName: String
-    let onResult: (Int, Int?) -> Void
+    let onResult: (CalculatorResult) -> Void
 
     enum HikeType: String, CaseIterable {
         case uphill = "Uphill", downhill = "Downhill"
@@ -1465,8 +1493,8 @@ private struct OutdoorCalculator: View {
 
     private var distanceUnit: String { isImperial ? "miles" : "km" }
     private var elevationUnit: String { isImperial ? "ft" : "m" }
-    private var durationMins: Int { Int(durationText) ?? 90 }
-    private var elevationFt: Double { let v = Double(elevationText) ?? 0; return isImperial ? v : v * 3.28084 }
+    private var durationMins: Int { max(0, Int(durationText) ?? 90) }
+    private var elevationFt: Double { let v = max(0, Double(elevationText) ?? 0); return isImperial ? v : v * 3.28084 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1497,7 +1525,10 @@ private struct OutdoorCalculator: View {
                 let elevBonus = selectedType == .uphill ? (elevationFt / 100.0) * ((userWeightKg * 2.20462) / 100.0) * 0.35 : 0
                 result = max(1, Int(baseCals + elevBonus))
             }
-            if let r = result { ResultBanner(calories: r); UseResultButton(calories: r, duration: durationMins, onResult: onResult) }
+            if let r = result {
+                ResultBanner(calories: r)
+                UseResultButton(result: CalculatorResult(calories: r, duration: durationMins), onResult: onResult)
+            }
         }
         .padding().background(Color.brandCream.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.brandCream.opacity(0.12), lineWidth: 1)).cornerRadius(16)
@@ -1643,37 +1674,114 @@ struct AIAssistantSheet: View {
 
     private func buildContext() -> String {
         let user = appState.currentUser
-        let storageKey = "savedExercises_\(user?.id ?? "")"
+        let uid = user?.id ?? ""
+
+        // --- Workouts ---
+        let storageKey = "savedExercises_\(uid)"
         var exercises: [ActivityEntry] = []
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ActivityEntry].self, from: data) {
             exercises = decoded
         }
-        let today = Calendar.current.startOfDay(for: Date())
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
         let completedToday = exercises.filter { $0.isCompleted(on: today) }
         let totalCalsBurned = completedToday.reduce(0) { $0 + $1.caloriesBurned }
+
+        // Streak
         var streak = 0
         var checkDate = today
-        let cal = Calendar.current
         while exercises.contains(where: { $0.isCompleted(on: checkDate) }) {
             streak += 1
             checkDate = cal.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
         }
-        let recentWorkouts = completedToday.prefix(5).map { "\($0.name) (\($0.category.rawValue), \($0.caloriesBurned) kcal)" }.joined(separator: ", ")
-        return """
-        User profile:
-        - Name: \(user?.name ?? "Unknown")
-        - Goal: \(user?.primaryGoal ?? "Unknown")
-        - Activity level: \(user?.activityLevel ?? "Unknown")
-        - Calorie goal: \(user?.calorieGoal ?? 0) kcal/day
-        - Current weight: \(Int(user?.weight ?? 0)) lbs
-        - Target weight: \(Int(user?.targetWeightLbs ?? 0)) lbs
 
-        Fitness stats:
-        - Current streak: \(streak) days
-        - Total exercises in library: \(exercises.count)
-        - Total calories burned today: \(totalCalsBurned) kcal
-        - Completed today: \(recentWorkouts.isEmpty ? "None yet" : recentWorkouts)
+        // Full workout detail for today
+        let workoutDetails = completedToday.map { w -> String in
+            if let dur = w.duration {
+                return "\(w.name) (\(w.category.rawValue), \(dur) min, \(w.caloriesBurned) kcal)"
+            } else {
+                let wt = w.weight.map { ", \(Int($0)) lbs" } ?? ""
+                return "\(w.name) (\(w.category.rawValue), \(w.sets) sets × \(w.reps) reps\(wt), \(w.caloriesBurned) kcal)"
+            }
+        }.joined(separator: "\n  • ")
+
+        // --- Nutrition from UserDefaults ---
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        let todayKey = "nutritionLog_\(uid)_\(f.string(from: today))"
+        var totalCaloriesEaten: Double = 0
+        var totalProtein: Double = 0
+        var totalCarbs: Double = 0
+        var totalFat: Double = 0
+        var loggedFoodNames: [String] = []
+        if let data = UserDefaults.standard.data(forKey: todayKey),
+           let entries = try? JSONDecoder().decode([LoggedFoodEntry].self, from: data) {
+            totalCaloriesEaten = entries.reduce(0) { $0 + $1.foodItem.calories }
+            totalProtein       = entries.reduce(0) { $0 + $1.foodItem.protein }
+            totalCarbs         = entries.reduce(0) { $0 + $1.foodItem.carbs }
+            totalFat           = entries.reduce(0) { $0 + $1.foodItem.fat }
+            loggedFoodNames    = entries.map { "\($0.foodItem.description) (\(Int($0.foodItem.calories)) kcal)" }
+        }
+
+        // --- Water ---
+        let waterKey = "waterConsumed_\(uid)_\(f.string(from: today))"
+        let waterConsumed = UserDefaults.standard.integer(forKey: waterKey)
+        let waterGoal = UserDefaults.standard.integer(forKey: "waterGoal")
+
+        // --- Height formatting (height is stored as total inches) ---
+        let totalInches = Int(user?.height ?? 0)
+        let heightFt = totalInches / 12
+        let heightIn = totalInches % 12
+        let heightStr = totalInches > 0 ? "\(heightFt)'\(heightIn)\"" : "Not set"
+
+        // --- Age (computed directly from birthDate) ---
+        let ageStr = user != nil ? "\(user!.age) years old" : "Not set"
+
+        // --- BMI (weight lbs / height inches² × 703) ---
+        let bmiStr: String = {
+            guard let u = user, totalInches > 0 else { return "N/A" }
+            let bmi = (u.weight / Double(totalInches * totalInches)) * 703
+            return String(format: "%.1f", bmi)
+        }()
+
+        // --- BMR ---
+        let bmrStr = user != nil ? "\(Int(user!.bmr)) kcal/day" : "N/A"
+
+        return """
+        === USER PROFILE ===
+        Name: \(user?.name ?? "Unknown")
+        Age: \(ageStr)
+        Gender: \(user?.gender ?? "Not set")
+        Height: \(heightStr)
+        Current weight: \(Int(user?.weight ?? 0)) lbs (\(String(format: "%.1f", user?.weightKg ?? 0)) kg)
+        Target weight: \(user?.targetWeightLbs.map { "\(Int($0)) lbs" } ?? "Not set")
+        BMI: \(bmiStr)
+        BMR: \(bmrStr)
+
+        === GOALS & TARGETS ===
+        Primary goal: \(user?.primaryGoal ?? "Unknown")
+        Activity level: \(user?.activityLevel ?? "Unknown")
+        Daily calorie goal: \(user?.calorieGoal ?? 0) kcal
+        Units preference: \(user?.units ?? "Imperial")
+
+        === TODAY'S NUTRITION ===
+        Calories eaten: \(Int(totalCaloriesEaten)) kcal (goal: \(user?.calorieGoal ?? 0) kcal)
+        Protein: \(Int(totalProtein))g | Carbs: \(Int(totalCarbs))g | Fat: \(Int(totalFat))g
+        Foods logged today:
+          • \(loggedFoodNames.isEmpty ? "Nothing logged yet" : loggedFoodNames.joined(separator: "\n  • "))
+
+        === TODAY'S HYDRATION ===
+        Water consumed: \(waterConsumed) / \(waterGoal > 0 ? waterGoal : 8) glasses
+
+        === TODAY'S WORKOUTS ===
+        Completed: \(completedToday.count) workout(s)
+        Total calories burned: \(totalCalsBurned) kcal
+        Details:
+          • \(workoutDetails.isEmpty ? "None yet" : workoutDetails)
+
+        === FITNESS STATS ===
+        Current streak: \(streak) days
+        Total exercises in library: \(exercises.count)
         """
     }
 }
